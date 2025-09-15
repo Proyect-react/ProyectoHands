@@ -1,0 +1,66 @@
+.estilos {
+    padding: 2rem;
+    text-align: center;
+    background: linear-gradient(135deg, #e0f7fa, #f0f0ff);
+    min-height: 100vh;
+    font-family: 'Poppins', sans-serif;
+  }
+  
+  .Button {
+    padding: 1rem 2rem;
+    margin: 1rem 0;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+  }
+  
+  .Button:hover {
+    transform: scale(1.05);
+  }
+  
+  .progreso {
+    margin-top: 2rem;
+    background: rgba(255, 255, 255, 0.3);
+    padding: 1rem;
+    border-radius: 16px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  }
+  .estilos {
+    padding: 2rem;
+    text-align: center;
+    background: linear-gradient(135deg, #e0f7fa, #f0f0ff);
+    min-height: 100vh;
+    font-family: 'Poppins', sans-serif;
+  }
+  
+  .Button {
+    padding: 1rem 2rem;
+    margin: 1rem 0;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+  }
+  
+  .Button:hover {
+    transform: scale(1.05);
+  }
+  
+  .progreso {
+    margin-top: 2rem;
+    background: rgba(255, 255, 255, 0.3);
+    padding: 1rem;
+    border-radius: 16px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  }
