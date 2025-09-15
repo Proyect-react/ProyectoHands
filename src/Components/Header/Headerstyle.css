@@ -8,47 +8,51 @@
 .container {
     width: 90%;
     max-width: 1000px;
+    margin-left: 0;   /* pegado al borde izquierdo */
+    margin-right: auto; /* empuja hacia la izquierda */
     display: flex;
     flex-direction: column;
     flex-wrap: nowrap;
-    padding-left: 0; /* Elimina el padding para acercar el contenido al borde */
+    align-items: flex-start; /* Alinea el contenido a la izquierda */
+    text-align: left;        /* Alinea el texto a la izquierda */
 }
 
 .container h2 {
     margin: 0;
     padding: 0;
-    line-height: 1.2; /* Reduce el line-height para acercar el título */
-    padding-left: 0;  /* Elimina el padding izquierdo */
+    line-height: 1.2;
+    padding-left: 70px;
+    margin-top: 4px;
+    text-align: left; /* Asegura que el subtítulo esté alineado a la izquierda */
 }
 
 .container h5 {
     margin: 0;
     padding: 0;
     line-height: 1.2;
-    padding-left: 70px;  /* Añade padding izquierdo para separar el subtítulo */
-    margin-top: 4px;  /* Añade un pequeño margen superior para que h5 comience justo debajo de h2 */
+    padding-left: 70px;
+    margin-top: 4px;
+    text-align: left; /* Asegura que el subtítulo esté alineado a la izquierda */
 }
 
-/* Estilos para alinear a la derecha los elementos debajo de "Sistema de Entrenamiento con IA" */
-/* Para que esté más arriba, ajustamos el margin-top a un valor negativo */
 .Header2 {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    margin-top: -50px; /* Subimos el bloque */
+    margin-top: -50px;
 }
 
 .Header2 h5 {
     margin: 0;
     padding: 0;
     line-height: 1.2;
-    padding-right: 80px;  /* Añade padding izquierdo para separar el subtítulo */
+    padding-right: 80px;
     margin-top: 0px;
 }
 .Header2 h2 {
     margin: 0;
     padding: 0;
     line-height: 1.2;
-    padding-right: 30px;  /* Añade padding izquierdo para separar el subtítulo */
+    padding-right: 30px;
     margin-top: 0px;
 }

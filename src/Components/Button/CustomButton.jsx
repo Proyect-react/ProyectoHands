@@ -24,4 +24,3 @@ const CustomButton = ({text, onclick}) => {
     );
 };
 
-export default CustomButton;

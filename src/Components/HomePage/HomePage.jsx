@@ -1,14 +1,16 @@
 // src/components/HomePage.jsx
 import "./HomePage.css";
 import Header from "../Header/Header";
+import { useNavigate } from "react-router-dom";
 
  function HomePage() {
+  const navigate = useNavigate();
   return (
     <><Header /><div className="estilos">
       <h1>Aprende Vocales con IA</h1>
       <p>Sistema inteligente de reconocimiento de gestos para identificar vocales con las manos.</p>
 
-      <button className="Button">Entrenar Modelo</button>
+      <button className="Button" onClick={() => navigate("/Entrenamiento")}>Entrenar Modelo</button>
 
       <div className="progreso">
         <h3>Tu Progreso</h3>

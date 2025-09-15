@@ -1,0 +1,84 @@
+.Entrenamiento {
+    background-color: black;
+    width: 100vw;
+    height: 100vh;
+    min-height: 100vh;
+    min-width: 100vw;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.Titulo {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #0057b8;
+    padding: 20px 40px;
+    border-radius: 0 0 0px 0px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin: 0 auto 32px auto;
+    max-width: 100%;
+    min-height: unset;
+}
+
+.Button {
+    background-color: #00AA55;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    margin-bottom: 0;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.Buton:hover {
+    background-color: #008944;
+}
+
+.Entrenar {
+    background-color: #fff;
+    color: #0057b8;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    margin-top: 0;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.Entrenar:hover {
+    background-color: #e6f0fa;
+}
+
+.Titulo h2 {
+    margin: 0 24px;
+    color: #fff;
+    font-size: 1.7rem;
+    font-weight: 700;
+    text-align: center;
+    flex: 1;
+}
+
+.Modelos {
+    background-color: #f5f7fa;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    padding: 24px 34px;
+    margin-left: 500px;
+    max-width: 200px;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+.Modelos tr {
+    color: black;
+
+}
