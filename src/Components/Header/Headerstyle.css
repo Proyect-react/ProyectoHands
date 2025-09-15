@@ -1,54 +1,84 @@
 .Header {
-    background-color: #2c3e50;
+    background: linear-gradient(135deg, #2D1B69, #11998E);
     color: #fff;
-    padding: 20px 0;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    padding: 1.5rem 2rem;
+    box-shadow: 0 4px 20px rgba(45, 27, 105, 0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Inter', sans-serif;
+    border-bottom: 3px solid #FFE66D;
 }
 
 .container {
-    width: 90%;
-    max-width: 1000px;
     display: flex;
     flex-direction: column;
-    flex-wrap: nowrap;
-    padding-left: 0; /* Elimina el padding para acercar el contenido al borde */
+    gap: 0.25rem;
 }
 
 .container h2 {
     margin: 0;
     padding: 0;
-    line-height: 1.2; /* Reduce el line-height para acercar el título */
-    padding-left: 0;  /* Elimina el padding izquierdo */
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1.2;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.container h2::before {
+    content: "🤖👋";
+    font-size: 1.2rem;
 }
 
 .container h5 {
     margin: 0;
     padding: 0;
+    font-size: 0.9rem;
+    font-weight: 400;
+    opacity: 0.9;
     line-height: 1.2;
-    padding-left: 70px;  /* Añade padding izquierdo para separar el subtítulo */
-    margin-top: 4px;  /* Añade un pequeño margen superior para que h5 comience justo debajo de h2 */
 }
 
-/* Estilos para alinear a la derecha los elementos debajo de "Sistema de Entrenamiento con IA" */
-/* Para que esté más arriba, ajustamos el margin-top a un valor negativo */
 .Header2 {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    margin-top: -50px; /* Subimos el bloque */
+    gap: 0.25rem;
 }
 
 .Header2 h5 {
     margin: 0;
     padding: 0;
+    font-size: 0.9rem;
+    font-weight: 400;
+    opacity: 0.9;
     line-height: 1.2;
-    padding-right: 80px;  /* Añade padding izquierdo para separar el subtítulo */
-    margin-top: 0px;
 }
+
 .Header2 h2 {
     margin: 0;
     padding: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
     line-height: 1.2;
-    padding-right: 30px;  /* Añade padding izquierdo para separar el subtítulo */
-    margin-top: 0px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .Header {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .Header2 {
+        align-items: center;
+    }
+    
+    .container h2 {
+        font-size: 1.5rem;
+    }
 }
