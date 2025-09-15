@@ -252,8 +252,8 @@
 
 .camera-placeholder {
   background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.5));
-  border-radius: 20px;
-  padding: 4rem 2rem;
+  border-radius: 30px;
+  padding: 3rem 2rem;
   text-align: center;
   border: 2px dashed rgba(255, 255, 255, 0.3);
   transition: all 0.3s ease;

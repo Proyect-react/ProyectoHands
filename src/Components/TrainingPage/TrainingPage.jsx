@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './TrainingPage.css';
+import MediapipeHands from '../Camara/camara';
 
 function TrainingPage() {
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ function TrainingPage() {
           ← Volver al Inicio
         </button>
         <h1>Crea y entrena modelos personalizados</h1>
-          <button className='NuevoModelo'>Crear Modelo</button>
+        <button className='NuevoModelo'>Crear Modelo</button>
       </div>
 
       {/* Main Content */}
@@ -57,7 +58,7 @@ function TrainingPage() {
           <div className="section-header">
             <h2>🧠 Mis Modelos</h2>
           </div>
-          
+
           {models.length === 0 ? (
             <div className="no-models">
               <p>No tienes modelos creados aún</p>
@@ -78,7 +79,7 @@ function TrainingPage() {
                 </div>
                 <div className="model-progress">
                   <div className="progress-bar">
-                    <div className="progress-fill" style={{width: `${model.progress}%`}}></div>
+                    <div className="progress-fill" style={{ width: `${model.progress}%` }}></div>
                   </div>
                   <span className="progress-text">{model.progress}%</span>
                 </div>
@@ -92,54 +93,54 @@ function TrainingPage() {
           <div className="section-header">
             <h2>📹 Cámara de Entrenamiento</h2>
           </div>
-          
+
           <div className="camera-feed">
-            <div className="camera-placeholder">
-              <div className="camera-icon-large">📹</div>
-              <p>{isCameraActive ? 'Vista previa de la cámara' : 'Cámara no iniciada'}</p>
-              <p className="camera-description">
-                {isCameraActive 
-                  ? 'Posiciona tu mano frente a la cámara para entrenar el modelo'
-                  : 'Haz clic en "Iniciar Cámara" para comenzar'
-                }
-              </p>
-              <div className="camera-status">
-                <span className={`status-dot ${isCameraActive ? 'active' : ''}`}></span>
-                <span>{isCameraActive ? 'Cámara activa' : 'Cámara inactiva'}</span>
+            {isCameraActive ? (
+              <MediapipeHands />
+            ) : (
+              <div className="camera-placeholder">
+                <div className="camera-icon-large">📹</div>
+                <p>Cámara no iniciada</p>
+                <p className="camera-description">
+                  Haz clic en "Iniciar Cámara" para comenzar
+                </p>
               </div>
-              <div className="camera-controls">
-                <button 
-                  className="camera-btn" 
-                  onClick={handleStartCamera}
-                  disabled={isCameraActive}
-                >
-                  📷 Iniciar Cámara
-                </button>
-                <button 
-                  className="camera-btn" 
-                  onClick={handlePauseCamera}
-                  disabled={!isCameraActive}
-                >
-                  ⏸️ Pausar
-                </button>
-                <button 
-                  className="camera-btn" 
-                  onClick={handleStopCamera}
-                  disabled={!isCameraActive}
-                >
-                  ⏹️ Detener
-                </button>
-              </div>
+            )}
+
+            {/* Controles de cámara */}
+            <div className="camera-controls">
+              <button
+                className="camera-btn"
+                onClick={handleStartCamera}
+                disabled={isCameraActive}
+              >
+                📷 Iniciar Cámara
+              </button>
+              <button
+                className="camera-btn"
+                onClick={handlePauseCamera}
+                disabled={!isCameraActive}
+              >
+                ⏸️ Pausar
+              </button>
+              <button
+                className="camera-btn"
+                onClick={handleStopCamera}
+                disabled={!isCameraActive}
+              >
+                ⏹️ Detener
+              </button>
             </div>
           </div>
+
 
           <div className="training-controls">
             <h3>Entrenamiento: {currentLetter || 'Selecciona una letra'}</h3>
             <div className="current-letter">
               <div className="letter-display">{currentLetter || '?'}</div>
             </div>
-            <button 
-              className="collect-button" 
+            <button
+              className="collect-button"
               onClick={handleCollectData}
               disabled={!isCameraActive || !currentLetter}
             >
