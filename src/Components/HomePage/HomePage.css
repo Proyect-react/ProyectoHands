@@ -1,66 +1,475 @@
-.estilos {
-    padding: 2rem;
-    text-align: center;
-    background: linear-gradient(135deg, #e0f7fa, #f0f0ff);
-    min-height: 100vh;
-    font-family: 'Poppins', sans-serif;
+/* Importar fuentes */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Contenedor principal */
+.main-container {
+  background: linear-gradient(135deg, #F8F4FF, #E8F8F5);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Sección hero */
+.hero-section {
+  text-align: center;
+  margin-bottom: 3rem;
+  padding: 2rem 0;
+}
+
+.main-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2D1B69, #11998E);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.description {
+  font-size: 1.1rem;
+  color: #666;
+  max-width: 600px;
+  margin: 0 auto 2rem;
+  line-height: 1.6;
+}
+
+.main-button {
+  background: linear-gradient(135deg, #2D1B69, #11998E);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 25px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(45, 27, 105, 0.4);
+  border: 2px solid #FFE66D;
+}
+
+.main-button:hover {
+  background: linear-gradient(135deg, #1A0F4A, #0D6B5F);
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(45, 27, 105, 0.5);
+}
+
+.hand-icon {
+  font-size: 1.2rem;
+  animation: wave 2s ease-in-out infinite;
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(20deg); }
+  75% { transform: rotate(-20deg); }
+}
+
+/* Sección de progreso */
+.progress-section {
+  margin-bottom: 2rem;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.progress-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.level-button {
+  background: linear-gradient(135deg, #FFE66D, #11998E);
+  color: #333;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 230, 109, 0.3);
+}
+
+.level-button:hover {
+  background: linear-gradient(135deg, #FFD93D, #0D6B5F);
+  transform: scale(1.05);
+}
+
+.refresh-icon {
+  font-size: 0.8rem;
+}
+
+/* Tarjetas de progreso */
+.progress-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.progress-card {
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
+  border-radius: 20px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--card-color), var(--card-color-light));
+}
+
+.progress-card:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.progress-card.blue {
+  --card-color: #11998E;
+  --card-color-light: #4ECDC4;
+}
+
+.progress-card.green {
+  --card-color: #FFE66D;
+  --card-color-light: #FFD93D;
+}
+
+.progress-card.purple {
+  --card-color: #2D1B69;
+  --card-color-light: #5A4FCF;
+}
+
+.progress-card.yellow {
+  --card-color: #95E1D3;
+  --card-color-light: #C7CEEA;
+}
+
+.card-icon {
+  font-size: 2rem;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--card-color), var(--card-color-light));
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.card-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.card-text {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 500;
+}
+
+/* Progreso General */
+.general-progress {
+  margin-bottom: 2rem;
+}
+
+.general-progress h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 1rem;
+}
+
+.progress-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background: #E5E7EB;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2D1B69, #11998E, #FFE66D);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-percentage {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  min-width: 40px;
+}
+
+/* Vocales Dominadas */
+.vowels-section {
+  margin-bottom: 2rem;
+}
+
+.vowels-section h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 1rem;
+}
+
+.vowels-container {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.vowel {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #E5E7EB, #F3F4F6);
+  color: #9CA3AF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 3px solid transparent;
+}
+
+.vowel.mastered {
+  background: linear-gradient(135deg, #11998E, #0D6B5F);
+  color: white;
+  box-shadow: 0 6px 20px rgba(17, 153, 142, 0.4);
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  from { box-shadow: 0 6px 20px rgba(17, 153, 142, 0.4); }
+  to { box-shadow: 0 8px 25px rgba(17, 153, 142, 0.6); }
+}
+
+.vowel:hover {
+  transform: scale(1.1) rotate(5deg);
+}
+
+/* Sesiones Recientes */
+.recent-sessions h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 1rem;
+}
+
+.session-item {
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
+  border-radius: 20px;
+  padding: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border: 2px solid #FFE66D;
+  position: relative;
+  overflow: hidden;
+}
+
+.session-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, #FF6B6B, #4ECDC4);
+}
+
+.session-item:hover {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.session-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.session-details {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.session-accuracy {
+  font-size: 1.2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #4ECDC4, #44A08D);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .main-container {
+    padding: 1.5rem;
   }
   
-  .Button {
-    padding: 1rem 2rem;
-    margin: 1rem 0;
-    background: rgba(255, 255, 255, 0.2);
-    border: none;
-    border-radius: 12px;
-    backdrop-filter: blur(10px);
-    font-size: 1rem;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease;
+  .main-title {
+    font-size: 2.2rem;
   }
   
-  .Button:hover {
-    transform: scale(1.05);
+  .progress-cards {
+    grid-template-columns: repeat(2, 1fr);
   }
-  
-  .progreso {
-    margin-top: 2rem;
-    background: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 768px) {
+  .main-container {
     padding: 1rem;
-    border-radius: 16px;
-    backdrop-filter: blur(8px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-  }
-  .estilos {
-    padding: 2rem;
-    text-align: center;
-    background: linear-gradient(135deg, #e0f7fa, #f0f0ff);
-    min-height: 100vh;
-    font-family: 'Poppins', sans-serif;
   }
   
-  .Button {
-    padding: 1rem 2rem;
-    margin: 1rem 0;
-    background: rgba(255, 255, 255, 0.2);
-    border: none;
-    border-radius: 12px;
-    backdrop-filter: blur(10px);
+  .main-title {
+    font-size: 1.8rem;
+  }
+  
+  .description {
     font-size: 1rem;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease;
   }
   
-  .Button:hover {
-    transform: scale(1.05);
+  .progress-cards {
+    grid-template-columns: 1fr;
   }
   
-  .progreso {
-    margin-top: 2rem;
-    background: rgba(255, 255, 255, 0.3);
+  .progress-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .vowels-container {
+    justify-content: center;
+  }
+  
+  .main-button {
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+  }
+  
+  .hero-section {
+    padding: 1rem 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .main-container {
+    padding: 0.5rem;
+  }
+  
+  .main-title {
+    font-size: 1.5rem;
+  }
+  
+  .description {
+    font-size: 0.9rem;
+  }
+  
+  .main-button {
+    padding: 0.7rem 1.2rem;
+    font-size: 0.9rem;
+  }
+  
+  .progress-cards {
+    gap: 0.75rem;
+  }
+  
+  .progress-card {
     padding: 1rem;
-    border-radius: 16px;
-    backdrop-filter: blur(8px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
   }
+  
+  .card-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 1.5rem;
+  }
+  
+  .vowel {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
+  }
+  
+  .session-item {
+    padding: 1rem;
+  }
+}

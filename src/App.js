@@ -1,19 +1,18 @@
 import './App.css';
-import { BrowserRouter as Router, Routes, Route, BrowserRouter } from 'react-router-dom';
-import Header from './Components/Header/Header';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import HomePage from './Components/HomePage/HomePage';
-import Entrenamiento from './Components/Entrenamiento/Entrenamiento';
+import TrainingPage from './Components/TrainingPage/TrainingPage';
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
+    <Router>
+      <div className="App">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/entrenamiento" element={<Entrenamiento />} />
+          <Route path="/training" element={<TrainingPage />} />
         </Routes>
-      </BrowserRouter>
-    </div>
+      </div>
+    </Router>
   );
 }
 
