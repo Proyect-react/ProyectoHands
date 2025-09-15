@@ -13,20 +13,19 @@ function HomePage() {
   return (
     <>
       <Header />
+      {/* Sección principal con título y descripción - FUERA del main-container */}
+      <div className="hero-section">
+        <h1 className="main-title">Aprende Lenguaje de Señas con IA</h1>
+        <p className="description">
+          Sistema inteligente de reconocimiento de gestos para dominar las vocales del lenguaje de señas. 
+          Entrenamientos personalizados con feedback en tiempo real.
+        </p>
+        <button className="main-button" onClick={handleTrainingClick}>
+          <span className="hand-icon">🤖</span>
+          Entrenar Modelos Personalizados IA
+        </button>
+      </div>
       <div className="main-container">
-        {/* Sección principal con título y descripción */}
-        <div className="hero-section">
-          <h1 className="main-title">Aprende Lenguaje de Señas con IA</h1>
-          <p className="description">
-            Sistema inteligente de reconocimiento de gestos para dominar las vocales del lenguaje de señas. 
-            Entrenamientos personalizados con feedback en tiempo real.
-          </p>
-          <button className="main-button" onClick={handleTrainingClick}>
-            <span className="hand-icon">🤖</span>
-            Entrenar Modelos Personalizados IA
-          </button>
-        </div>
-
         {/* Sección de progreso del usuario */}
         <div className="progress-section">
           <div className="progress-header">

@@ -4,10 +4,10 @@ import './TrainingPage.css';
 
 function TrainingPage() {
   const navigate = useNavigate();
-  const [currentLetter, setCurrentLetter] = useState('');
-  const [samples, setSamples] = useState(0);
-  const [progress, setProgress] = useState(0);
-  const [models, setModels] = useState([]);
+  const [currentLetter] = useState('');
+  const [samples] = useState(0);
+  const [progress] = useState(0);
+  const [models] = useState([]);
   const [isCameraActive, setIsCameraActive] = useState(false);
 
   const handleBackToHome = () => {
@@ -47,11 +47,7 @@ function TrainingPage() {
           ← Volver al Inicio
         </button>
         <h1>Crea y entrena modelos personalizados</h1>
-        <div className="camera-indicator">
-          <span className="camera-icon">📹</span>
-          <span>{isCameraActive ? 'Cámara activa' : 'Cámara inactiva'}</span>
-          <span className="memory-usage">Uso de memoria: 0 MB</span>
-        </div>
+          <button className='NuevoModelo'>Crear Modelo</button>
       </div>
 
       {/* Main Content */}

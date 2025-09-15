@@ -10,68 +10,83 @@
   padding: 0;
 }
 
-
 /* Header */
 .training-header {
   background: linear-gradient(135deg, #2D1B69, #11998E);
-  padding: 1rem 2rem;
-  box-shadow: 0 4px 20px rgba(45, 27, 105, 0.3);
-  border-bottom: 3px solid #FFE66D;
+  padding: 0rem 3rem;
+  max-height: 150px;
+  min-height: 110px;
+  box-shadow: 0 6px 28px rgba(45, 27, 105, 0.35);
+  border-bottom: 4px solid #FFE66D;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
 }
 
+/* Nuevo: contenedor para centrar el título y distribuir los botones */
+.training-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* Botón volver alineado a la izquierda */
 .back-button {
   background: rgba(255, 255, 255, 0.2);
   color: white;
   border: none;
   padding: 0.4rem 0.8rem;
-  border-radius: 15px;
-  font-size: 0.8rem;
+  border-radius: 20px;
+  font-size: 1.2rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
   backdrop-filter: blur(10px);
-  margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  order: 1;
+  margin-bottom: 0; /* Quitar margen para alineación */
 }
 
-.back-button:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateX(-5px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
+/* Centrar el título */
 .training-header h1 {
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   font-weight: 700;
-  margin: 0;
+  margin: 0 auto;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  flex: 1 1 auto;
+  order: 2;
 }
 
-.camera-indicator {
-  position: absolute;
-  top: 0.5rem;
-  right: 2rem;
-  background: rgba(255, 255, 255, 0.15);
-  padding: 0.4rem 0.8rem;
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.7rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+/* Botón crear modelo alineado a la derecha */
+.NuevoModelo {
+  background: linear-gradient(135deg, #FFE66D, #11998E);
+  color: #2D1B69;
+  border: none;
+  padding: 0.6rem 1.4rem;
+  border-radius: 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(255, 230, 109, 0.2);
+  transition: all 0.3s;
+  outline: none;
+  order: 3;
+  margin-left: 0;
+  margin-right: 0;
 }
 
-.camera-icon {
-  font-size: 0.8rem;
-}
-
-.memory-usage {
-  color: #FFE66D;
-  font-weight: 600;
+/* Hover para el botón crear modelo */
+.NuevoModelo:hover {
+  background: linear-gradient(135deg, #FFD93D, #0D6B5F);
+  color: #fff;
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(255, 230, 109, 0.3);
 }
 
 /* Contenido principal */
@@ -479,11 +494,26 @@
   
   .training-header {
     padding: 0.8rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .training-header-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
   }
   
   .training-header h1 {
     font-size: 1.2rem;
     text-align: center;
+    margin: 0 auto;
+  }
+  
+  .back-button,
+  .NuevoModelo {
+    flex: none;
   }
   
   .camera-indicator {
@@ -539,10 +569,26 @@
   
   .training-header {
     padding: 0.6rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .training-header-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
   }
   
   .training-header h1 {
     font-size: 1rem;
+    text-align: center;
+    margin: 0 auto;
+  }
+  
+  .back-button,
+  .NuevoModelo {
+    flex: none;
   }
   
   .camera-indicator {
