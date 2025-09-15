@@ -1,9 +1,10 @@
 // src/components/HomePage.jsx
-import "./HomePage.css"; 
+import "./HomePage.css";
+import Header from "../Header/Header";
 
  function HomePage() {
   return (
-    <div className="estilos">
+    <><Header /><div className="estilos">
       <h1>Aprende Vocales con IA</h1>
       <p>Sistema inteligente de reconocimiento de gestos para identificar vocales con las manos.</p>
 
@@ -18,7 +19,7 @@ import "./HomePage.css";
           <li>Tiempo Total: 1m</li>
         </ul>
       </div>
-    </div>
+    </div></>
   );
 }
 export default HomePage;
