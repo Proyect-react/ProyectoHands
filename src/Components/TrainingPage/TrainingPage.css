@@ -669,3 +669,178 @@
     font-size: 0.7rem;
   }
 }
+
+/* Fondo del modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(40, 40, 60, 0.45);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Contenedor del modal */
+.modal-content {
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  padding: 2.5rem 2.2rem;
+  min-width: 340px;
+  max-width: 95vw;
+  position: relative;
+  color: #2D1B69;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Botón de cerrar (la X) */
+.modal-content button[aria-label="Cerrar"] {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 1.7rem;
+  color: #2D1B69;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.modal-content h2 {
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: #2D1B69;
+}
+
+/* Inputs y selects */
+.modal-content .form-group {
+  margin-bottom: 1.2rem;
+}
+
+.modal-content .form-group label {
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+  display: block;
+}
+
+.modal-content input,
+.modal-content select {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+}
+
+/* Acciones del modal */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+/* Botones del modal */
+.modal-btn.crear {
+  background: linear-gradient(135deg, #FFE66D, #11998E);
+  color: #2D1B69;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.modal-btn.cancelar {
+  background: #eee;
+  color: #2D1B69;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+/* Estilos para etiquetas en formulario de crear modelo */
+.label-input-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.label-input {
+  flex: 1;
+}
+
+.remove-label-btn {
+  margin-left: 0.5rem;
+  background: none;
+  border: none;
+  color: #d00;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.add-label-btn {
+  margin-top: 0.5rem;
+  background: #eee;
+  color: #2D1B69;
+  border: none;
+  border-radius: 8px;
+  padding: 0.4rem 1rem;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+/* Estilos para etiquetas disponibles */
+.etiquetas-disponibles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  justify-content: center;
+}
+
+.no-labels-message {
+  color: #ccc;
+  font-style: italic;
+}
+
+.etiqueta-btn {
+  padding: 0.5rem 1.1rem;
+  border-radius: 8px;
+  border: 1px solid #2D1B69;
+  background: #fff;
+  color: #2D1B69;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.etiqueta-btn.seleccionada {
+  border: 2px solid #FFE66D;
+  background: linear-gradient(135deg, #FFE66D, #11998E);
+  color: #2D1B69;
+  box-shadow: 0 2px 8px rgba(45,27,105,0.12);
+}
+
+/* Estilos para información del modelo */
+.model-labels-info {
+  margin-top: 0.3rem;
+  font-size: 0.95em;
+}
