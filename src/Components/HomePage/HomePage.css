@@ -80,57 +80,11 @@
 /* Centrar y limitar el ancho de las tarjetas igual que el main */
 .progress-cards {
   display: flex;
-  flex-direction: row;
-  gap: 0;
-  margin-bottom: 2rem;
-  justify-content: center;
-  width: 100%;
-  max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
-  box-sizing: border-box;
+  flex-wrap: wrap;
+  gap: 24px; /* Espacio entre tarjetas, ajusta el valor según lo que necesites */
+  justify-content: center; /* Opcional: centra las tarjetas */
 }
 
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.progress-header h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0;
-}
-
-.level-button {
-  background: linear-gradient(135deg, #FFE66D, #11998E);
-  color: #333;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(255, 230, 109, 0.3);
-}
-
-.level-button:hover {
-  background: linear-gradient(135deg, #FFD93D, #0D6B5F);
-  transform: scale(1.05);
-}
-
-.refresh-icon {
-  font-size: 0.8rem;
-}
-
-/* Tarjetas de progreso */
 .progress-card {
   background: linear-gradient(135deg, #ffffff, #f8f9fa);
   border-radius: 0;
@@ -147,6 +101,7 @@
   max-width: 20%;
   flex: 1 1 20%;
   box-sizing: border-box;
+  margin-bottom: 24px; /* Espacio inferior entre filas de tarjetas */
 }
 
 .progress-card:first-child {
@@ -412,6 +367,84 @@
   background-clip: text;
 }
 
+/* Tarjetas de entrenamiento de vocales */
+.training-cards {
+  margin-top: 3rem; /* Más espacio arriba */
+  margin-bottom: 2rem; /* Más espacio abajo */
+  text-align: center;
+}
+
+.training-cards-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px; /* Espacio entre tarjetas */
+  justify-content: center;
+  align-items: stretch;
+  margin-top: 1rem;
+}
+
+.training-card {
+  background: linear-gradient(135deg, #f8f9fa, #e8f8f5);
+  border-radius: 24px;
+  padding: 2rem 1rem;
+  box-shadow: 0 4px 20px rgba(45, 27, 105, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 220px;
+  max-width: 260px;
+  flex: 1 1 220px;
+  box-sizing: border-box;
+  transition: transform 0.2s;
+  border: 2px solid #FFE66D;
+}
+
+.training-card:hover {
+  transform: translateY(-5px) scale(1.03);
+  box-shadow: 0 8px 30px rgba(45, 27, 105, 0.12);
+}
+
+.training-card .card-icon {
+  width: 60px;
+  height: 60px;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #11998E, #4ECDC4);
+  color: white;
+  box-shadow: 0 4px 12px rgba(17, 153, 142, 0.12);
+}
+
+.training-card .Img {
+  margin: 1rem 0;
+}
+
+.training-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.5rem 0;
+}
+
+.training-card .progress-bar-container {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.training-card .progress-bar {
+  height: 10px;
+  border-radius: 5px;
+}
+
+.training-card .progress-fill {
+  border-radius: 5px;
+}
+
+.training-card .progress-percentage {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  min-width: 40px;
+}
+
 /* Responsive Design */
 @media (max-width: 1200px) {
   .progress-cards {
@@ -479,6 +512,10 @@
     max-width: 40px;
     max-height: 40px;
     font-size: 4vw;
+  }
+  .training-cards {
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
   }
 }
 
@@ -588,5 +625,66 @@
   
   .session-item {
     padding: 1rem;
+  }
+}
+
+/* Estilos para el botón de cambio de modo */
+.training-mode-switch {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1.2rem;
+}
+
+.mode-switch-button {
+  background: linear-gradient(135deg, #2D1B69, #11998E);
+  color: #fff;
+  border: none;
+  border-radius: 25px;
+  padding: 0.7rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 15px rgba(45, 27, 105, 0.18);
+  transition: all 0.3s;
+  outline: none;
+}
+
+.mode-switch-button:hover {
+  background: linear-gradient(135deg, #1A0F4A, #0D6B5F);
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 8px 25px rgba(45, 27, 105, 0.22);
+}
+
+.switch-icon {
+  font-size: 1.3rem;
+  transition: transform 0.3s;
+}
+
+.mode-switch-button:active .switch-icon {
+  transform: rotate(180deg);
+}
+
+/* Responsive para el botón */
+@media (max-width: 768px) {
+  .mode-switch-button {
+    padding: 0.6rem 1.2rem;
+    font-size: 1rem;
+  }
+  .training-mode-switch {
+    margin-bottom: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .mode-switch-button {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.95rem;
+  }
+  .training-mode-switch {
+    margin-bottom: 0.5rem;
   }
 }
