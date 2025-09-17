@@ -9,6 +9,7 @@
   max-width: 1200px;
   margin: 0 auto;
   border-radius: 50px;
+  box-sizing: border-box;
 }
 
 /* Sección hero */
@@ -74,7 +75,20 @@
 /* Sección de progreso */
 .progress-section {
   margin-bottom: 2rem;
-  
+}
+
+/* Centrar y limitar el ancho de las tarjetas igual que el main */
+.progress-cards {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  margin-bottom: 2rem;
+  justify-content: center;
+  width: 100%;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
 }
 
 .progress-header {
@@ -117,17 +131,10 @@
 }
 
 /* Tarjetas de progreso */
-.progress-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
 .progress-card {
   background: linear-gradient(135deg, #ffffff, #f8f9fa);
-  border-radius: 20px;
-  padding: 1.5rem;
+  border-radius: 0;
+  padding: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -136,6 +143,20 @@
   border: 2px solid transparent;
   position: relative;
   overflow: hidden;
+  min-width: 20%;
+  max-width: 20%;
+  flex: 1 1 20%;
+  box-sizing: border-box;
+}
+
+.progress-card:first-child {
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+.progress-card:last-child {
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
 }
 
 .progress-card::before {
@@ -173,10 +194,20 @@
   --card-color-light: #C7CEEA;
 }
 
+.progress-card.orange {
+  --card-color: #FFB347;
+  --card-color-light: #FFD580;
+}
+
+/* Imagen/Icono de la tarjeta responsive */
 .card-icon {
-  font-size: 2rem;
-  width: 60px;
-  height: 60px;
+  width: 4vw;
+  height: 4vw;
+  min-width: 40px;
+  min-height: 40px;
+  max-width: 60px;
+  max-height: 60px;
+  font-size: 2vw;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -184,6 +215,7 @@
   border-radius: 50%;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   animation: pulse 2s ease-in-out infinite;
+  object-fit: contain;
 }
 
 @keyframes pulse {
@@ -381,6 +413,26 @@
 }
 
 /* Responsive Design */
+@media (max-width: 1200px) {
+  .progress-cards {
+    gap: 0;
+    max-width: 100%;
+  }
+  .progress-card {
+    min-width: 20%;
+    max-width: 20%;
+  }
+  .card-icon {
+    width: 6vw;
+    height: 6vw;
+    min-width: 36px;
+    min-height: 36px;
+    max-width: 48px;
+    max-height: 48px;
+    font-size: 2.5vw;
+  }
+}
+
 @media (max-width: 1024px) {
   .main-container {
     padding: 1.5rem;
@@ -391,7 +443,42 @@
   }
   
   .progress-cards {
-    grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+    max-width: 100%;
+  }
+  .progress-card {
+    min-width: 20%;
+    max-width: 20%;
+  }
+  .card-icon {
+    width: 7vw;
+    height: 7vw;
+    min-width: 32px;
+    min-height: 32px;
+    max-width: 44px;
+    max-height: 44px;
+    font-size: 3vw;
+  }
+}
+
+@media (max-width: 900px) {
+  .progress-cards {
+    flex-wrap: wrap;
+    gap: 0;
+    max-width: 100%;
+  }
+  .progress-card {
+    min-width: 50%;
+    max-width: 50%;
+  }
+  .card-icon {
+    width: 10vw;
+    height: 10vw;
+    min-width: 28px;
+    min-height: 28px;
+    max-width: 40px;
+    max-height: 40px;
+    font-size: 4vw;
   }
 }
 
@@ -409,7 +496,26 @@
   }
   
   .progress-cards {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .progress-card {
+    min-width: 100%;
+    max-width: 100%;
+    border-radius: 20px !important;
+  }
+  .card-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 28px;
+    min-height: 28px;
+    max-width: 40px;
+    max-height: 40px;
+    font-size: 1.5rem;
   }
   
   .progress-header {
@@ -451,17 +557,27 @@
   }
   
   .progress-cards {
-    gap: 0.75rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
   }
   
   .progress-card {
-    padding: 1rem;
+    min-width: 100%;
+    max-width: 100%;
+    border-radius: 20px !important;
   }
-  
   .card-icon {
-    width: 50px;
-    height: 50px;
-    font-size: 1.5rem;
+    width: 32px;
+    height: 32px;
+    min-width: 24px;
+    min-height: 24px;
+    max-width: 32px;
+    max-height: 32px;
+    font-size: 1.2rem;
   }
   
   .vowel {

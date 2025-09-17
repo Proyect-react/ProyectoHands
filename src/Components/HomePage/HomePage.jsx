@@ -105,9 +105,9 @@ function HomePage() {
             <div className="session-accuracy">100.0%</div>
           </div>
         </div>
-
-        {/* tarjetas de entrenamiento */}
-        <div className="training-cards">
+      </div>
+      {/* tarjetas de entrenamiento */}
+      <div className="training-cards">
           <h3>Entrenamiento de vocales</h3>
           <div className="progress-cards">
             <div className="progress-card blue">
@@ -115,6 +115,13 @@ function HomePage() {
               <div className="card-content">
                 <span className="card-number"></span>
                 <span className="card-text">Entrenamiento de vocal A</span>
+                <div className="Img">
+                  <img 
+                    src={process.env.PUBLIC_URL + "/img/Letra A.jpg"} 
+                    alt="Letra A en lenguaje de señas" 
+                    style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+                  />
+                </div>
                 <h3>Progreso</h3>
                 <div className="progress-bar-container">
                   <div className="progress-bar">
@@ -130,6 +137,13 @@ function HomePage() {
               <div className="card-content">
                 <span className="card-number"></span>
                 <span className="card-text">Entrenamiento de vocal E</span>
+                <div className="Img">
+                  <img 
+                    src={process.env.PUBLIC_URL + "/img/Letra E.jpg"} 
+                    alt="Letra E en lenguaje de señas" 
+                    style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+                  />
+                </div>
                 <h3>Progreso</h3>
                 <div className="progress-bar-container">
                   <div className="progress-bar">
@@ -145,6 +159,13 @@ function HomePage() {
               <div className="card-content">
                 <span className="card-number"></span>
                 <span className="card-text">Entrenamiento de vocal I</span>
+                <div className="Img">
+                  <img 
+                    src={process.env.PUBLIC_URL + "/img/Letra I.jpg"} 
+                    alt="Letra I en lenguaje de señas" 
+                    style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+                  />
+                </div>
                 <h3>Progreso</h3>
                 <div className="progress-bar-container">
                   <div className="progress-bar">
@@ -160,6 +181,13 @@ function HomePage() {
               <div className="card-content">
                 <span className="card-number"></span>
                 <span className="card-text">Entrenamiento de vocal O</span>
+                <div className="Img">
+                  <img 
+                    src={process.env.PUBLIC_URL + "/img/Letra O.jpg"} 
+                    alt="Letra O en lenguaje de señas" 
+                    style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+                  />
+                </div>
                 <h3>Progreso</h3>
                 <div className="progress-bar-container">
                   <div className="progress-bar">
@@ -175,6 +203,13 @@ function HomePage() {
               <div className="card-content">
                 <span className="card-number"></span>
                 <span className="card-text">Entrenamiento de vocal U</span>
+                <div className="Img">
+                  <img 
+                    src={process.env.PUBLIC_URL + "/img/Letra U.jpg"} 
+                    alt="Letra U en lenguaje de señas" 
+                    style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+                  />
+                </div>
                 <h3>Progreso</h3>
                 <div className="progress-bar-container">
                   <div className="progress-bar">
@@ -186,7 +221,6 @@ function HomePage() {
             </div>
           </div>
         </div>
-      </div>
     </>
   );
 }
