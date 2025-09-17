@@ -1,0 +1,859 @@
+/* Importar fuentes */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Contenedor principal */
+.training-container {
+  background: linear-gradient(135deg, #2D1B69, #11998E);
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  color: white;
+  padding: 0;
+}
+
+/* Header */
+.training-header {
+  background: linear-gradient(135deg, #2D1B69, #11998E);
+  padding: 0rem 3rem;
+  max-height: 150px;
+  min-height: 110px;
+  box-shadow: 0 6px 28px rgba(45, 27, 105, 0.35);
+  border-bottom: 4px solid #FFE66D;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+/* Nuevo: contenedor para centrar el título y distribuir los botones */
+.training-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+/* Botón volver alineado a la izquierda */
+.back-button {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 1.2rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  order: 1;
+  margin-bottom: 0; /* Quitar margen para alineación */
+}
+
+/* Centrar el título */
+.training-header h1 {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0 auto;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  flex: 1 1 auto;
+  order: 2;
+}
+
+/* Botón crear modelo alineado a la derecha */
+.NuevoModelo {
+  background: linear-gradient(135deg, #FFE66D, #11998E);
+  color: #2D1B69;
+  border: none;
+  padding: 0.6rem 1.4rem;
+  border-radius: 20px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(255, 230, 109, 0.2);
+  transition: all 0.3s;
+  outline: none;
+  order: 3;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Hover para el botón crear modelo */
+.NuevoModelo:hover {
+  background: linear-gradient(135deg, #FFD93D, #0D6B5F);
+  color: #fff;
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(255, 230, 109, 0.3);
+}
+
+/* Contenido principal */
+.training-content {
+  display: grid;
+  grid-template-columns: 1fr 2fr; /* Cámara más espaciosa */
+  gap: 2rem;
+  padding: 2rem;
+  max-width: 1600px; /* Más ancho para acomodar la cámara */
+  margin: 0 auto;
+  min-height: calc(100vh - 100px); /* Altura mínima para la cámara */
+}
+
+/* Sección de modelos */
+.models-section {
+  background: transparent;
+  border-radius: 20px;
+  padding: 1.5rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid transparent;
+  box-shadow: 0 8px 32px transparent;
+  /* Elimina el max-height: 0px para que el contenedor no colapse si se borra esta sección */
+  min-height: 100px; /* Asegura que el contenedor mantenga algo de altura mínima */
+}
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;    /* El ancho ocupa todo el contenedor padre */
+  height: auto;   /* La altura se ajusta automáticamente al contenido */
+  max-height: 800px;
+  max-width: 300px; /* Más grande */
+  overflow-y: auto;  /* Permite scroll si el contenido excede la altura */
+  font-size: 1.25rem;
+}
+
+.no-models {
+  text-align: center;
+  padding: 2rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.no-models p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.no-models p:first-child {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.section-header {
+  margin-bottom: 1.5rem;
+}
+
+.section-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Tarjeta de modelo */
+.model-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+  border-radius: 15px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.model-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.model-header h3 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 0;
+  color: #FFE66D;
+}
+
+.delete-button {
+  background: rgba(255, 107, 107, 0.3);
+  border: none;
+  padding: 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1rem;
+}
+
+.delete-button:hover {
+  background: rgba(255, 107, 107, 0.5);
+  transform: scale(1.1);
+}
+
+.model-info {
+  margin-bottom: 1rem;
+}
+
+.model-info p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.model-progress {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ECDC4, #44A08D);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-text {
+  font-weight: 600;
+  color: #4ECDC4;
+  min-width: 40px;
+}
+
+/* Sección de cámara */
+.camera-section {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 1.5rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.camera-feed {
+  margin-bottom: 2rem;
+}
+
+.camera-placeholder {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.5));
+  border-radius: 30px;
+  padding: 3rem 2rem;
+  text-align: center;
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+  min-height: 400px; /* Altura mínima para la cámara */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.camera-placeholder:hover {
+  border-color: #4ECDC4;
+  background: linear-gradient(135deg, rgba(78, 205, 196, 0.1), rgba(0, 0, 0, 0.3));
+  transform: scale(1.02);
+}
+
+.camera-icon-large {
+  font-size: 5rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.7;
+  animation: pulse 2s infinite;
+}
+
+.camera-placeholder p {
+  margin: 0.5rem 0;
+  opacity: 0.8;
+  font-size: 1rem;
+}
+
+.camera-description {
+  font-size: 0.9rem !important;
+  opacity: 0.6 !important;
+  margin-bottom: 2rem !important;
+}
+
+.camera-controls {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.camera-btn {
+  background: linear-gradient(135deg, #4ECDC4, #44A08D);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);
+  border: 2px solid transparent;
+}
+
+.camera-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #26A69A, #2E7D32);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(78, 205, 196, 0.4);
+  border-color: #FFE66D;
+}
+
+.camera-btn:disabled {
+  background: #666;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.camera-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: #666;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.status-dot.active {
+  background: #4ECDC4;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Controles de entrenamiento */
+.training-controls {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+  border-radius: 15px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.training-controls h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  color: #FFE66D;
+}
+
+.current-letter {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.letter-display {
+  font-size: 4rem;
+  font-weight: 700;
+  color: #4ECDC4;
+  background: linear-gradient(135deg, rgba(78, 205, 196, 0.2), rgba(68, 160, 141, 0.2));
+  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  border: 3px solid #4ECDC4;
+  box-shadow: 0 0 20px rgba(78, 205, 196, 0.3);
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+  from { box-shadow: 0 0 20px rgba(78, 205, 196, 0.3); }
+  to { box-shadow: 0 0 30px rgba(78, 205, 196, 0.6); }
+}
+
+.collect-button {
+  background: linear-gradient(135deg, #FF6B6B, #4ECDC4);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 25px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+  border: 2px solid #FFE66D;
+  margin-bottom: 1rem;
+}
+
+.collect-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #FF5252, #26A69A);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 8px 25px rgba(255, 107, 107, 0.5);
+}
+
+.collect-button:disabled {
+  background: #666;
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
+.training-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.training-stats p {
+  margin: 0;
+}
+
+.training-stats p:last-child {
+  color: #4ECDC4;
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+  .training-content {
+    max-width: 1200px;
+    grid-template-columns: 1fr 1.5fr;
+  }
+  
+  .camera-placeholder {
+    min-height: 350px;
+    padding: 3rem 1.5rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  .training-content {
+    grid-template-columns: 1fr 1.2fr;
+    gap: 1.5rem;
+    padding: 1.5rem;
+  }
+  
+  .training-header {
+    padding: 1rem;
+  }
+  
+  .training-header h1 {
+    font-size: 1.3rem;
+  }
+  
+  .camera-placeholder {
+    min-height: 300px;
+    padding: 2.5rem 1rem;
+  }
+  
+  .camera-icon-large {
+    font-size: 4rem;
+  }
+  
+  .camera-controls {
+    gap: 0.75rem;
+  }
+  
+  .camera-btn {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .training-content {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+    gap: 1rem;
+  }
+  
+  .training-header {
+    padding: 0.8rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .training-header-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+  
+  .training-header h1 {
+    font-size: 1.2rem;
+    text-align: center;
+    margin: 0 auto;
+  }
+  
+  .back-button,
+  .NuevoModelo {
+    flex: none;
+  }
+  
+  .camera-indicator {
+    position: static;
+    margin-top: 1rem;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
+  }
+  
+  .camera-placeholder {
+    min-height: 250px;
+    padding: 2rem 1rem;
+  }
+  
+  .camera-icon-large {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+  }
+  
+  .camera-controls {
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  
+  .camera-btn {
+    width: 100%;
+    padding: 0.75rem;
+  }
+  
+  .letter-display {
+    width: 80px;
+    height: 80px;
+    font-size: 3rem;
+  }
+  
+  .models-section,
+  .camera-section {
+    padding: 1rem;
+  }
+  
+  .section-header h2 {
+    font-size: 1.3rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .training-content {
+    padding: 0.5rem;
+  }
+  
+  .training-header {
+    padding: 0.6rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .training-header-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+  
+  .training-header h1 {
+    font-size: 1rem;
+    text-align: center;
+    margin: 0 auto;
+  }
+  
+  .back-button,
+  .NuevoModelo {
+    flex: none;
+  }
+  
+  .camera-indicator {
+    font-size: 0.7rem;
+    padding: 0.4rem 0.8rem;
+  }
+  
+  .camera-placeholder {
+    min-height: 200px;
+    padding: 1.5rem 0.5rem;
+  }
+  
+  .camera-icon-large {
+    font-size: 3rem;
+  }
+  
+  .camera-placeholder p {
+    font-size: 0.8rem;
+  }
+  
+  .camera-description {
+    font-size: 0.7rem !important;
+  }
+  
+  .letter-display {
+    width: 70px;
+    height: 70px;
+    font-size: 2.5rem;
+  }
+  
+  .collect-button {
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+  }
+  
+  .models-section,
+  .camera-section {
+    padding: 0.75rem;
+  }
+  
+  .section-header h2 {
+    font-size: 1.1rem;
+  }
+  
+  .model-header h3 {
+    font-size: 1.1rem;
+  }
+  
+  .training-controls h3 {
+    font-size: 1rem;
+  }
+}
+
+/* Landscape orientation for mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  .training-content {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  
+  .camera-placeholder {
+    min-height: 200px;
+    padding: 1rem;
+  }
+  
+  .camera-icon-large {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .camera-controls {
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+  
+  .camera-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.7rem;
+  }
+}
+
+/* Fondo del modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(40, 40, 60, 0.45);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Contenedor del modal */
+.modal-content {
+  background: rgba(255, 255, 255, 0.97);
+  border-radius: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  padding: 2.5rem 2.2rem;
+  min-width: 340px;
+  max-width: 95vw;
+  position: relative;
+  color: #2D1B69;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Botón de cerrar (la X) */
+.modal-content button[aria-label="Cerrar"] {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 1.7rem;
+  color: #2D1B69;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.modal-content h2 {
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: #2D1B69;
+}
+
+/* Inputs y selects */
+.modal-content .form-group {
+  margin-bottom: 1.2rem;
+}
+
+.modal-content .form-group label {
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+  display: block;
+}
+
+.modal-content input,
+.modal-content select {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+}
+
+/* Acciones del modal */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+/* Botones del modal */
+.modal-btn.crear {
+  background: linear-gradient(135deg, #FFE66D, #11998E);
+  color: #2D1B69;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.modal-btn.cancelar {
+  background: #eee;
+  color: #2D1B69;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+/* Estilos para etiquetas en formulario de crear modelo */
+.label-input-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.label-input {
+  flex: 1;
+}
+
+.remove-label-btn {
+  margin-left: 0.5rem;
+  background: none;
+  border: none;
+  color: #d00;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.add-label-btn {
+  margin-top: 0.5rem;
+  background: #eee;
+  color: #2D1B69;
+  border: none;
+  border-radius: 8px;
+  padding: 0.4rem 1rem;
+  font-weight: 500;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+/* Estilos para etiquetas disponibles */
+.etiquetas-disponibles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  justify-content: center;
+}
+
+.no-labels-message {
+  color: #ccc;
+  font-style: italic;
+}
+
+.etiqueta-btn {
+  padding: 0.5rem 1.1rem;
+  border-radius: 8px;
+  border: 1px solid #2D1B69;
+  background: #fff;
+  color: #2D1B69;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.etiqueta-btn.seleccionada {
+  border: 2px solid #FFE66D;
+  background: linear-gradient(135deg, #FFE66D, #11998E);
+  color: #2D1B69;
+  box-shadow: 0 2px 8px rgba(45,27,105,0.12);
+}
+
+/* Estilos para información del modelo */
+.model-labels-info {
+  margin-top: 0.3rem;
+  font-size: 0.95em;
+}
