@@ -105,6 +105,87 @@ function HomePage() {
             <div className="session-accuracy">100.0%</div>
           </div>
         </div>
+
+        {/* tarjetas de entrenamiento */}
+        <div className="training-cards">
+          <h3>Entrenamiento de vocales</h3>
+          <div className="progress-cards">
+            <div className="progress-card blue">
+              <div className="card-icon">A</div>
+              <div className="card-content">
+                <span className="card-number"></span>
+                <span className="card-text">Entrenamiento de vocal A</span>
+                <h3>Progreso</h3>
+                <div className="progress-bar-container">
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{width: '100%'}}></div>
+                  </div>
+                  <span className="progress-percentage">100%</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="progress-card green">
+              <div className="card-icon">E</div>
+              <div className="card-content">
+                <span className="card-number"></span>
+                <span className="card-text">Entrenamiento de vocal E</span>
+                <h3>Progreso</h3>
+                <div className="progress-bar-container">
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{width: '10%'}}></div>
+                  </div>
+                  <span className="progress-percentage">10%</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="progress-card purple">
+              <div className="card-icon">I</div>
+              <div className="card-content">
+                <span className="card-number"></span>
+                <span className="card-text">Entrenamiento de vocal I</span>
+                <h3>Progreso</h3>
+                <div className="progress-bar-container">
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{width: '5%'}}></div>
+                  </div>
+                  <span className="progress-percentage">5%</span>
+                </div>
+              </div>
+            </div>
+            
+            <div className="progress-card yellow">
+              <div className="card-icon">O</div>
+              <div className="card-content">
+                <span className="card-number"></span>
+                <span className="card-text">Entrenamiento de vocal O</span>
+                <h3>Progreso</h3>
+                <div className="progress-bar-container">
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{width: '2%'}}></div>
+                  </div>
+                  <span className="progress-percentage">2%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="progress-card orange">
+              <div className="card-icon">U</div>
+              <div className="card-content">
+                <span className="card-number"></span>
+                <span className="card-text">Entrenamiento de vocal U</span>
+                <h3>Progreso</h3>
+                <div className="progress-bar-container">
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{width: '15%'}}></div>
+                  </div>
+                  <span className="progress-percentage">15%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </>
   );
