@@ -1,23 +1,151 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
-// Definimos las conexiones entre los puntos de la mano según el modelo de MediaPipe
+// Conexiones entre los puntos de la mano
 const HAND_CONNECTIONS = [
-  // Palma
   [0, 1], [1, 2], [2, 3], [3, 4], // Pulgar
   [0, 5], [5, 6], [6, 7], [7, 8], // Índice
   [5, 9], [9, 10], [10, 11], [11, 12], // Medio
   [9, 13], [13, 14], [14, 15], [15, 16], // Anular
   [13, 17], [17, 18], [18, 19], [19, 20], // Meñique
-  [0, 17] // Borde de la palma
+  [0, 17] // Lateral palma
 ];
 
-const DeteccionNumeros = () => {
+// --- Funciones de ayuda ---
+const distance = (a, b) =>
+  Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
+
+const isFingerBent = (landmarks, mcpIdx, pipIdx, tipIdx) => {
+  const mcp = landmarks[mcpIdx];
+  const pip = landmarks[pipIdx];
+  const tip = landmarks[tipIdx];
+  return distance(mcp, tip) < distance(mcp, pip);
+};
+
+const isThumbBent = (landmarks) => {
+  const wrist = landmarks[0];
+  const thumbTip = landmarks[4];
+  return distance(wrist, thumbTip) < 0.15;
+};
+
+// --- Evaluación de números reales ---
+const evaluateNumber = (landmarks, number) => {
+  if (!landmarks) return { accuracy: 0 };
+
+  const indexBent = isFingerBent(landmarks, 5, 6, 8);
+  const middleBent = isFingerBent(landmarks, 9, 10, 12);
+  const ringBent = isFingerBent(landmarks, 13, 14, 16);
+  const pinkyBent = isFingerBent(landmarks, 17, 18, 20);
+  const thumbBent = isThumbBent(landmarks);
+
+  let expected = {};
+
+  switch (number) {
+    case "0": // Círculo con pulgar e índice
+      expected = {
+        thumb: false,
+        index: false,
+        middle: true,
+        ring: true,
+        pinky: true
+      };
+      if (distance(landmarks[4], landmarks[8]) > 0.08) return { accuracy: 0 };
+      break;
+
+    case "1": // Índice arriba
+      expected = {
+        thumb: true,
+        index: false,
+        middle: true,
+        ring: true,
+        pinky: true
+      };
+      break;
+
+    case "2": // Índice y medio arriba
+      expected = {
+        thumb: true,
+        index: false,
+        middle: false,
+        ring: true,
+        pinky: true
+      };
+      break;
+
+    case "3": // Índice, medio y pulgar arriba
+      expected = {
+        thumb: false,
+        index: false,
+        middle: false,
+        ring: true,
+        pinky: true
+      };
+      break;
+
+    case "4": // Todos menos pulgar
+      expected = {
+        thumb: true,
+        index: false,
+        middle: false,
+        ring: false,
+        pinky: false
+      };
+      break;
+
+    case "5": // Todos extendidos
+      expected = {
+        thumb: false,
+        index: false,
+        middle: false,
+        ring: false,
+        pinky: false
+      };
+      break;
+
+    case "6": // Pulgar toca meñique
+      if (distance(landmarks[4], landmarks[20]) > 0.08) return { accuracy: 0 };
+      break;
+
+    case "7": // Pulgar toca anular
+      if (distance(landmarks[4], landmarks[16]) > 0.08) return { accuracy: 0 };
+      break;
+
+    case "8": // Pulgar toca medio
+      if (distance(landmarks[4], landmarks[12]) > 0.08) return { accuracy: 0 };
+      break;
+
+    case "9": // Pulgar toca índice
+      if (distance(landmarks[4], landmarks[8]) > 0.08) return { accuracy: 0 };
+      break;
+
+    default:
+      return { accuracy: 0 };
+  }
+
+  const actual = {
+    thumb: thumbBent,
+    index: indexBent,
+    middle: middleBent,
+    ring: ringBent,
+    pinky: pinkyBent
+  };
+
+  let score = 0,
+    total = 0;
+  for (const f of Object.keys(expected)) {
+    total++;
+    if (expected[f] === actual[f]) score++;
+  }
+
+  return { accuracy: Math.round((score / total) * 100) };
+};
+
+// --- Componente ---
+const DeteccionNumeros = ({ character = "0" }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const cameraRef = useRef(null);
-  const handsRef = useRef(null);
+  const [accuracy, setAccuracy] = useState(0);
 
   useEffect(() => {
     const hands = new Hands({
@@ -26,7 +154,7 @@ const DeteccionNumeros = () => {
     });
 
     hands.setOptions({
-      maxNumHands: 2,
+      maxNumHands: 1,
       modelComplexity: 1,
       minDetectionConfidence: 0.7,
       minTrackingConfidence: 0.7,
@@ -34,124 +162,69 @@ const DeteccionNumeros = () => {
 
     hands.onResults((results) => {
       const canvas = canvasRef.current;
-      if (!canvas) return; // si canvas ya no existe
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas?.getContext("2d");
       if (!ctx) return;
 
-      ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
 
       if (results.multiHandLandmarks) {
         for (const landmarks of results.multiHandLandmarks) {
-          // Dibujar conexiones entre los puntos
+          const evalRes = evaluateNumber(landmarks, character);
+          setAccuracy(evalRes.accuracy);
+
           ctx.strokeStyle = "lime";
           ctx.lineWidth = 2;
-          for (const [startIdx, endIdx] of HAND_CONNECTIONS) {
-            const start = landmarks[startIdx];
-            const end = landmarks[endIdx];
-            if (start && end) {
-              ctx.beginPath();
-              ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
-              ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
-              ctx.stroke();
-            }
-          }
-          // Dibujar los puntos
-          for (const landmark of landmarks) {
+          for (const [s, e] of HAND_CONNECTIONS) {
+            const a = landmarks[s];
+            const b = landmarks[e];
             ctx.beginPath();
-            ctx.arc(
-              landmark.x * canvas.width,
-              landmark.y * canvas.height,
-              5,
-              0,
-              2 * Math.PI
-            );
+            ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
+            ctx.lineTo(b.x * canvas.width, b.y * canvas.height);
+            ctx.stroke();
+          }
+
+          landmarks.forEach((point) => {
+            ctx.beginPath();
+            ctx.arc(point.x * canvas.width, point.y * canvas.height, 5, 0, 2 * Math.PI);
             ctx.fillStyle = "red";
             ctx.fill();
-          }
+          });
         }
       }
-
-      ctx.restore();
     });
 
-    handsRef.current = hands;
-
-    // Capturar la referencia del video al inicio del efecto
     const videoElement = videoRef.current;
-
     if (videoElement) {
       const camera = new Camera(videoElement, {
         onFrame: async () => {
-          if (videoElement) {
-            await hands.send({ image: videoElement });
-          }
+          await hands.send({ image: videoElement });
         },
         width: 700,
         height: 500,
       });
-      cameraRef.current = camera;
       camera.start();
     }
+  }, [character]);
 
-    // 🔹 Cleanup al desmontar el componente
-    return () => {
-      if (cameraRef.current) {
-        cameraRef.current.stop?.();
-      }
-      if (videoElement && videoElement.srcObject) {
-        const tracks = videoElement.srcObject.getTracks();
-        tracks.forEach((track) => track.stop());
-      }
-      // cortar el callback de MediaPipe
-      handsRef.current && handsRef.current.onResults(() => {});
-    };
-  }, []);
-
-  // El div principal usa exactamente la misma clase y estilos que el placeholder
   return (
-    <div
-      className="camera-placeholder"
-      style={{
-        minHeight: "500px",
-        borderRadius: "20px",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        background: "linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.5))",
-        border: "2px dashed rgba(255, 255, 255, 0.3)",
-        boxSizing: "border-box",
-        width: "100%",
-        maxWidth: "1000px",
-        transition: "all 0.3s ease",
-        textAlign: "center",
-        padding: "0" // Esto sobreescribe el padding de la clase y permite que el contenido esté más cerca al borde
-      }}
-    >
-      <video
-        ref={videoRef}
-        style={{ display: "none" }}
-        width="800"
-        height="500"
-        autoPlay
-        playsInline
-      />
-      <canvas
-        ref={canvasRef}
-        width="900"
-        height="500"
+    <div style={{ position: "relative", maxWidth: "1000px" }}>
+      <video ref={videoRef} style={{ display: "none" }} width="800" height="500" autoPlay playsInline />
+      <canvas ref={canvasRef} width="900" height="500" style={{ borderRadius: "20px", background: "#000", width: "100%" }} />
+      <div
         style={{
-          borderRadius: "20px",
-          boxShadow: "0 4px 24px rgba(0,0,0,0.2)",
-          background: "#000",
-          width: "100%",
-          height: "500px",
-          maxWidth: "100%",
-          display: "block"
+          position: "absolute",
+          bottom: "10px",
+          left: "10px",
+          background: "rgba(0,0,0,0.7)",
+          color: accuracy > 70 ? "lightgreen" : "lightcoral",
+          padding: "10px",
+          borderRadius: "5px",
+          fontSize: "16px",
         }}
-      />
+      >
+        Número: {character} | Precisión: {accuracy}%
+      </div>
     </div>
   );
 };

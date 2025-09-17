@@ -16,6 +16,16 @@ function HomePage() {
     setTrainingMode(prev => prev === "vocales" ? "numeros" : "vocales");
   };
 
+  // Función para manejar el clic en entrenar vocal
+  const handleTrainVocal = (vocal) => {
+    navigate('/EntrenarVocales', { state: { character: vocal } });
+  };
+
+  // Función para manejar el clic en entrenar número
+  const handleTrainNumero = (numero) => {
+    navigate('/EntrenarNumeros', { state: { character: numero } });
+  };
+
   // Tarjetas de progreso para vocales
   const vocalProgressCards = (
     <div className="progress-cards">
@@ -235,7 +245,7 @@ const vocalCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarVocales')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarVocales?character=A')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -257,7 +267,7 @@ const vocalCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarVocales')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarVocales?character=E')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -279,7 +289,7 @@ const vocalCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarVocales')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarVocales?character=I')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -301,7 +311,7 @@ const vocalCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarVocales')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarVocales?character=O')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -323,7 +333,7 @@ const vocalCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarVocales')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarVocales?character=U')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -350,7 +360,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=0')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -372,7 +382,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=1')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -394,7 +404,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=2')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -416,7 +426,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=3')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -438,7 +448,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros')}>Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=4')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -460,7 +470,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button">Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=5')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -482,7 +492,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button">Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=6')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -504,7 +514,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button">Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=7')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -526,7 +536,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button">Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=8')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">
@@ -548,7 +558,7 @@ const numeroCards = (
             style={{ width: '80px', height: '80px', objectFit: 'contain' }}
           />
         </div>
-        <button className="button">Entrenar</button>
+        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=9')}>Entrenar</button>
         <h3>Progreso</h3>
         <div className="progress-bar-container">
           <div className="progress-bar">

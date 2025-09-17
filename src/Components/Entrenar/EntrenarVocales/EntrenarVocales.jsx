@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './EntrenarVocales.css';
 import DeteccionVocales from '../../Camara/camaradeteccionVocales';
 
 const LOCAL_STORAGE_MODELS_KEY = 'training_models_v1';
-const LOCAL_STORAGE_LABELSTATS_KEY = 'training_labelStats_v2'; // Cambiado para evitar conflicto con la versión anterior
+const LOCAL_STORAGE_LABELSTATS_KEY = 'training_labelStats_v2';
 const LOCAL_STORAGE_SELECTED_MODEL_KEY = 'training_selectedModelId_v1';
 
-// Utilidad para obtener la clave única de stats por modelo y etiqueta
 function getLabelStatsKey(modelId, label) {
   return `${modelId}__${label}`;
 }
 
 function EntrenarVocales() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const characterFromURL = queryParams.get('character') || 'A';
 
   // Persist models in localStorage
   const [models, setModels] = useState(() => {
@@ -21,7 +23,7 @@ function EntrenarVocales() {
     return stored ? JSON.parse(stored) : [];
   });
 
-  // Persist labelStats in localStorage (ahora por modelo+etiqueta)
+  // Persist labelStats in localStorage
   const [labelStats, setLabelStats] = useState(() => {
     const stored = localStorage.getItem(LOCAL_STORAGE_LABELSTATS_KEY);
     return stored ? JSON.parse(stored) : {};
@@ -34,7 +36,7 @@ function EntrenarVocales() {
   });
 
   // Etiqueta seleccionada (por modelo)
-  const [currentLetter, setCurrentLetter] = useState('');
+  const [currentLetter, setCurrentLetter] = useState(characterFromURL);
 
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [showCreateModelModal, setShowCreateModelModal] = useState(false);
@@ -68,14 +70,9 @@ function EntrenarVocales() {
     // Si se borra el modelo seleccionado, seleccionar otro o ninguno
     if (selectedModelId && !models.find(m => m.id === selectedModelId)) {
       setSelectedModelId(models.length > 0 ? models[0].id : null);
-      setCurrentLetter('');
+      setCurrentLetter(characterFromURL);
     }
-  }, [models, selectedModelId]);
-
-  // Si se cambia de modelo, limpiar la etiqueta seleccionada
-  useEffect(() => {
-    setCurrentLetter('');
-  }, [selectedModelId]);
+  }, [models, selectedModelId, characterFromURL]);
 
   // Obtener el modelo seleccionado
   const selectedModel = models.find(m => m.id === selectedModelId);
@@ -158,7 +155,7 @@ function EntrenarVocales() {
       setLabelStats(nuevasStats);
       // Si la etiqueta actual era de este modelo, limpiar selección
       if (modeloEliminado.labels.includes(currentLetter)) {
-        setCurrentLetter('');
+        setCurrentLetter(characterFromURL);
       }
     }
     // Si el modelo eliminado era el seleccionado, seleccionar otro
@@ -170,10 +167,6 @@ function EntrenarVocales() {
 
   const handleStartCamera = () => {
     setIsCameraActive(true);
-  };
-
-  const handlePauseCamera = () => {
-    setIsCameraActive(false);
   };
 
   const handleStopCamera = () => {
@@ -222,7 +215,7 @@ function EntrenarVocales() {
     };
     setModels(prevModels => [...prevModels, nuevoModelo]);
     handleCloseCreateModelModal();
-    setCurrentLetter('');
+    setCurrentLetter(characterFromURL);
     setSelectedModelId(nuevoModelo.id);
     // Inicializar stats para nuevas etiquetas de este modelo si no existen
     setLabelStats(prev => {
@@ -254,7 +247,12 @@ function EntrenarVocales() {
 
   const handleSelectModel = (modelId) => {
     setSelectedModelId(modelId);
-    setCurrentLetter('');
+    setCurrentLetter(characterFromURL);
+  };
+
+  // Obtener la ruta de la imagen según el carácter
+  const getImagePath = (char) => {
+    return process.env.PUBLIC_URL + `/img/Letra ${char}.jpg`;
   };
 
   return (
@@ -340,7 +338,7 @@ function EntrenarVocales() {
         <button className="back-button" onClick={handleBackToHome}>
           ← Volver al Inicio
         </button>
-        <h1>Entrenar Vocales</h1>
+        <h1>Entrenar Vocales - {characterFromURL}</h1>
         <button className='NuevoModelo' onClick={handleOpenCreateModelModal}>Crear Modelo</button>
       </div>
 
@@ -352,11 +350,11 @@ function EntrenarVocales() {
             <div className="training-card blue" style={{ minHeight: "350px", maxWidth: "500px", margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center" }}>    
               <div className="card-content" style={{ flex: 1, minHeight: "300px", justifyContent: "center", fontSize: "2rem" }}>
                 <span className="card-number" style={{ fontSize: "2.5rem" }}></span>
-                <span className="card-text" style={{ fontSize: "2rem" }}>Entrenamiento de vocal A</span>
+                <span className="card-text" style={{ fontSize: "2rem" }}>Entrenamiento de vocal {characterFromURL}</span>
                 <div className="Img" style={{ display: "flex", justifyContent: "center" }}>
                   <img
-                    src={process.env.PUBLIC_URL + "/img/Letra A.jpg"}
-                    alt="Letra A en lenguaje de señas"
+                    src={getImagePath(characterFromURL)}
+                    alt={`Letra ${characterFromURL} en lenguaje de señas`}
                     style={{ width: '200px', height: '200px', objectFit: 'contain' }}
                   />
                 </div>
@@ -364,7 +362,7 @@ function EntrenarVocales() {
                 <div className="progress-bar-container" style={{ fontSize: "1.3rem" }}>
                   <div className="progress-bar" style={{ height: "18px" }}>
                     <div className="progress-fill" style={{ width: '100%', height: "18px" }}></div>
-                  </div>..
+                  </div>
                   <span className="progress-percentage" style={{ fontSize: "1.3rem" }}>100%</span>
                 </div>
               </div>
@@ -395,7 +393,7 @@ function EntrenarVocales() {
 
           <div className="camera-feed">
             {isCameraActive ? (
-              <DeteccionVocales />
+              <DeteccionVocales character={characterFromURL} />
             ) : (
               <div className="camera-placeholder">
                 <div className="camera-icon-large">📹</div>

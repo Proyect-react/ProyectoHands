@@ -1,86 +1,293 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
-// Definimos las conexiones entre los puntos de la mano según el modelo de MediaPipe
+// Conexiones (igual que antes)
 const HAND_CONNECTIONS = [
-  // Palma
-  [0, 1], [1, 2], [2, 3], [3, 4], // Pulgar
-  [0, 5], [5, 6], [6, 7], [7, 8], // Índice
-  [5, 9], [9, 10], [10, 11], [11, 12], // Medio
-  [9, 13], [13, 14], [14, 15], [15, 16], // Anular
-  [13, 17], [17, 18], [18, 19], [19, 20], // Meñique
-  [0, 17] // Borde de la palma
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [5, 9], [9, 10], [10, 11], [11, 12],
+  [9, 13], [13, 14], [14, 15], [15, 16],
+  [13, 17], [17, 18], [18, 19], [19, 20],
+  [0, 17]
 ];
 
-const DeteccionVocales = () => {
+const distance = (p1, p2) => {
+  return Math.sqrt(
+    Math.pow(p1.x - p2.x, 2) +
+    Math.pow(p1.y - p2.y, 2)
+  );
+};
+
+// Ángulo en el punto 'b' formado por a-b-c
+const angleAt = (a, b, c) => {
+  const v1 = { x: a.x - b.x, y: a.y - b.y };
+  const v2 = { x: c.x - b.x, y: c.y - b.y };
+  const dot = v1.x * v2.x + v1.y * v2.y;
+  const n1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+  const n2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+  if (n1 === 0 || n2 === 0) return Math.PI; // evita NaN
+  const cos = Math.max(-1, Math.min(1, dot / (n1 * n2)));
+  return Math.acos(cos); // en radianes
+};
+
+// Comprueba si un dedo está doblado (bend) usando la articulación PIP
+// baseIdx: MCP, pipIdx: PIP, tipIdx: TIP
+const isFingerBent = (landmarks, baseIdx, pipIdx, tipIdx, thresholdDeg = 150) => {
+  const ang = angleAt(landmarks[baseIdx], landmarks[pipIdx], landmarks[tipIdx]);
+  const thresholdRad = (thresholdDeg * Math.PI) / 180;
+  // Si el ángulo es menor que threshold -> está doblado (más "curvado")
+  return ang < thresholdRad;
+};
+
+// Para el pulgar usamos una aproximación similar: base=1, pip=2, tip=4
+const isThumbBent = (landmarks, thresholdDeg = 140) => {
+  return isFingerBent(landmarks, 1, 2, 4, thresholdDeg);
+};
+
+// Evalúa una mano y devuelve la puntuación y detalle por dedo
+const evaluateHand = (landmarks, targetVowel) => {
+  // indices relevantes
+  const thumbTip = landmarks[4];
+  const indexTip = landmarks[8];
+  const middleTip = landmarks[12];
+  const ringTip = landmarks[16];
+  const pinkyTip = landmarks[20];
+  const wrist = landmarks[0];
+
+  // referencia de escala: distancia muñeca - MCP medio (landmark 9)
+  let palmSize = distance(wrist, landmarks[9]);
+  if (palmSize < 1e-6) palmSize = 1e-6;
+
+  // estado actual (true = doblado)
+  const indexBent = isFingerBent(landmarks, 5, 6, 8);
+  const middleBent = isFingerBent(landmarks, 9, 10, 12);
+  const ringBent = isFingerBent(landmarks, 13, 14, 16);
+  const pinkyBent = isFingerBent(landmarks, 17, 18, 20);
+  const thumbBent = isThumbBent(landmarks);
+
+  // distancias normalizadas por palmSize
+  const d_thumb_index = distance(thumbTip, indexTip) / palmSize;
+  const d_index_middle = distance(indexTip, middleTip) / palmSize;
+  const avgTipDistToThumb = (
+    distance(indexTip, thumbTip) +
+    distance(middleTip, thumbTip) +
+    distance(ringTip, thumbTip) +
+    distance(pinkyTip, thumbTip)
+  ) / (4 * palmSize);
+
+  // expectativas por vocal (vamos a marcar qué dedos deben estar doblados)
+  const expected = {
+    thumb: false, // true = debe estar doblado
+    index: false,
+    middle: false,
+    ring: false,
+    pinky: false,
+    extra: {} // reglas extras (cercanías)
+  };
+
+  let totalRules = 0;
+  let score = 0;
+
+  switch (targetVowel) {
+    case "A":
+      // Puño cerrado: todos los dedos doblados (pulgar a un lado)
+      expected.index = true;
+      expected.middle = true;
+      expected.ring = true;
+      expected.pinky = true;
+      expected.thumb = true;
+      totalRules = 5;
+      if (indexBent) score++;
+      if (middleBent) score++;
+      if (ringBent) score++;
+      if (pinkyBent) score++;
+      if (thumbBent) score++;
+      break;
+
+    case "E":
+      // Dedos doblados y las puntas cerca del pulgar (o apoyadas)
+      expected.index = true;
+      expected.middle = true;
+      expected.ring = true;
+      expected.pinky = true;
+      expected.thumb = true;
+      // adicional: las puntas en promedio deben estar cerca del pulgar
+      totalRules = 6;
+      if (indexBent) score++;
+      if (middleBent) score++;
+      if (ringBent) score++;
+      if (pinkyBent) score++;
+      if (thumbBent) score++;
+      // regla extra: promedio de distancias debe ser pequeña
+      if (avgTipDistToThumb < 0.6) score++;
+      break;
+
+    case "I":
+      // Solo meñique extendido
+      expected.index = true;
+      expected.middle = true;
+      expected.ring = true;
+      expected.pinky = false; // pinky extendido -> no doblado
+      expected.thumb = true;
+      totalRules = 5;
+      if (indexBent) score++;
+      if (middleBent) score++;
+      if (ringBent) score++;
+      if (!pinkyBent) score++; // pinky extendido
+      if (thumbBent) score++;
+      break;
+
+    case "O":
+      // Pulgar e índice juntos formando círculo, demás doblados
+      expected.index = true;  // idealmente index doblado y tocando thumb
+      expected.middle = true;
+      expected.ring = true;
+      expected.pinky = true;
+      expected.thumb = true;
+      totalRules = 5;
+      if (indexBent) score++;
+      if (middleBent) score++;
+      if (ringBent) score++;
+      if (pinkyBent) score++;
+      // distancia pulgar-índice muy pequeña
+      if (d_thumb_index < 0.35) score++;
+      break;
+
+    case "U":
+      // Índice y medio extendidos y juntos, anular y meñique doblados, pulgar doblado
+      expected.index = false; // extendido
+      expected.middle = false; // extendido
+      expected.ring = true;
+      expected.pinky = true;
+      expected.thumb = true;
+      totalRules = 6;
+      if (!indexBent) score++; // extendido
+      if (!middleBent) score++; // extendido
+      if (ringBent) score++;
+      if (pinkyBent) score++;
+      if (thumbBent) score++;
+      // cercanía índice-medio
+      if (d_index_middle < 0.6) score++;
+      break;
+
+    default:
+      return {
+        accuracy: 0,
+        palmSize,
+        expected,
+        actualBent: { index: indexBent, middle: middleBent, ring: ringBent, pinky: pinkyBent, thumb: thumbBent },
+        extras: { d_thumb_index, avgTipDistToThumb, d_index_middle }
+      };
+  }
+
+  const accuracy = Math.round((score / totalRules) * 100);
+
+  return {
+    accuracy,
+    palmSize,
+    expected,
+    actualBent: { index: indexBent, middle: middleBent, ring: ringBent, pinky: pinkyBent, thumb: thumbBent },
+    extras: { d_thumb_index, avgTipDistToThumb, d_index_middle }
+  };
+};
+
+const DeteccionVocales = ({ character = "A" }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const cameraRef = useRef(null);
   const handsRef = useRef(null);
+  const [accuracy, setAccuracy] = useState(0);
 
   useEffect(() => {
     const hands = new Hands({
       locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
     });
 
     hands.setOptions({
       maxNumHands: 2,
       modelComplexity: 1,
       minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.7,
+      minTrackingConfidence: 0.7
     });
 
     hands.onResults((results) => {
       const canvas = canvasRef.current;
-      if (!canvas) return; // si canvas ya no existe
+      if (!canvas) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-
+    
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-      if (results.multiHandLandmarks) {
-        for (const landmarks of results.multiHandLandmarks) {
-          // Dibujar conexiones entre los puntos
-          ctx.strokeStyle = "lime";
-          ctx.lineWidth = 2;
-          for (const [startIdx, endIdx] of HAND_CONNECTIONS) {
-            const start = landmarks[startIdx];
-            const end = landmarks[endIdx];
-            if (start && end) {
-              ctx.beginPath();
-              ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
-              ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
-              ctx.stroke();
-            }
-          }
-          // Dibujar los puntos
-          for (const landmark of landmarks) {
+    
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+        const evalResult = evaluateHand(landmarks, character);
+        setAccuracy(evalResult.accuracy);
+    
+        // Dibujar conexiones entre puntos
+        ctx.lineWidth = 2;
+        for (const [s, e] of HAND_CONNECTIONS) {
+          const a = landmarks[s];
+          const b = landmarks[e];
+          if (a && b) {
             ctx.beginPath();
-            ctx.arc(
-              landmark.x * canvas.width,
-              landmark.y * canvas.height,
-              5,
-              0,
-              2 * Math.PI
-            );
-            ctx.fillStyle = "red";
-            ctx.fill();
+            ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
+            ctx.lineTo(b.x * canvas.width, b.y * canvas.height);
+            ctx.strokeStyle = "rgba(0,255,0,0.45)";
+            ctx.stroke();
           }
         }
+    
+        // 🔹 Dibujar TODOS los landmarks de la mano
+        for (const landmark of landmarks) {
+          ctx.beginPath();
+          ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 5, 0, 2 * Math.PI);
+          ctx.fillStyle = "red";
+          ctx.fill();
+        }
+    
+        // 🔹 Resaltar las puntas de los dedos según coincidencia
+        const fingerTips = { thumb: 4, index: 8, middle: 12, ring: 16, pinky: 20 };
+        for (const fingerName of Object.keys(fingerTips)) {
+          const tipIdx = fingerTips[fingerName];
+          const tip = landmarks[tipIdx];
+          const expectedBent = evalResult.expected[fingerName];
+          const actualBent = evalResult.actualBent[fingerName];
+          const match = expectedBent === undefined ? true : (expectedBent === actualBent);
+          const color = match ? "lime" : "red";
+    
+          ctx.beginPath();
+          ctx.arc(tip.x * canvas.width, tip.y * canvas.height, 8, 0, 2 * Math.PI);
+          ctx.fillStyle = color;
+          ctx.fill();
+    
+          ctx.font = "12px Arial";
+          ctx.fillStyle = "white";
+          ctx.fillText(fingerName, tip.x * canvas.width + 10, tip.y * canvas.height + 4);
+        }
+    
+        // Info de precisión
+        ctx.font = "20px Arial";
+        ctx.fillStyle = evalResult.accuracy > 70 ? "lightgreen" : "lightcoral";
+        ctx.fillText(`Precisión: ${evalResult.accuracy}%`, 20, 40);
+        ctx.fillText(`Vocal: ${character}`, 20, 70);
+    
+      } else {
+        setAccuracy(0);
+        ctx.font = "20px Arial";
+        ctx.fillStyle = "white";
+        ctx.fillText("No se detecta mano", 20, 40);
       }
-
+    
       ctx.restore();
     });
 
     handsRef.current = hands;
 
-    // Capturar la referencia del video al inicio del efecto
     const videoElement = videoRef.current;
-
     if (videoElement) {
       const camera = new Camera(videoElement, {
         onFrame: async () => {
@@ -89,27 +296,22 @@ const DeteccionVocales = () => {
           }
         },
         width: 700,
-        height: 500,
+        height: 500
       });
       cameraRef.current = camera;
       camera.start();
     }
 
-    // 🔹 Cleanup al desmontar el componente
     return () => {
-      if (cameraRef.current) {
-        cameraRef.current.stop?.();
-      }
+      if (cameraRef.current) cameraRef.current.stop?.();
       if (videoElement && videoElement.srcObject) {
         const tracks = videoElement.srcObject.getTracks();
-        tracks.forEach((track) => track.stop());
+        tracks.forEach((t) => t.stop());
       }
-      // cortar el callback de MediaPipe
       handsRef.current && handsRef.current.onResults(() => {});
     };
-  }, []);
+  }, [character]);
 
-  // El div principal usa exactamente la misma clase y estilos que el placeholder
   return (
     <div
       className="camera-placeholder"
@@ -120,14 +322,16 @@ const DeteccionVocales = () => {
         flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
-        background: "linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.5))",
+        background:
+          "linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.5))",
         border: "2px dashed rgba(255, 255, 255, 0.3)",
         boxSizing: "border-box",
         width: "100%",
         maxWidth: "1000px",
         transition: "all 0.3s ease",
         textAlign: "center",
-        padding: "0" // Esto sobreescribe el padding de la clase y permite que el contenido esté más cerca al borde
+        padding: "0",
+        position: "relative"
       }}
     >
       <video
@@ -152,6 +356,38 @@ const DeteccionVocales = () => {
           display: "block"
         }}
       />
+      <div
+        style={{
+          position: "absolute",
+          top: "10px",
+          left: "10px",
+          background: "rgba(0,0,0,0.7)",
+          color: "white",
+          padding: "10px",
+          borderRadius: "5px",
+          fontSize: "18px",
+          zIndex: 10
+        }}
+      >
+        Vocal: {character} | Precisión: {accuracy}%
+      </div>
+      {accuracy > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "10px",
+            left: "10px",
+            background: "rgba(0,0,0,0.7)",
+            color: accuracy > 70 ? "lightgreen" : "lightcoral",
+            padding: "10px",
+            borderRadius: "5px",
+            fontSize: "16px",
+            zIndex: 10
+          }}
+        >
+          {accuracy > 70 ? "✓ Buena posición" : "✗ Ajusta tu mano"}
+        </div>
+      )}
     </div>
   );
 };

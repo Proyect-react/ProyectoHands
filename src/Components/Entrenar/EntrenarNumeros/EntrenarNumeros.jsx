@@ -1,19 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './EntrenarNumeros.css';
 import DeteccionNumeros from '../../Camara/camaradeteccionNumeros';
 
 const LOCAL_STORAGE_MODELS_KEY = 'training_models_v1';
-const LOCAL_STORAGE_LABELSTATS_KEY = 'training_labelStats_v2'; // Cambiado para evitar conflicto con la versión anterior
+const LOCAL_STORAGE_LABELSTATS_KEY = 'training_labelStats_v2';
 const LOCAL_STORAGE_SELECTED_MODEL_KEY = 'training_selectedModelId_v1';
 
-// Utilidad para obtener la clave única de stats por modelo y etiqueta
 function getLabelStatsKey(modelId, label) {
   return `${modelId}__${label}`;
 }
 
 function EntrenarNumeros() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const characterFromURL = queryParams.get('character') || '0';
+
+  // Obtener la ruta de la imagen según el carácter
+  const getImagePath = (char) => {
+    return process.env.PUBLIC_URL + `/img/Numero ${char}.png`;
+  };
 
   // Persist models in localStorage
   const [models, setModels] = useState(() => {
@@ -21,7 +28,7 @@ function EntrenarNumeros() {
     return stored ? JSON.parse(stored) : [];
   });
 
-  // Persist labelStats in localStorage (ahora por modelo+etiqueta)
+  // Persist labelStats in localStorage
   const [labelStats, setLabelStats] = useState(() => {
     const stored = localStorage.getItem(LOCAL_STORAGE_LABELSTATS_KEY);
     return stored ? JSON.parse(stored) : {};
@@ -33,8 +40,8 @@ function EntrenarNumeros() {
     return stored ? JSON.parse(stored) : null;
   });
 
-  // Etiqueta seleccionada (por modelo)
-  const [currentLetter, setCurrentLetter] = useState('');
+  // Etiqueta seleccionada (por modelo) - usar characterFromURL como valor inicial
+  const [currentLetter, setCurrentLetter] = useState(characterFromURL);
 
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [showCreateModelModal, setShowCreateModelModal] = useState(false);
@@ -68,14 +75,9 @@ function EntrenarNumeros() {
     // Si se borra el modelo seleccionado, seleccionar otro o ninguno
     if (selectedModelId && !models.find(m => m.id === selectedModelId)) {
       setSelectedModelId(models.length > 0 ? models[0].id : null);
-      setCurrentLetter('');
+      setCurrentLetter(characterFromURL);
     }
-  }, [models, selectedModelId]);
-
-  // Si se cambia de modelo, limpiar la etiqueta seleccionada
-  useEffect(() => {
-    setCurrentLetter('');
-  }, [selectedModelId]);
+  }, [models, selectedModelId, characterFromURL]);
 
   // Obtener el modelo seleccionado
   const selectedModel = models.find(m => m.id === selectedModelId);
@@ -156,9 +158,9 @@ function EntrenarNumeros() {
         delete nuevasStats[key];
       });
       setLabelStats(nuevasStats);
-      // Si la etiqueta actual era de este modelo, limpiar selección
+      // Si la etiqueta actual era de este modelo, volver al carácter de la URL
       if (modeloEliminado.labels.includes(currentLetter)) {
-        setCurrentLetter('');
+        setCurrentLetter(characterFromURL);
       }
     }
     // Si el modelo eliminado era el seleccionado, seleccionar otro
@@ -222,7 +224,7 @@ function EntrenarNumeros() {
     };
     setModels(prevModels => [...prevModels, nuevoModelo]);
     handleCloseCreateModelModal();
-    setCurrentLetter('');
+    setCurrentLetter(characterFromURL);
     setSelectedModelId(nuevoModelo.id);
     // Inicializar stats para nuevas etiquetas de este modelo si no existen
     setLabelStats(prev => {
@@ -254,7 +256,7 @@ function EntrenarNumeros() {
 
   const handleSelectModel = (modelId) => {
     setSelectedModelId(modelId);
-    setCurrentLetter('');
+    setCurrentLetter(characterFromURL);
   };
 
   return (
@@ -281,12 +283,12 @@ function EntrenarNumeros() {
                   value={newModelType}
                   onChange={(e) => setNewModelType(e.target.value)}
                 >
-                  <option value="Clasificación">Vocales</option>
-                  <option value="Regresión">Numeros</option>
+                  <option value="Clasificación">Números</option>
+                  <option value="Regresión">Vocales</option>
                 </select>
               </div>
               <div className="form-group">
-                <label>Etiquetas (Letras/Números)</label>
+                <label>Etiquetas (Números)</label>
                 {newModelLabels.map((label, idx) => (
                   <div key={idx} className="label-input-container">
                     <input
@@ -340,71 +342,35 @@ function EntrenarNumeros() {
         <button className="back-button" onClick={handleBackToHome}>
           ← Volver al Inicio
         </button>
-        <h1>Entrenar Numeros</h1>
+        <h1>Entrenar Número {currentLetter}</h1>
         <button className='NuevoModelo' onClick={handleOpenCreateModelModal}>Crear Modelo</button>
       </div>
 
       {/* Main Content */}
       <div className="training-content">
         {/* Left Column - Mis Modelos */}
-        <div className="models-section">
-          <div className="section-header">
-            <h2>🧠 Mis Modelos</h2>
-          </div>
-
-          {models.length === 0 ? (
-            <div className="no-models">
-              <p>No tienes modelos creados aún</p>
-              <p>Crea tu primer modelo para comenzar</p>
-            </div>
-          ) : (
-            models.map((model) => (
-              <div
-                key={model.id}
-                className={`model-card${selectedModelId === model.id ? ' selected-model' : ''}`}
-                style={{
-                  border: selectedModelId === model.id ? '2px solid #2D1B69' : undefined,
-                  boxShadow: selectedModelId === model.id ? '0 0 8px #2D1B6933' : undefined,
-                  cursor: 'pointer'
-                }}
-                onClick={() => handleSelectModel(model.id)}
-              >
-                <div className="model-header">
-                  <h3>{model.name}</h3>
-                  <button
-                    className="delete-button"
-                    onClick={e => {
-                      e.stopPropagation();
-                      handleDeleteModel(model.id);
-                    }}
-                  >
-                    🗑️
-                  </button>
+        <div className="models-section" style={{ minHeight: "400px", maxWidth: "600px", marginBottom: "2rem", boxSizing: "border-box" }}>
+            <div className="training-card blue" style={{ minHeight: "350px", maxWidth: "500px", margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center" }}>    
+              <div className="card-content" style={{ flex: 1, minHeight: "300px", justifyContent: "center", fontSize: "2rem" }}>
+                <span className="card-number" style={{ fontSize: "2.5rem" }}></span>
+                <span className="card-text" style={{ fontSize: "2rem" }}>Entrenamiento de número {currentLetter}</span>
+                <div className="Img" style={{ display: "flex", justifyContent: "center" }}>
+                  <img
+                    src={getImagePath(currentLetter)}
+                    alt={`Número ${currentLetter} en lenguaje de señas`}
+                    style={{ width: '200px', height: '200px', objectFit: 'contain' }}
+                  />
                 </div>
-                <div className="model-info">
-                  <p>
-                    <strong>Tipo:</strong> {model.type} •{' '}
-                    {Array.isArray(model.labels)
-                      ? `${model.labels.length} etiquetas`
-                      : `${model.labels} etiquetas`}
-                  </p>
-                  <p><strong>Muestras:</strong> {model.samples || 0} muestras</p>
-                  {Array.isArray(model.labels) && model.labels.length > 0 && (
-                    <div className="model-labels-info">
-                      <strong>Etiquetas:</strong> {model.labels.join(', ')}
-                    </div>
-                  )}
-                </div>
-                <div className="model-progress">
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${model.progress || 0}%` }}></div>
+                <h3 style={{ marginTop: "2rem", fontSize: "1.7rem", color: "black" }}>Progreso</h3>
+                <div className="progress-bar-container" style={{ fontSize: "1.3rem" }}>
+                  <div className="progress-bar" style={{ height: "18px" }}>
+                    <div className="progress-fill" style={{ width: '100%', height: "18px" }}></div>
                   </div>
-                  <span className="progress-text">{model.progress || 0}%</span>
+                  <span className="progress-percentage" style={{ fontSize: "1.3rem" }}>100%</span>
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            </div>
+          </div>
 
         {/* Right Column - Cámara de Entrenamiento */}
         <div className="camera-section">
@@ -414,7 +380,7 @@ function EntrenarNumeros() {
 
           <div className="camera-feed">
             {isCameraActive ? (
-              <DeteccionNumeros />
+              <DeteccionNumeros character={currentLetter} />
             ) : (
               <div className="camera-placeholder">
                 <div className="camera-icon-large">📹</div>
