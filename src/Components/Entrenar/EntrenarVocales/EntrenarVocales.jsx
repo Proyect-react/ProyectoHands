@@ -5,6 +5,9 @@ import DeteccionVocales from '../../Camara/camaradeteccionVocales';
 
 // 🔥 CLAVES SEPARADAS SOLO PARA PRÁCTICA (no interfieren con TrainingPage)
 const LOCAL_STORAGE_PRACTICE_KEY = 'practice_vocales_stats';
+const LOCAL_STORAGE_SESSIONS_KEY = 'practice_sessions_data';
+const LOCAL_STORAGE_ALL_SESSIONS_KEY = 'practice_all_sessions_data'; // Para todas las sesiones
+const MAX_RECENT_SESSIONS = 5; // Límite de sesiones recientes a mostrar
 
 function EntrenarVocales() {
   const navigate = useNavigate();
@@ -21,6 +24,7 @@ function EntrenarVocales() {
   const [currentLetter] = useState(characterFromURL);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [currentPrecision, setCurrentPrecision] = useState(0);
+  const [sessionStartTime, setSessionStartTime] = useState(null);
 
   // Usar useRef para el intervalo
   const autoIncrementInterval = useRef(null);
@@ -39,6 +43,72 @@ function EntrenarVocales() {
     localStorage.setItem(LOCAL_STORAGE_PRACTICE_KEY, JSON.stringify(practiceStats));
   }, [practiceStats]);
 
+  // Función para registrar una nueva sesión
+  const registerNewSession = useCallback(() => {
+    const startTime = new Date();
+    setSessionStartTime(startTime);
+    
+    // Obtener sesiones existentes
+    const existingSessions = JSON.parse(localStorage.getItem(LOCAL_STORAGE_SESSIONS_KEY) || '[]');
+    const allSessions = JSON.parse(localStorage.getItem(LOCAL_STORAGE_ALL_SESSIONS_KEY) || '[]');
+    
+    // Crear nueva sesión
+    const newSession = {
+      id: Date.now(),
+      vowel: currentLetter,
+      startTime: startTime.toISOString(),
+      endTime: null,
+      duration: 0,
+      samplesCollected: 0
+    };
+    
+    // Agregar a sesiones recientes (limitado a MAX_RECENT_SESSIONS)
+    const updatedSessions = [newSession, ...existingSessions].slice(0, MAX_RECENT_SESSIONS);
+    localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(updatedSessions));
+    
+    // Agregar a todas las sesiones (sin límite)
+    const updatedAllSessions = [newSession, ...allSessions];
+    localStorage.setItem(LOCAL_STORAGE_ALL_SESSIONS_KEY, JSON.stringify(updatedAllSessions));
+    
+    return newSession.id;
+  }, [currentLetter]);
+
+  // Función para finalizar una sesión
+  const finalizeSession = useCallback((sessionId, samples) => {
+    const endTime = new Date();
+    const duration = Math.round((endTime - sessionStartTime) / 1000); // en segundos
+    
+    // Actualizar la sesión en sesiones recientes
+    const existingSessions = JSON.parse(localStorage.getItem(LOCAL_STORAGE_SESSIONS_KEY) || '[]');
+    const updatedSessions = existingSessions.map(session => {
+      if (session.id === sessionId) {
+        return {
+          ...session,
+          endTime: endTime.toISOString(),
+          duration: duration,
+          samplesCollected: samples
+        };
+      }
+      return session;
+    });
+    localStorage.setItem(LOCAL_STORAGE_SESSIONS_KEY, JSON.stringify(updatedSessions));
+    
+    // Actualizar la sesión en todas las sesiones
+    const allSessions = JSON.parse(localStorage.getItem(LOCAL_STORAGE_ALL_SESSIONS_KEY) || '[]');
+    const updatedAllSessions = allSessions.map(session => {
+      if (session.id === sessionId) {
+        return {
+          ...session,
+          endTime: endTime.toISOString(),
+          duration: duration,
+          samplesCollected: samples
+        };
+      }
+      return session;
+    });
+    localStorage.setItem(LOCAL_STORAGE_ALL_SESSIONS_KEY, JSON.stringify(updatedAllSessions));
+  }, [sessionStartTime]);
+
   // Función para actualizar la precisión desde el componente de cámara
   const handlePrecisionUpdate = useCallback((precision) => {
     setCurrentPrecision(precision);
@@ -46,69 +116,65 @@ function EntrenarVocales() {
 
   // Efecto para manejar el intervalo de incremento automático
   // 1. Efecto solo para limpiar al desmontar
-useEffect(() => {
-  return () => {
-    if (autoIncrementInterval.current) {
-      clearInterval(autoIncrementInterval.current);
-      autoIncrementInterval.current = null;
-      console.log("🧹 Intervalo limpiado al desmontar");
-    }
-  };
-}, []);
-
-// 2. Efecto para manejar el auto-incremento
-// 2. Efecto para manejar el auto-incremento
-useEffect(() => {
-  const currentSamples = practiceStatsRef.current[currentLetter] || 0;
-
-  // 🚨 Si ya llegaste al objetivo, no vuelvas a hacer nada
-  if (currentSamples >= MUESTRAS_OBJETIVO) {
-    if (autoIncrementInterval.current) {
-      clearInterval(autoIncrementInterval.current);
-      autoIncrementInterval.current = null;
-      console.log("🏁 Meta alcanzada, intervalo detenido y no se reiniciará");
-    }
-    return; // ⬅️ clave: salimos del efecto
-  }
-
-  const cumpleCondiciones =
-    currentPrecision >= 90 && isCameraActive && currentLetter;
-
-  if (!cumpleCondiciones) {
-    if (autoIncrementInterval.current) {
-      clearInterval(autoIncrementInterval.current);
-      autoIncrementInterval.current = null;
-      console.log("🛑 Intervalo detenido (condiciones no cumplidas)");
-    }
-    return;
-  }
-
-  // Si ya existe, no lo vuelvas a crear
-  if (autoIncrementInterval.current) return;
-
-  console.log("🚀 Iniciando auto-incremento cada 2 segundos");
-  autoIncrementInterval.current = setInterval(() => {
-    setPracticeStats(prevStats => {
-      const currentSamples = prevStats[currentLetter] || 0;
-
-      if (currentSamples >= MUESTRAS_OBJETIVO) {
+  useEffect(() => {
+    return () => {
+      if (autoIncrementInterval.current) {
         clearInterval(autoIncrementInterval.current);
         autoIncrementInterval.current = null;
-        console.log("🏁 Meta de 20 alcanzada, intervalo detenido");
-        return prevStats; // no sube más
+        console.log("🧹 Intervalo limpiado al desmontar");
       }
+    };
+  }, []);
 
-      console.log("➕ Incrementando aciertos:", currentSamples + 1);
-      return {
-        ...prevStats,
-        [currentLetter]: currentSamples + 1
-      };
-    });
-  }, 2000);
-}, [currentPrecision, isCameraActive, currentLetter, MUESTRAS_OBJETIVO]);
+  // 2. Efecto para manejar el auto-incremento
+  useEffect(() => {
+    const currentSamples = practiceStatsRef.current[currentLetter] || 0;
 
+    // 🚨 Si ya llegaste al objetivo, no vuelvas a hacer nada
+    if (currentSamples >= MUESTRAS_OBJETIVO) {
+      if (autoIncrementInterval.current) {
+        clearInterval(autoIncrementInterval.current);
+        autoIncrementInterval.current = null;
+        console.log("🏁 Meta alcanzada, intervalo detenido y no se reiniciará");
+      }
+      return; // ⬅️ clave: salimos del efecto
+    }
 
-  
+    const cumpleCondiciones =
+      currentPrecision >= 90 && isCameraActive && currentLetter;
+
+    if (!cumpleCondiciones) {
+      if (autoIncrementInterval.current) {
+        clearInterval(autoIncrementInterval.current);
+        autoIncrementInterval.current = null;
+        console.log("🛑 Intervalo detenido (condiciones no cumplidas)");
+      }
+      return;
+    }
+
+    // Si ya existe, no lo vuelvas a crear
+    if (autoIncrementInterval.current) return;
+
+    console.log("🚀 Iniciando auto-incremento cada 2 segundos");
+    autoIncrementInterval.current = setInterval(() => {
+      setPracticeStats(prevStats => {
+        const currentSamples = prevStats[currentLetter] || 0;
+
+        if (currentSamples >= MUESTRAS_OBJETIVO) {
+          clearInterval(autoIncrementInterval.current);
+          autoIncrementInterval.current = null;
+          console.log("🏁 Meta de 20 alcanzada, intervalo detenido");
+          return prevStats; // no sube más
+        }
+
+        console.log("➕ Incrementando aciertos:", currentSamples + 1);
+        return {
+          ...prevStats,
+          [currentLetter]: currentSamples + 1
+        };
+      });
+    }, 2000);
+  }, [currentPrecision, isCameraActive, currentLetter, MUESTRAS_OBJETIVO]);
 
   const handleBackToHome = () => {
     navigate('/');
@@ -117,12 +183,23 @@ useEffect(() => {
   const handleStartCamera = () => {
     console.log('📷 Iniciando cámara');
     setIsCameraActive(true);
+    registerNewSession();
   };
 
   const handleStopCamera = () => {
     console.log('⏹️ Deteniendo cámara');
+    
+    // Finalizar la sesión actual
+    if (sessionStartTime) {
+      const sessions = JSON.parse(localStorage.getItem(LOCAL_STORAGE_SESSIONS_KEY) || '[]');
+      if (sessions.length > 0 && !sessions[0].endTime) {
+        finalizeSession(sessions[0].id, currentSamples);
+      }
+    }
+    
     setIsCameraActive(false);
     setCurrentPrecision(0); // Resetear precisión cuando se detiene la cámara
+    setSessionStartTime(null);
 
     // Detener el intervalo automático si está activo
     if (autoIncrementInterval.current) {
@@ -227,7 +304,7 @@ useEffect(() => {
               </div>
               <div className="training-card" style={{
                 background: '#fff',
-                color: '#2D1B69',
+                color: '##2D1B69',
                 borderRadius: '12px',
                 padding: '1rem 1.5rem',
                 minWidth: '120px',
