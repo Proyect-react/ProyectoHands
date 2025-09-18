@@ -2,28 +2,13 @@
 import "./HomePage.css";
 import Header from "../Header/Header";
 import { useNavigate } from 'react-router-dom';
-import React, { useState } from "react";
+import React from "react";
 
 function HomePage() {
   const navigate = useNavigate();
-  const [trainingMode, setTrainingMode] = useState("vocales");
 
   const handleTrainingClick = () => {
     navigate('/training');
-  };
-
-  const handleModeChange = () => {
-    setTrainingMode(prev => prev === "vocales" ? "numeros" : "vocales");
-  };
-
-  // Función para manejar el clic en entrenar vocal
-  const handleTrainVocal = (vocal) => {
-    navigate('/EntrenarVocales', { state: { character: vocal } });
-  };
-
-  // Función para manejar el clic en entrenar número
-  const handleTrainNumero = (numero) => {
-    navigate('/EntrenarNumeros', { state: { character: numero } });
   };
 
   // Tarjetas de progreso para vocales
@@ -76,18 +61,6 @@ function HomePage() {
     </div>
   );
 
-  const numeroGeneralProgress = (
-    <div className="general-progress">
-      <h3>Progreso General</h3>
-      <div className="progress-bar-container">
-        <div className="progress-bar">
-          <div className="progress-fill" style={{width: '30%'}}></div>
-        </div>
-        <span className="progress-percentage">30%</span>
-      </div>
-    </div>
-  );
-
   // Vocales dominadas
   const vocalDominadas = (
     <div className="vowels-section">
@@ -112,27 +85,6 @@ function HomePage() {
           <span className="session-details">320 intentos • 25s</span>
         </div>
         <div className="session-accuracy">100.0%</div>
-      </div>
-    </div>
-  );
-
-  // Sesiones recientes números
-  const numeroSesiones = (
-    <div className="recent-sessions">
-      <h3>Sesiones Recientes</h3>
-      <div className="session-item">
-        <div className="session-info">
-          <span className="session-title">Número 1</span>
-          <span className="session-details">120 intentos • 10s</span>
-        </div>
-        <div className="session-accuracy">95.0%</div>
-      </div>
-      <div className="session-item">
-        <div className="session-info">
-          <span className="session-title">Número 0</span>
-          <span className="session-details">80 intentos • 8s</span>
-        </div>
-        <div className="session-accuracy">90.0%</div>
       </div>
     </div>
   );
@@ -284,4 +236,5 @@ const vocalCards = (
     </div>
   </div>
 );
+
 export default HomePage;
