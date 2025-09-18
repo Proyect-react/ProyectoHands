@@ -97,17 +97,30 @@
   padding: 2rem;
   max-width: 1600px; /* Más ancho para acomodar la cámara */
   margin: 0 auto;
-  min-height: calc(100vh - 200px); /* Altura mínima para la cámara */
+  min-height: calc(100vh - 100px); /* Altura mínima para la cámara */
 }
 
 /* Sección de modelos */
 .models-section {
-  background: rgba(255, 255, 255, 0.1);
+  background: transparent;
   border-radius: 20px;
   padding: 1.5rem;
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border: 1px solid transparent;
+  box-shadow: 0 8px 32px transparent;
+  /* Elimina el max-height: 0px para que el contenedor no colapse si se borra esta sección */
+  min-height: 100px; /* Asegura que el contenedor mantenga algo de altura mínima */
+}
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;    /* El ancho ocupa todo el contenedor padre */
+  height: auto;   /* La altura se ajusta automáticamente al contenido */
+  max-height: 800px;
+  max-width: 300px; /* Más grande */
+  overflow-y: auto;  /* Permite scroll si el contenido excede la altura */
+  font-size: 1.25rem;
 }
 
 .no-models {

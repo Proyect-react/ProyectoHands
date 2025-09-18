@@ -9,6 +9,7 @@
   max-width: 1200px;
   margin: 0 auto;
   border-radius: 50px;
+  box-sizing: border-box;
 }
 
 /* Sección hero */
@@ -74,60 +75,20 @@
 /* Sección de progreso */
 .progress-section {
   margin-bottom: 2rem;
-  
 }
 
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.progress-header h2 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0;
-}
-
-.level-button {
-  background: linear-gradient(135deg, #FFE66D, #11998E);
-  color: #333;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(255, 230, 109, 0.3);
-}
-
-.level-button:hover {
-  background: linear-gradient(135deg, #FFD93D, #0D6B5F);
-  transform: scale(1.05);
-}
-
-.refresh-icon {
-  font-size: 0.8rem;
-}
-
-/* Tarjetas de progreso */
+/* Centrar y limitar el ancho de las tarjetas igual que el main */
 .progress-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px; /* Espacio entre tarjetas, ajusta el valor según lo que necesites */
+  justify-content: center; /* Opcional: centra las tarjetas */
 }
 
 .progress-card {
   background: linear-gradient(135deg, #ffffff, #f8f9fa);
-  border-radius: 20px;
-  padding: 1.5rem;
+  border-radius: 0;
+  padding: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -136,6 +97,21 @@
   border: 2px solid transparent;
   position: relative;
   overflow: hidden;
+  min-width: 20%;
+  max-width: 20%;
+  flex: 1 1 20%;
+  box-sizing: border-box;
+  margin-bottom: 24px; /* Espacio inferior entre filas de tarjetas */
+}
+
+.progress-card:first-child {
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+.progress-card:last-child {
+  border-top-right-radius: 20px;
+  border-bottom-right-radius: 20px;
 }
 
 .progress-card::before {
@@ -173,10 +149,20 @@
   --card-color-light: #C7CEEA;
 }
 
+.progress-card.orange {
+  --card-color: #FFB347;
+  --card-color-light: #FFD580;
+}
+
+/* Imagen/Icono de la tarjeta responsive */
 .card-icon {
-  font-size: 2rem;
-  width: 60px;
-  height: 60px;
+  width: 4vw;
+  height: 4vw;
+  min-width: 40px;
+  min-height: 40px;
+  max-width: 60px;
+  max-height: 60px;
+  font-size: 2vw;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -184,6 +170,7 @@
   border-radius: 50%;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   animation: pulse 2s ease-in-out infinite;
+  object-fit: contain;
 }
 
 @keyframes pulse {
@@ -195,6 +182,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  max-height: 220px; /* Limita la altura máxima */
+  overflow-y: auto;  /* Permite scroll si el contenido excede la altura */
 }
 
 .card-number {
@@ -234,6 +223,25 @@
   border-radius: 4px;
   overflow: hidden;
 }
+.button {
+  background: linear-gradient(135deg, #2D1B69, #11998E);
+  color: #fff;
+  border: none;
+  border-radius: 25px;
+  padding: 0.7rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 15px rgba(45, 27, 105, 0.18);
+  transition: all 0.3s;
+  outline: none;
+  text-align: center;
+}
+
 
 .progress-fill {
   height: 100%;
@@ -380,7 +388,109 @@
   background-clip: text;
 }
 
+/* Tarjetas de entrenamiento de vocales */
+.training-cards {
+  margin-top: 3rem; /* Más espacio arriba */
+  margin-bottom: 2rem; /* Más espacio abajo */
+  text-align: center;
+}
+
+.training-cards-container {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 1200px; /* Cambia este valor para ajustar el tamaño del contenedor */
+  gap: 22px; /* Espacio entre tarjetas */
+  justify-content: center;
+  align-items: stretch;
+  margin-top: 1rem;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+
+.training-card {
+  background: linear-gradient(135deg, #f8f9fa, #e8f8f5);
+  border-radius: 24px;
+  padding: 2rem 1rem;
+  box-shadow: 0 4px 20px rgba(45, 27, 105, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 220px;
+  max-width: 260px;
+  flex: 1 1 220px;
+  box-sizing: border-box;
+  transition: transform 0.2s;
+  border: 2px solid #FFE66D;
+}
+
+.training-card:hover {
+  transform: translateY(-5px) scale(1.03);
+  box-shadow: 0 8px 30px rgba(45, 27, 105, 0.12);
+}
+
+.training-card .card-icon {
+  width: 60px;
+  height: 60px;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #11998E, #4ECDC4);
+  color: white;
+  box-shadow: 0 4px 12px rgba(17, 153, 142, 0.12);
+}
+
+.training-card .Img {
+  margin: 1rem 0;
+}
+
+.training-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.5rem 0;
+}
+
+.training-card .progress-bar-container {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.training-card .progress-bar {
+  height: 10px;
+  border-radius: 5px;
+}
+
+.training-card .progress-fill {
+  border-radius: 5px;
+}
+
+.training-card .progress-percentage {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  min-width: 40px;
+}
+
 /* Responsive Design */
+@media (max-width: 1200px) {
+  .progress-cards {
+    gap: 0;
+    max-width: 100%;
+  }
+  .progress-card {
+    min-width: 20%;
+    max-width: 20%;
+  }
+  .card-icon {
+    width: 6vw;
+    height: 6vw;
+    min-width: 36px;
+    min-height: 36px;
+    max-width: 48px;
+    max-height: 48px;
+    font-size: 2.5vw;
+  }
+}
+
 @media (max-width: 1024px) {
   .main-container {
     padding: 1.5rem;
@@ -391,7 +501,46 @@
   }
   
   .progress-cards {
-    grid-template-columns: repeat(2, 1fr);
+    gap: 0;
+    max-width: 100%;
+  }
+  .progress-card {
+    min-width: 20%;
+    max-width: 20%;
+  }
+  .card-icon {
+    width: 7vw;
+    height: 7vw;
+    min-width: 32px;
+    min-height: 32px;
+    max-width: 44px;
+    max-height: 44px;
+    font-size: 3vw;
+  }
+}
+
+@media (max-width: 900px) {
+  .progress-cards {
+    flex-wrap: wrap;
+    gap: 0;
+    max-width: 100%;
+  }
+  .progress-card {
+    min-width: 50%;
+    max-width: 50%;
+  }
+  .card-icon {
+    width: 10vw;
+    height: 10vw;
+    min-width: 28px;
+    min-height: 28px;
+    max-width: 40px;
+    max-height: 40px;
+    font-size: 4vw;
+  }
+  .training-cards {
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
   }
 }
 
@@ -409,7 +558,26 @@
   }
   
   .progress-cards {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .progress-card {
+    min-width: 100%;
+    max-width: 100%;
+    border-radius: 20px !important;
+  }
+  .card-icon {
+    width: 40px;
+    height: 40px;
+    min-width: 28px;
+    min-height: 28px;
+    max-width: 40px;
+    max-height: 40px;
+    font-size: 1.5rem;
   }
   
   .progress-header {
@@ -451,17 +619,27 @@
   }
   
   .progress-cards {
-    gap: 0.75rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
   }
   
   .progress-card {
-    padding: 1rem;
+    min-width: 100%;
+    max-width: 100%;
+    border-radius: 20px !important;
   }
-  
   .card-icon {
-    width: 50px;
-    height: 50px;
-    font-size: 1.5rem;
+    width: 32px;
+    height: 32px;
+    min-width: 24px;
+    min-height: 24px;
+    max-width: 32px;
+    max-height: 32px;
+    font-size: 1.2rem;
   }
   
   .vowel {
@@ -472,5 +650,66 @@
   
   .session-item {
     padding: 1rem;
+  }
+}
+
+/* Estilos para el botón de cambio de modo */
+.training-mode-switch {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1.2rem;
+}
+
+.mode-switch-button {
+  background: linear-gradient(135deg, #2D1B69, #11998E);
+  color: #fff;
+  border: none;
+  border-radius: 25px;
+  padding: 0.7rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 15px rgba(45, 27, 105, 0.18);
+  transition: all 0.3s;
+  outline: none;
+}
+
+.mode-switch-button:hover {
+  background: linear-gradient(135deg, #1A0F4A, #0D6B5F);
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 8px 25px rgba(45, 27, 105, 0.22);
+}
+
+.switch-icon {
+  font-size: 1.3rem;
+  transition: transform 0.3s;
+}
+
+.mode-switch-button:active .switch-icon {
+  transform: rotate(180deg);
+}
+
+/* Responsive para el botón */
+@media (max-width: 768px) {
+  .mode-switch-button {
+    padding: 0.6rem 1.2rem;
+    font-size: 1rem;
+  }
+  .training-mode-switch {
+    margin-bottom: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .mode-switch-button {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.95rem;
+  }
+  .training-mode-switch {
+    margin-bottom: 0.5rem;
   }
 }
