@@ -304,7 +304,7 @@ function EntrenarVocales() {
               </div>
               <div className="training-card" style={{
                 background: '#fff',
-                color: '##2D1B69',
+                color: '#2D1B69',
                 borderRadius: '12px',
                 padding: '1rem 1.5rem',
                 minWidth: '120px',
