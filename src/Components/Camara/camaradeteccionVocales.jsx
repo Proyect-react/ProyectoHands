@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 
-// Conexiones (igual que antes)
+// Conexiones
 const HAND_CONNECTIONS = [
   [0, 1], [1, 2], [2, 3], [3, 4],
   [0, 5], [5, 6], [6, 7], [7, 8],
@@ -26,14 +26,23 @@ const angleAt = (a, b, c) => {
   return Math.acos(cos);
 };
 
-const isFingerBent = (landmarks, baseIdx, pipIdx, tipIdx, thresholdDeg = 150) => {
+// Función mejorada para detección de flexión de dedos con escala gradual
+const fingerBentScore = (landmarks, baseIdx, pipIdx, tipIdx, thresholdDeg = 155) => {
   const ang = angleAt(landmarks[baseIdx], landmarks[pipIdx], landmarks[tipIdx]);
   const thresholdRad = (thresholdDeg * Math.PI) / 180;
-  return ang < thresholdRad;
+  // Convertir a escala 0-1 donde 1 significa completamente doblado
+  const bentAmount = Math.max(0, Math.min(1, (thresholdRad - ang) / (thresholdRad * 0.5)));
+  return bentAmount;
 };
 
-const isThumbBent = (landmarks, thresholdDeg = 140) => {
-  return isFingerBent(landmarks, 1, 2, 4, thresholdDeg);
+const thumbBentScore = (landmarks, thresholdDeg = 145) => {
+  return fingerBentScore(landmarks, 1, 2, 4, thresholdDeg);
+};
+
+// Función para calcular precisión con decimales
+const calculatePrecision = (score, totalRules) => {
+  const rawAccuracy = (score / totalRules) * 100;
+  return Math.min(100, Math.max(0, Math.round(rawAccuracy * 10) / 10));
 };
 
 const evaluateHand = (landmarks, targetVowel) => {
@@ -47,14 +56,28 @@ const evaluateHand = (landmarks, targetVowel) => {
   let palmSize = distance(wrist, landmarks[9]);
   if (palmSize < 1e-6) palmSize = 1e-6;
 
-  const indexBent = isFingerBent(landmarks, 5, 6, 8);
-  const middleBent = isFingerBent(landmarks, 9, 10, 12);
-  const ringBent = isFingerBent(landmarks, 13, 14, 16);
-  const pinkyBent = isFingerBent(landmarks, 17, 18, 20);
-  const thumbBent = isThumbBent(landmarks);
+  // Detección de dedos doblados con escala gradual
+  const indexBentScore = fingerBentScore(landmarks, 5, 6, 8);
+  const middleBentScore = fingerBentScore(landmarks, 9, 10, 12);
+  const ringBentScore = fingerBentScore(landmarks, 13, 14, 16);
+  const pinkyBentScore = fingerBentScore(landmarks, 17, 18, 20);
+  const thumbBentScoreValue = thumbBentScore(landmarks);
 
+  // Umbral para considerar un dedo como doblado (ajustado para mayor precisión)
+  const BENT_THRESHOLD = 0.7;
+  const indexBent = indexBentScore > BENT_THRESHOLD;
+  const middleBent = middleBentScore > BENT_THRESHOLD;
+  const ringBent = ringBentScore > BENT_THRESHOLD;
+  const pinkyBent = pinkyBentScore > BENT_THRESHOLD;
+  const thumbBent = thumbBentScoreValue > BENT_THRESHOLD;
+
+  // Distancias normalizadas con umbrales milimétricos
   const d_thumb_index = distance(thumbTip, indexTip) / palmSize;
   const d_index_middle = distance(indexTip, middleTip) / palmSize;
+  const d_middle_ring = distance(middleTip, ringTip) / palmSize;
+  const d_ring_pinky = distance(ringTip, pinkyTip) / palmSize;
+  const d_thumb_palm = distance(thumbTip, landmarks[0]) / palmSize;
+
   const avgTipDistToThumb = (
     distance(indexTip, thumbTip) +
     distance(middleTip, thumbTip) +
@@ -62,77 +85,148 @@ const evaluateHand = (landmarks, targetVowel) => {
     distance(pinkyTip, thumbTip)
   ) / (4 * palmSize);
 
-  const expected = { thumb: false, index: false, middle: false, ring: false, pinky: false, extra: {} };
+  // Calcular separación promedio entre dedos
+  const avgFingerSpread = (
+    d_index_middle + d_middle_ring + d_ring_pinky
+  ) / 3;
+
+  const expected = { thumb: false, index: false, middle: false, ring: false, pinky: false };
   let totalRules = 0;
   let score = 0;
 
+  // Umbrales de distancia y ángulo estrictos para precisión milimétrica
   switch (targetVowel) {
     case "A":
-      expected.index = expected.middle = expected.ring = expected.pinky = expected.thumb = true;
+      // Para la A: pulgar estirado, otros 4 doblados
+      expected.thumb = false;   // estirado
+      expected.index = true;    // doblado
+      expected.middle = true;   // doblado
+      expected.ring = true;     // doblado
+      expected.pinky = true;    // doblado
       totalRules = 5;
-      if (indexBent) score++;
-      if (middleBent) score++;
-      if (ringBent) score++;
-      if (pinkyBent) score++;
-      if (thumbBent) score++;
+
+      // Pulgar estirado → mientras menos doblado, mejor
+      score += (1 - thumbBentScoreValue);
+
+      // Otros 4 deben estar doblados → mientras más doblados, mejor
+      score += indexBentScore;
+      score += middleBentScore;
+      score += ringBentScore;
+      score += pinkyBentScore;
+
+      // (Opcional) Regla adicional: asegurar que los dedos doblados estén lo suficientemente cerca
+      totalRules += 1;
+      const aTightScore = Math.max(0, 1 - (Math.max(0, avgFingerSpread - 0.10) / 0.10));
+      score += aTightScore;
       break;
 
     case "E":
       expected.index = expected.middle = expected.ring = expected.pinky = expected.thumb = true;
       totalRules = 6;
-      if (indexBent) score++;
-      if (middleBent) score++;
-      if (ringBent) score++;
-      if (pinkyBent) score++;
-      if (thumbBent) score++;
-      if (avgTipDistToThumb < 0.6) score++;
+
+      score += indexBentScore;
+      score += middleBentScore;
+      score += ringBentScore;
+      score += pinkyBentScore;
+      score += thumbBentScoreValue;
+
+      // Umbral milimétrico: avgTipDistToThumb < 0.55 con escala gradual
+      const eScore = Math.max(0, 1 - (Math.max(0, avgTipDistToThumb - 0.35) / 0.2));
+      score += eScore;
       break;
 
     case "I":
+      // Para la I, índice, medio y anillo doblados, meñique extendido
       expected.index = expected.middle = expected.ring = expected.thumb = true;
       expected.pinky = false;
       totalRules = 5;
-      if (indexBent) score++;
-      if (middleBent) score++;
-      if (ringBent) score++;
-      if (!pinkyBent) score++;
-      if (thumbBent) score++;
+
+      score += indexBentScore;
+      score += middleBentScore;
+      score += ringBentScore;
+      score += (1 - pinkyBentScore); // Meñique debe estar extendido
+      score += thumbBentScoreValue;
+
+      // Añadir regla adicional para asegurar que el meñique está bien separado
+      totalRules += 1;
+      const iSpreadScore = Math.max(0, 1 - (Math.max(0, 0.15 - d_ring_pinky) / 0.15));
+      score += iSpreadScore;
       break;
 
     case "O":
       expected.index = expected.middle = expected.ring = expected.pinky = expected.thumb = true;
       totalRules = 5;
-      if (indexBent) score++;
-      if (middleBent) score++;
-      if (ringBent) score++;
-      if (pinkyBent) score++;
-      if (d_thumb_index < 0.35) score++;
+
+      score += indexBentScore;
+      score += middleBentScore;
+      score += ringBentScore;
+      score += pinkyBentScore;
+
+      // Umbral milimétrico: d_thumb_index < 0.30 con escala gradual
+      const oScore = Math.max(0, 1 - (Math.max(0, d_thumb_index - 0.15) / 0.15));
+      score += oScore;
       break;
 
     case "U":
       expected.ring = expected.pinky = expected.thumb = true;
       expected.index = expected.middle = false;
       totalRules = 6;
-      if (!indexBent) score++;
-      if (!middleBent) score++;
-      if (ringBent) score++;
-      if (pinkyBent) score++;
-      if (thumbBent) score++;
-      if (d_index_middle < 0.6) score++;
+
+      score += (1 - indexBentScore); // Índice extendido
+      score += (1 - middleBentScore); // Medio extendido
+      score += ringBentScore;
+      score += pinkyBentScore;
+      score += thumbBentScoreValue;
+
+      // Umbral milimétrico: d_index_middle < 0.50 con escala gradual
+      const uScore = Math.max(0, 1 - (Math.max(0, d_index_middle - 0.30) / 0.20));
+      score += uScore;
       break;
 
     default:
-      return { accuracy: 0, palmSize, expected, actualBent: { index: indexBent, middle: middleBent, ring: ringBent, pinky: pinkyBent, thumb: thumbBent } };
+      return {
+        accuracy: 0,
+        palmSize,
+        expected,
+        actualBent: {
+          index: indexBent,
+          middle: middleBent,
+          ring: ringBent,
+          pinky: pinkyBent,
+          thumb: thumbBent
+        }
+      };
   }
 
-  const accuracy = Math.round((score / totalRules) * 100);
+  // Precisión milimétrica con decimales
+  const accuracy = calculatePrecision(score, totalRules);
 
   return {
     accuracy,
     palmSize,
     expected,
-    actualBent: { index: indexBent, middle: middleBent, ring: ringBent, pinky: pinkyBent, thumb: thumbBent },
-    extras: { d_thumb_index, avgTipDistToThumb, d_index_middle }
+    actualBent: {
+      index: indexBent,
+      middle: middleBent,
+      ring: ringBent,
+      pinky: pinkyBent,
+      thumb: thumbBent
+    },
+    extras: {
+      d_thumb_index,
+      avgTipDistToThumb,
+      d_index_middle,
+      d_middle_ring,
+      d_ring_pinky,
+      avgFingerSpread
+    },
+    bentScores: {
+      index: indexBentScore,
+      middle: middleBentScore,
+      ring: ringBentScore,
+      pinky: pinkyBentScore,
+      thumb: thumbBentScoreValue
+    }
   };
 };
 
@@ -142,6 +236,8 @@ const DeteccionVocales = ({ character = "A", onPrecisionUpdate }) => {
   const cameraRef = useRef(null);
   const handsRef = useRef(null);
   const [accuracy, setAccuracy] = useState(0);
+  const [isPerfect, setIsPerfect] = useState(false);
+  const [debugInfo, setDebugInfo] = useState("");
 
   useEffect(() => {
     const hands = new Hands({
@@ -151,9 +247,9 @@ const DeteccionVocales = ({ character = "A", onPrecisionUpdate }) => {
 
     hands.setOptions({
       maxNumHands: 1,
-      modelComplexity: 0,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.7
+      modelComplexity: 1,
+      minDetectionConfidence: 0.8,
+      minTrackingConfidence: 0.8
     });
 
     hands.onResults((results) => {
@@ -171,7 +267,13 @@ const DeteccionVocales = ({ character = "A", onPrecisionUpdate }) => {
         const evalResult = evaluateHand(landmarks, character);
 
         setAccuracy(evalResult.accuracy);
+        setIsPerfect(evalResult.accuracy >= 99.5);
         if (onPrecisionUpdate) onPrecisionUpdate(evalResult.accuracy);
+
+        // Información de depuración
+        setDebugInfo(
+          `Flexión: I:${evalResult.bentScores.index.toFixed(2)}, M:${evalResult.bentScores.middle.toFixed(2)}, A:${evalResult.bentScores.ring.toFixed(2)}, Ñ:${evalResult.bentScores.pinky.toFixed(2)}, P:${evalResult.bentScores.thumb.toFixed(2)}`
+        );
 
         ctx.lineWidth = 2;
         for (const [s, e] of HAND_CONNECTIONS) {
@@ -212,13 +314,13 @@ const DeteccionVocales = ({ character = "A", onPrecisionUpdate }) => {
           ctx.fillText(fingerName, tip.x * canvas.width + 10, tip.y * canvas.height + 4);
         }
 
-        ctx.font = "20px Arial";
-        ctx.fillStyle = evalResult.accuracy > 70 ? "lightgreen" : "lightcoral";
-        ctx.fillText(`Precisión: ${evalResult.accuracy}%`, 20, 40);
-        ctx.fillText(`Vocal: ${character}`, 20, 70);
+        // Mostrar precisión con formato 00.0 a 100.0
+        const formattedAccuracy = evalResult.accuracy.toFixed(1).padStart(4, '0');
 
       } else {
         setAccuracy(0);
+        setIsPerfect(false);
+        setDebugInfo("");
         if (onPrecisionUpdate) onPrecisionUpdate(0);
         ctx.font = "20px Arial";
         ctx.fillStyle = "white";
@@ -296,37 +398,40 @@ const DeteccionVocales = ({ character = "A", onPrecisionUpdate }) => {
           display: "block"
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          top: "10px",
-          left: "10px",
-          background: "rgba(0,0,0,0.7)",
-          color: "white",
-          padding: "10px",
-          borderRadius: "5px",
-          fontSize: "18px",
-          zIndex: 10
-        }}
-      >
-      </div>
+
       {accuracy > 0 && (
         <div
           style={{
             position: "absolute",
             bottom: "10px",
             left: "10px",
-            background: "rgba(0,0,0,0.7)",
-            color: accuracy > 70 ? "lightgreen" : "lightcoral",
+            background: "trasparent",
+            color: isPerfect ? "lightgreen" : "lightcoral",
             padding: "10px",
             borderRadius: "5px",
             fontSize: "16px",
             zIndex: 10
           }}
         >
-          {accuracy > 70 ? "✓ Buena posición" : "✗ Ajusta tu mano"}
+          
         </div>
       )}
+
+      <div
+        style={{
+          position: "absolute",
+          top: "10px",
+          right: "10px",
+          background: "rgba(0,0,0,0.7)",
+          color: "white",
+          padding: "10px",
+          borderRadius: "5px",
+          fontSize: "12px",
+          zIndex: 10,
+          maxWidth: "300px"
+        }}
+      >
+      </div>
     </div>
   );
 };
