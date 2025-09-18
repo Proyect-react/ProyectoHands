@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './EntrenarVocales.css';
 import DeteccionVocales from '../../Camara/camaradeteccionVocales';
@@ -44,8 +44,28 @@ function EntrenarVocales() {
   const [newModelType, setNewModelType] = useState('Clasificación');
   const [newModelLabels, setNewModelLabels] = useState(['']);
 
+  // Nuevo estado para la precisión en tiempo real
+  const [currentPrecision, setCurrentPrecision] = useState(0);
+
   // Número de muestras objetivo
   const MUESTRAS_OBJETIVO = 20;
+
+  // Función para actualizar la precisión desde el componente de cámara (optimizada con useCallback)
+  const handlePrecisionUpdate = useCallback((precision) => {
+    setCurrentPrecision(precision);
+    
+    // También actualizar las estadísticas si hay un modelo seleccionado
+    if (selectedModelId && currentLetter) {
+      const key = getLabelStatsKey(selectedModelId, currentLetter);
+      setLabelStats(prev => ({
+        ...prev,
+        [key]: {
+          ...(prev[key] || { samples: 0, progress: 0 }),
+          precision: precision,
+        },
+      }));
+    }
+  }, [selectedModelId, currentLetter]);
 
   // Guardar models en localStorage cuando cambian
   useEffect(() => {
@@ -171,6 +191,7 @@ function EntrenarVocales() {
 
   const handleStopCamera = () => {
     setIsCameraActive(false);
+    setCurrentPrecision(0); // Resetear precisión cuando se detiene la cámara
   };
 
   const handleOpenCreateModelModal = () => {
@@ -346,28 +367,21 @@ function EntrenarVocales() {
       <div className="training-content">
         {/* Left Column - Mis Modelos */}
 
-          <div className="models-section" style={{ minHeight: "400px", maxWidth: "600px", marginBottom: "2rem", boxSizing: "border-box" }}>
-            <div className="training-card blue" style={{ minHeight: "350px", maxWidth: "500px", margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center" }}>    
-              <div className="card-content" style={{ flex: 1, minHeight: "300px", justifyContent: "center", fontSize: "2rem" }}>
-                <span className="card-number" style={{ fontSize: "2.5rem" }}></span>
-                <span className="card-text" style={{ fontSize: "2rem" }}>Entrenamiento de vocal {characterFromURL}</span>
-                <div className="Img" style={{ display: "flex", justifyContent: "center" }}>
-                  <img
-                    src={getImagePath(characterFromURL)}
-                    alt={`Letra ${characterFromURL} en lenguaje de señas`}
-                    style={{ width: '200px', height: '200px', objectFit: 'contain' }}
-                  />
-                </div>
-                <h3 style={{ marginTop: "2rem", fontSize: "1.7rem", color: "black" }}>Progreso</h3>
-                <div className="progress-bar-container" style={{ fontSize: "1.3rem" }}>
-                  <div className="progress-bar" style={{ height: "18px" }}>
-                    <div className="progress-fill" style={{ width: '100%', height: "18px" }}></div>
-                  </div>
-                  <span className="progress-percentage" style={{ fontSize: "1.3rem" }}>100%</span>
-                </div>
+        <div className="models-section" style={{ minHeight: "400px", maxWidth: "600px", marginBottom: "2rem", boxSizing: "border-box" }}>
+          <div className="training-card blue" style={{ minHeight: "350px", maxWidth: "500px", margin: "0 auto", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <div className="card-content" style={{ flex: 1, minHeight: "300px", justifyContent: "center", fontSize: "2rem" }}>
+              <span className="card-number" style={{ fontSize: "2.5rem" }}></span>
+              <span className="card-text" style={{ fontSize: "2rem" }}>Entrenamiento de vocal {characterFromURL}</span>
+              <div className="Img" style={{ display: "flex", justifyContent: "center" }}>
+                <img
+                  src={getImagePath(characterFromURL)}
+                  alt={`Letra ${characterFromURL} en lenguaje de señas`}
+                  style={{ width: '200px', height: '200px', objectFit: 'contain' }}
+                />
               </div>
             </div>
           </div>
+        </div>
 
         {/* Right Column - Cámara de Entrenamiento */}
         <div className="camera-section">
@@ -393,7 +407,10 @@ function EntrenarVocales() {
 
           <div className="camera-feed">
             {isCameraActive ? (
-              <DeteccionVocales character={characterFromURL} />
+              <DeteccionVocales
+                character={characterFromURL}
+                onPrecisionUpdate={handlePrecisionUpdate}  // 🔥 Pasar el callback optimizado
+              />
             ) : (
               <div className="camera-placeholder">
                 <div className="camera-icon-large">📹</div>
@@ -403,52 +420,13 @@ function EntrenarVocales() {
                 </p>
               </div>
             )}
-
-            {/* Controles de cámara */}
-            
           </div>
 
           {/* Mostrar las etiquetas del modelo seleccionado como botones para seleccionar */}
           <div className="training-controls">
-            <h3>
-              {selectedModel
-                ? `Entrenamiento: ${currentLetter || 'Selecciona una etiqueta'}`
-                : 'Selecciona un modelo para entrenar'}
-            </h3>
-            <div className="etiquetas-disponibles">
-              {!selectedModel || modelLabels.length === 0 ? (
-                <span className="no-labels-message">
-                  {selectedModel
-                    ? 'Este modelo no tiene etiquetas'
-                    : 'Crea o selecciona un modelo para ver etiquetas aquí'}
-                </span>
-              ) : (
-                modelLabels.map((label, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className={`etiqueta-btn${currentLetter === label ? ' seleccionada' : ''}`}
-                    onClick={() => handleSelectLabel(label)}
-                  >
-                    {label}
-                  </button>
-                ))
-              )}
-            </div>
             <div className="current-letter">
               <div className="letter-display">{currentLetter || '?'}</div>
             </div>
-            <button
-              className="collect-button"
-              onClick={handleCollectData}
-              disabled={
-                !isCameraActive ||
-                !currentLetter ||
-                samples >= MUESTRAS_OBJETIVO
-              }
-            >
-              Recolectar Datos
-            </button>
             {/* Tarjetas de información debajo de Recolectar Datos */}
             <div className="training-cards-container" style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'center' }}>
               <div className="training-card" style={{
@@ -472,8 +450,8 @@ function EntrenarVocales() {
                 textAlign: 'center',
                 boxShadow: '0 2px 8px rgba(45,27,105,0.10)'
               }}>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Precisión</div>
-                <div style={{ fontSize: '2rem', fontWeight: 800 }}>{precision}%</div>
+                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Precisión actual</div>
+                <div style={{ fontSize: '2rem', fontWeight: 800 }}>{currentPrecision}%</div>
               </div>
               <div className="training-card" style={{
                 background: samples >= MUESTRAS_OBJETIVO ? '#11998E' : '#eee',
@@ -498,4 +476,4 @@ function EntrenarVocales() {
   );
 }
 
-export default EntrenarVocales;
+export default React.memo(EntrenarVocales);

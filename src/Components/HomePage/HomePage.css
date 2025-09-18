@@ -242,11 +242,7 @@
   text-align: center;
 }
 
-.button:hover {
-  background: linear-gradient(135deg, #1A0F4A, #0D6B5F);
-  transform: translateY(-2px) scale(1.04);
-  box-shadow: 0 8px 25px rgba(45, 27, 105, 0.22);
-}
+
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #2D1B69, #11998E, #FFE66D);

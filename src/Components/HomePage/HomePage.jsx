@@ -63,40 +63,6 @@ function HomePage() {
     </div>
   );
 
-  // Tarjetas de progreso para números
-  const numeroProgressCards = (
-    <div className="progress-cards">
-      <div className="progress-card blue">
-        <div className="card-icon">🔢</div>
-        <div className="card-content">
-          <span className="card-number">3/10</span>
-          <span className="card-text">Números Completados</span>
-        </div>
-      </div>
-      <div className="progress-card green">
-        <div className="card-icon">🎯</div>
-        <div className="card-content">
-          <span className="card-number">54.2%</span>
-          <span className="card-text">Precisión Promedio</span>
-        </div>
-      </div>
-      <div className="progress-card purple">
-        <div className="card-icon">📊</div>
-        <div className="card-content">
-          <span className="card-number">1</span>
-          <span className="card-text">Sesiones Totales</span>
-        </div>
-      </div>
-      <div className="progress-card yellow">
-        <div className="card-icon">⏰</div>
-        <div className="card-content">
-          <span className="card-number">40s</span>
-          <span className="card-text">Tiempo Total</span>
-        </div>
-      </div>
-    </div>
-  );
-
   // Progreso general
   const vocalGeneralProgress = (
     <div className="general-progress">
@@ -132,25 +98,6 @@ function HomePage() {
         <div className="vowel">I</div>
         <div className="vowel">O</div>
         <div className="vowel">U</div>
-      </div>
-    </div>
-  );
-
-  // Números dominados
-  const numeroDominados = (
-    <div className="vowels-section">
-      <h3>Números Dominados</h3>
-      <div className="vowels-container">
-        <div className="vowel mastered">0</div>
-        <div className="vowel mastered">1</div>
-        <div className="vowel">2</div>
-        <div className="vowel">3</div>
-        <div className="vowel">4</div>
-        <div className="vowel">5</div>
-        <div className="vowel">6</div>
-        <div className="vowel">7</div>
-        <div className="vowel">8</div>
-        <div className="vowel">9</div>
       </div>
     </div>
   );
@@ -197,7 +144,7 @@ function HomePage() {
         <h1 className="main-title">Aprende Lenguaje de Señas con IA</h1>
         <p className="description">
           Sistema inteligente de reconocimiento de gestos para dominar las vocales del lenguaje de señas. 
-          Entrenamientos personalizados con feedback en tiempo real.
+          Entrenamientos personalizados con retroalimentación en tiempo real.
         </p>
         <button className="main-button" onClick={handleTrainingClick}>
           <span className="hand-icon">🤖</span>
@@ -209,23 +156,15 @@ function HomePage() {
           <div className="progress-header">
             <h2>Tu Progreso</h2>
           </div>
-          {trainingMode === "vocales" ? vocalProgressCards : numeroProgressCards}
+          {vocalProgressCards}
         </div>
-        {trainingMode === "vocales" ? vocalGeneralProgress : numeroGeneralProgress}
-        {trainingMode === "vocales" ? vocalDominadas : numeroDominados}
-        {trainingMode === "vocales" ? vocalSesiones : numeroSesiones}
+        {vocalGeneralProgress}
+        {vocalDominadas}
+        {vocalSesiones}
       </div>
       <div className="training-cards" style={{ marginTop: "3rem", paddingBottom: "2rem" }}>
-        <div className="training-mode-switch">
-          <button className="mode-switch-button" onClick={handleModeChange}>
-            <span>{trainingMode === "vocales" ? "Vocales" : "Números"}</span>
-            <span className="switch-icon" style={{marginLeft: "0.5rem"}}>🔄</span>
-          </button>
-        </div>
-        <h3>
-          {trainingMode === "vocales" ? "Entrenamiento de vocales" : "Entrenamiento de números"}
-        </h3>
-        {trainingMode === "vocales" ? vocalCards : numeroCards}
+        <h3>Entrenamiento de vocales</h3>
+        {vocalCards}
       </div>
     </>
   );
@@ -340,231 +279,6 @@ const vocalCards = (
             <div className="progress-fill" style={{width: '15%'}}></div>
           </div>
           <span className="progress-percentage">15%</span>
-        </div>
-      </div>
-    </div>
-  </div>
-);
-
-const numeroCards = (
-  <div className="training-cards-container">
-    <div className="training-card blue">
-      <div className="card-icon">0</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 0</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 0.png"} 
-            alt="Número 0 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=0')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '80%'}}></div>
-          </div>
-          <span className="progress-percentage">80%</span>
-        </div>
-      </div>
-    </div>
-    <div className="training-card green">
-      <div className="card-icon">1</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 1</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 1.png"} 
-            alt="Número 1 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=1')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '60%'}}></div>
-          </div>
-          <span className="progress-percentage">60%</span>
-        </div>
-      </div>
-    </div>
-    <div className="training-card purple">
-      <div className="card-icon">2</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 2</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 2.png"} 
-            alt="Número 2 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=2')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '40%'}}></div>
-          </div>
-          <span className="progress-percentage">40%</span>
-        </div>
-      </div>
-    </div>
-    <div className="training-card yellow">
-      <div className="card-icon">3</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 3</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 3.png"} 
-            alt="Número 3 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=3')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '20%'}}></div>
-          </div>
-          <span className="progress-percentage">20%</span>
-        </div>
-      </div>
-    </div>
-    <div className="training-card orange">
-      <div className="card-icon">4</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 4</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 4.png"} 
-            alt="Número 4 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=4')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '10%'}}></div>
-          </div>
-          <span className="progress-percentage">10%</span>
-        </div>
-      </div>
-    </div>
-    <div className="training-card blue">
-      <div className="card-icon">5</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 5</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 5.png"} 
-            alt="Número 5 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=5')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '80%'}}></div>
-          </div>
-          <span className="progress-percentage">80%</span>
-        </div>
-      </div>
-    </div>
-    <div className="training-card green">
-      <div className="card-icon">6</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 6</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 6.png"} 
-            alt="Número 6 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=6')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '60%'}}></div>
-          </div>
-          <span className="progress-percentage">60%</span>
-        </div>
-      </div>
-    </div>
-    <div className="training-card purple">
-      <div className="card-icon">7</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 7</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 7.png"} 
-            alt="Número 7 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=7')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '40%'}}></div>
-          </div>
-          <span className="progress-percentage">40%</span>
-        </div>
-      </div>
-    </div>
-    <div className="training-card yellow">
-      <div className="card-icon">8</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 8</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 8.png"} 
-            alt="Número 8 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=8')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '20%'}}></div>
-          </div>
-          <span className="progress-percentage">20%</span>
-        </div>
-      </div>
-    </div>
-    <div className="training-card orange">
-      <div className="card-icon">9</div>
-      <div className="card-content">
-        <span className="card-number"></span>
-        <span className="card-text">Entrenamiento de número 9</span>
-        <div className="Img">
-          <img 
-            src={process.env.PUBLIC_URL + "/img/Numero 9.png"} 
-            alt="Número 9 en lenguaje de señas" 
-            style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-          />
-        </div>
-        <button className="button" onClick={() => window.location.assign('/EntrenarNumeros?character=9')}>Entrenar</button>
-        <h3>Progreso</h3>
-        <div className="progress-bar-container">
-          <div className="progress-bar">
-            <div className="progress-fill" style={{width: '10%'}}></div>
-          </div>
-          <span className="progress-percentage">10%</span>
         </div>
       </div>
     </div>
