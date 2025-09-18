@@ -278,81 +278,6 @@ function EntrenarVocales() {
 
   return (
     <div className="training-container">
-      {/* Modal para crear modelo */}
-      {showCreateModelModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h2>Crear Nuevo Modelo</h2>
-            <form onSubmit={handleCreateModel}>
-              <div className="form-group">
-                <label>Nombre del modelo</label>
-                <input
-                  type="text"
-                  value={newModelName}
-                  onChange={(e) => setNewModelName(e.target.value)}
-                  required
-                  placeholder=""
-                />
-              </div>
-              <div className="form-group">
-                <label>Tipo de modelo</label>
-                <select
-                  value={newModelType}
-                  onChange={(e) => setNewModelType(e.target.value)}
-                >
-                  <option value="Clasificación">Vocales</option>
-                  <option value="Regresión">Numeros</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Etiquetas (Letras/Números)</label>
-                {newModelLabels.map((label, idx) => (
-                  <div key={idx} className="label-input-container">
-                    <input
-                      type="text"
-                      value={label}
-                      onChange={(e) => handleLabelChange(idx, e.target.value)}
-                      required
-                      placeholder={`Etiqueta ${idx + 1}`}
-                      className="label-input"
-                    />
-                    {newModelLabels.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveLabel(idx)}
-                        className="remove-label-btn"
-                        aria-label="Eliminar etiqueta"
-                        title="Eliminar etiqueta"
-                      >
-                        ✖
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleAddLabel}
-                  className="add-label-btn"
-                >
-                  + Agregar otra etiqueta
-                </button>
-              </div>
-              <div className="modal-actions">
-                <button type="submit" className="modal-btn crear">
-                  Crear
-                </button>
-                <button
-                  type="button"
-                  className="modal-btn cancelar"
-                  onClick={handleCloseCreateModelModal}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Header */}
       <div className="training-header">
@@ -360,7 +285,6 @@ function EntrenarVocales() {
           ← Volver al Inicio
         </button>
         <h1>Entrenar Vocales - {characterFromURL}</h1>
-        <button className='NuevoModelo' onClick={handleOpenCreateModelModal}>Crear Modelo</button>
       </div>
 
       {/* Main Content */}
