@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './EntrenarVocales.css';
 import DeteccionVocales from '../../Camara/camaradeteccionVocales';
@@ -46,12 +46,19 @@ function EntrenarVocales() {
 
   // Nuevo estado para la precisión en tiempo real
   const [currentPrecision, setCurrentPrecision] = useState(0);
+  
+  // Usar useRef para el intervalo en lugar de estado
+  const autoIncrementInterval = useRef(null);
 
   // Número de muestras objetivo
   const MUESTRAS_OBJETIVO = 20;
 
+  // Obtener el modelo seleccionado
+  const selectedModel = models.find(m => m.id === selectedModelId);
+
   // Función para actualizar la precisión desde el componente de cámara (optimizada con useCallback)
   const handlePrecisionUpdate = useCallback((precision) => {
+    console.log('🎯 Precisión actualizada:', precision); // Debug log
     setCurrentPrecision(precision);
     
     // También actualizar las estadísticas si hay un modelo seleccionado
@@ -66,6 +73,128 @@ function EntrenarVocales() {
       }));
     }
   }, [selectedModelId, currentLetter]);
+
+  // Función para incrementar muestras automáticamente - CORREGIDA
+  const autoIncrementSamples = useCallback(() => {
+    console.log('🔄 Intentando incrementar muestras...'); // Debug log
+    
+    if (!selectedModelId || !currentLetter) {
+      console.log('❌ No hay modelo o letra seleccionada');
+      return;
+    }
+    
+    setLabelStats(prevStats => {
+      const key = getLabelStatsKey(selectedModelId, currentLetter);
+      const currentStats = prevStats[key] || { samples: 0, progress: 0, precision: 0 };
+      
+      console.log('📊 Stats actuales:', currentStats); // Debug log
+      
+      if (currentStats.samples >= MUESTRAS_OBJETIVO) {
+        console.log('✅ Ya se alcanzó el objetivo de muestras');
+        // Si ya alcanzamos el objetivo, detener el intervalo
+        if (autoIncrementInterval.current) {
+          clearInterval(autoIncrementInterval.current);
+          autoIncrementInterval.current = null;
+          console.log('⏹️ Intervalo detenido');
+        }
+        return prevStats;
+      }
+      
+      const nuevasMuestras = currentStats.samples + 1;
+      const nuevoProgreso = Math.round((nuevasMuestras / MUESTRAS_OBJETIVO) * 100);
+      const nuevaPrecision = Math.min(100, Math.round((nuevasMuestras / MUESTRAS_OBJETIVO) * 90 + 10));
+      
+      console.log('📈 Incrementando a:', nuevasMuestras); // Debug log
+      
+      // Actualizar stats inmediatamente
+      const newStats = {
+        ...prevStats,
+        [key]: {
+          samples: nuevasMuestras,
+          progress: nuevoProgreso,
+          precision: nuevaPrecision,
+        }
+      };
+      
+      // Actualizar modelo también
+      setModels(prevModels => {
+        const modelIndex = prevModels.findIndex(m => m.id === selectedModelId);
+        if (modelIndex === -1) return prevModels;
+        
+        const model = prevModels[modelIndex];
+        const labelProgs = model.labels.map(label => {
+          const lkey = getLabelStatsKey(selectedModelId, label);
+          return label === currentLetter ? nuevoProgreso : (newStats[lkey]?.progress || 0);
+        });
+        const avgProgress = Math.round(
+          labelProgs.reduce((a, b) => a + b, 0) / labelProgs.length
+        );
+        const totalSamples = model.labels.reduce(
+          (acc, label) => {
+            const lkey = getLabelStatsKey(selectedModelId, label);
+            return acc + (label === currentLetter ? nuevasMuestras : (newStats[lkey]?.samples || 0));
+          },
+          0
+        );
+        
+        const updatedModels = [...prevModels];
+        updatedModels[modelIndex] = {
+          ...model,
+          progress: avgProgress,
+          samples: totalSamples,
+        };
+        return updatedModels;
+      });
+      
+      return newStats;
+    });
+  }, [selectedModelId, currentLetter, MUESTRAS_OBJETIVO]); // Solo dependencias estables
+
+  // Efecto para manejar el intervalo de incremento automático - CORREGIDO
+  useEffect(() => {
+    console.log('🔍 Verificando condiciones para auto-incremento:', {
+      currentPrecision,
+      isCameraActive,
+      selectedModelId,
+      currentLetter
+    });
+    
+    // Limpiar intervalo existente si hay uno
+    if (autoIncrementInterval.current) {
+      console.log('🧹 Limpiando intervalo anterior');
+      clearInterval(autoIncrementInterval.current);
+      autoIncrementInterval.current = null;
+    }
+    
+    // Si la precisión es >= 90% y la cámara está activa
+    if (currentPrecision >= 90 && isCameraActive && selectedModelId && currentLetter) {
+      const key = getLabelStatsKey(selectedModelId, currentLetter);
+      const currentSamples = labelStats[key]?.samples || 0;
+      
+      console.log('✅ Condiciones cumplidas. Muestras actuales:', currentSamples);
+      
+      if (currentSamples < MUESTRAS_OBJETIVO) {
+        console.log('🚀 Iniciando auto-incremento cada 2 segundos');
+        autoIncrementInterval.current = setInterval(() => {
+          console.log('⏰ Ejecutando auto-incremento...');
+          autoIncrementSamples();
+        }, 2000); // Cada 2 segundos
+      } else {
+        console.log('🎯 Ya se alcanzó el objetivo de muestras');
+      }
+    } else {
+      console.log('❌ Condiciones no cumplidas para auto-incremento');
+    }
+
+    // Cleanup al desmontar
+    return () => {
+      if (autoIncrementInterval.current) {
+        console.log('🧹 Limpiando intervalo al desmontar');
+        clearInterval(autoIncrementInterval.current);
+        autoIncrementInterval.current = null;
+      }
+    };
+  }, [currentPrecision, isCameraActive, selectedModelId, currentLetter, labelStats, autoIncrementSamples, MUESTRAS_OBJETIVO]);
 
   // Guardar models en localStorage cuando cambian
   useEffect(() => {
@@ -93,9 +222,6 @@ function EntrenarVocales() {
       setCurrentLetter(characterFromURL);
     }
   }, [models, selectedModelId, characterFromURL]);
-
-  // Obtener el modelo seleccionado
-  const selectedModel = models.find(m => m.id === selectedModelId);
 
   // Etiquetas del modelo seleccionado
   const modelLabels = selectedModel && Array.isArray(selectedModel.labels) ? selectedModel.labels : [];
@@ -186,12 +312,21 @@ function EntrenarVocales() {
   };
 
   const handleStartCamera = () => {
+    console.log('📷 Iniciando cámara');
     setIsCameraActive(true);
   };
 
   const handleStopCamera = () => {
+    console.log('⏹️ Deteniendo cámara');
     setIsCameraActive(false);
     setCurrentPrecision(0); // Resetear precisión cuando se detiene la cámara
+    
+    // Detener el intervalo automático si está activo
+    if (autoIncrementInterval.current) {
+      clearInterval(autoIncrementInterval.current);
+      autoIncrementInterval.current = null;
+      console.log('🛑 Intervalo automático detenido');
+    }
   };
 
   const handleOpenCreateModelModal = () => {
@@ -362,7 +497,7 @@ function EntrenarVocales() {
                 textAlign: 'center',
                 boxShadow: '0 2px 8px rgba(45,27,105,0.10)'
               }}>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Total de muestras</div>
+                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Aciertos</div>
                 <div style={{ fontSize: '2rem', fontWeight: 800 }}>{samples} / {MUESTRAS_OBJETIVO}</div>
               </div>
               <div className="training-card" style={{
@@ -388,7 +523,7 @@ function EntrenarVocales() {
               }}>
                 <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Estado</div>
                 <div style={{ fontSize: '2rem', fontWeight: 800 }}>
-                  {samples >= MUESTRAS_OBJETIVO ? 'Listo' : 'Pendiente'}
+                  {samples >= MUESTRAS_OBJETIVO ? 'Aprendido' : 'Pendiente'}
                 </div>
               </div>
             </div>
