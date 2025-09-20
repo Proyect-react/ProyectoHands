@@ -1,70 +1,99 @@
-# Getting Started with Create React App
+# ProyectoHands
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Una aplicación web desarrollada con React que sirve para entrenar y practicar el lenguaje de señas.
 
-## Available Scripts
+## 🚀 Características
 
-In the project directory, you can run:
+- Interfaz de usuario responsive
+- Desarrollado con React y Create React App
 
-### `npm start`
+## 📋 Requisitos previos
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+Antes de comenzar, asegúrate de tener instalado:
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- [Node.js](https://nodejs.org/) (versión 14 o superior)
+- npm o yarn
 
-### `npm test`
+## 🔧 Instalación
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. Clona este repositorio:
+```bash
+git clone https://github.com/Proyect-react/ProyectoHands.git
+```
 
-### `npm run build`
+2. Navega al directorio del proyecto:
+```bash
+cd ProyectoHands
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+3. Instala las dependencias:
+```bash
+npm install
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 🎯 Uso
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Modo de desarrollo
 
-### `npm run eject`
+Para ejecutar la aplicación en modo de desarrollo:
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```bash
+npm start
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Abre [http://localhost:3000](http://localhost:3000) en tu navegador. La página se recargará automáticamente cuando hagas cambios.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Ejecutar pruebas
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Para ejecutar las pruebas en modo interactivo:
 
-## Learn More
+```bash
+npm test
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Construcción para producción
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+Para construir la aplicación para producción:
 
-### Code Splitting
+```bash
+npm run build
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Esto creará una carpeta `build` con los archivos optimizados para producción.
 
-### Analyzing the Bundle Size
+## 🛠️ Tecnologías utilizadas
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+- **React** - Biblioteca de JavaScript para construir interfaces de usuario
+- **Create React App** - Herramienta para configurar el proyecto React
+- [Otras tecnologías que uses: React Router, Material-UI, etc.]
 
-### Making a Progressive Web App
+## 📁 Estructura del proyecto
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+```
+ProyectoHands/
+├── public/
+│   ├── index.html
+│   └── ...
+├── src/
+│   ├── components/
+│   ├── pages/
+│   ├── styles/
+│   ├── App.js
+│   ├── index.js
+│   └── ...
+├── package.json
+└── README.md
+```
 
-### Advanced Configuration
+## 👥 Colaboradores
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+- **Miguel Quijano** 
+- **Silvia Castro** 
+- **Eduardo Caballero** 
+- - **Carlos Luna** 
+- **Luis Reyes** 
+- **Adrian Miranda** 
 
-### Deployment
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+⭐ ¡No olvides darle una estrella al proyecto si te fue útil!
