@@ -56,7 +56,7 @@ function HomePage() {
               <h4>Vocales</h4>
               <p>Aprende las 5 vocales básicas en pocos intentos.</p>
               <div className="button">
-                <button className="boton-enseñar">Enseñar</button>
+                <button className="boton-enseñar" useNavigate="/TrainingPage">Enseñar</button>
                 <button className="boton-practicar">Practicar</button>
               </div>
             </div>
@@ -74,8 +74,18 @@ function HomePage() {
               <h4>Números</h4>
               <p>Domina los números del 1 al 10 fácilmente.</p>
               <div className="button">
-                <button className="boton-enseñar">Enseñar</button>
-                <button className="boton-practicar">Practicar</button>
+                <button
+                  className="boton-enseñar"
+                  onClick={() => navigate("/training")}
+                >
+                  Enseñar
+                </button>
+                <button
+                  className="boton-practicar"
+                  onClick={() => navigate("/training")}
+                >
+                  Practicar
+                </button>
               </div>
             </div>
 
