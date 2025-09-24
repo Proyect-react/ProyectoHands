@@ -1,544 +1,482 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+// src/Components/TrainingIntegrated/TrainingIntegrated.jsx
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Hands } from "@mediapipe/hands";
+import { Camera } from "@mediapipe/camera_utils";
+import APIService from '../../services/apiService';
 import './TrainingPage.css';
-import MediapipeHands from '../Camara/camara';
 
-const LOCAL_STORAGE_MODELS_KEY = 'training_models_v1';
-const LOCAL_STORAGE_LABELSTATS_KEY = 'training_labelStats_v2'; // Cambiado para evitar conflicto con la versión anterior
-const LOCAL_STORAGE_SELECTED_MODEL_KEY = 'training_selectedModelId_v1';
+const TrainingIntegrated = ({ category = "vocales" }) => {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const handsRef = useRef(null);
+  const cameraRef = useRef(null);
 
-// Utilidad para obtener la clave única de stats por modelo y etiqueta
-function getLabelStatsKey(modelId, label) {
-  return `${modelId}__${label}`;
-}
-
-function TrainingPage() {
-  const navigate = useNavigate();
-
-  // Persist models in localStorage
-  const [models, setModels] = useState(() => {
-    const stored = localStorage.getItem(LOCAL_STORAGE_MODELS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  });
-
-  // Persist labelStats in localStorage (ahora por modelo+etiqueta)
-  const [labelStats, setLabelStats] = useState(() => {
-    const stored = localStorage.getItem(LOCAL_STORAGE_LABELSTATS_KEY);
-    return stored ? JSON.parse(stored) : {};
-  });
-
-  // Persist selected model
-  const [selectedModelId, setSelectedModelId] = useState(() => {
-    const stored = localStorage.getItem(LOCAL_STORAGE_SELECTED_MODEL_KEY);
-    return stored ? JSON.parse(stored) : null;
-  });
-
-  // Etiqueta seleccionada (por modelo)
-  const [currentLetter, setCurrentLetter] = useState('');
-
+  // Estados principales
+  const [mode, setMode] = useState('collect'); // collect, train, practice
+  const [selectedLabel, setSelectedLabel] = useState('');
+  const [isCollecting, setIsCollecting] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [showCreateModelModal, setShowCreateModelModal] = useState(false);
-  const [newModelName, setNewModelName] = useState('');
-  const [newModelType, setNewModelType] = useState('Clasificación');
-  const [newModelLabels, setNewModelLabels] = useState(['']);
+  
+  // Estados de datos
+  const [datasetStatus, setDatasetStatus] = useState({});
+  const [trainingProgress, setTrainingProgress] = useState(null);
+  const [predictionResult, setPredictionResult] = useState(null);
+  const [availableLabels] = useState(['A', 'E', 'I', 'O', 'U']);
 
-  // Número de muestras objetivo
-  const MUESTRAS_OBJETIVO = 20;
+  // Referencias para callbacks
+  const collectingRef = useRef(false);
+  const lastCollectionTime = useRef(0);
 
-  // Guardar models en localStorage cuando cambian
+  // Cargar estado del dataset al inicio
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_MODELS_KEY, JSON.stringify(models));
-  }, [models]);
+    loadDatasetStatus();
+  }, [category]);
 
-  // Guardar labelStats en localStorage cuando cambian
+  // Polling para progreso de entrenamiento
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_LABELSTATS_KEY, JSON.stringify(labelStats));
-  }, [labelStats]);
-
-  // Guardar modelo seleccionado en localStorage cuando cambia
-  useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_SELECTED_MODEL_KEY, JSON.stringify(selectedModelId));
-  }, [selectedModelId]);
-
-  // Si no hay modelo seleccionado pero hay modelos, seleccionar el primero
-  useEffect(() => {
-    if (!selectedModelId && models.length > 0) {
-      setSelectedModelId(models[0].id);
+    let interval;
+    if (mode === 'train' && trainingProgress?.status === 'training') {
+      interval = setInterval(async () => {
+        try {
+          const progress = await APIService.getTrainingProgress(category);
+          setTrainingProgress(progress);
+          
+          if (progress.status === 'completed' || progress.status === 'error') {
+            clearInterval(interval);
+          }
+        } catch (error) {
+          console.error('Error verificando progreso:', error);
+        }
+      }, 2000);
     }
-    // Si se borra el modelo seleccionado, seleccionar otro o ninguno
-    if (selectedModelId && !models.find(m => m.id === selectedModelId)) {
-      setSelectedModelId(models.length > 0 ? models[0].id : null);
-      setCurrentLetter('');
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [mode, trainingProgress?.status, category]);
+
+  const loadDatasetStatus = async () => {
+    try {
+      const status = await APIService.getDatasetStatus(category);
+      setDatasetStatus(status);
+    } catch (error) {
+      console.error('Error cargando estado:', error);
     }
-  }, [models, selectedModelId]);
-
-  // Si se cambia de modelo, limpiar la etiqueta seleccionada
-  useEffect(() => {
-    setCurrentLetter('');
-  }, [selectedModelId]);
-
-  // Obtener el modelo seleccionado
-  const selectedModel = models.find(m => m.id === selectedModelId);
-
-  // Etiquetas del modelo seleccionado
-  const modelLabels = selectedModel && Array.isArray(selectedModel.labels) ? selectedModel.labels : [];
-
-  // Obtener los valores actuales de la etiqueta seleccionada (por modelo)
-  let samples = 0, precision = 0;
-  if (selectedModel && currentLetter) {
-    const key = getLabelStatsKey(selectedModel.id, currentLetter);
-    samples = labelStats[key]?.samples || 0;
-    precision = labelStats[key]?.precision || 0;
-  }
-
-  const handleBackToHome = () => {
-    navigate('/');
   };
 
-  const handleCollectData = () => {
-    if (!currentLetter || !selectedModel) return;
-    const key = getLabelStatsKey(selectedModel.id, currentLetter);
-    const prevStats = labelStats[key] || { samples: 0, progress: 0, precision: 0 };
-    if (prevStats.samples < MUESTRAS_OBJETIVO) {
-      const nuevasMuestras = prevStats.samples + 1;
-      const nuevoProgreso = Math.round((nuevasMuestras / MUESTRAS_OBJETIVO) * 100);
-      const nuevaPrecision = Math.min(100, Math.round((nuevasMuestras / MUESTRAS_OBJETIVO) * 90 + 10));
-      setLabelStats({
-        ...labelStats,
-        [key]: {
-          samples: nuevasMuestras,
-          progress: nuevoProgreso,
-          precision: nuevaPrecision,
-        }
-      });
-      // Actualizar progreso y muestras del modelo
-      if (selectedModel) {
-        const modelIndex = models.findIndex(m => m.id === selectedModel.id);
-        if (modelIndex !== -1) {
-          // Calcular progreso global del modelo (promedio de progreso de sus etiquetas)
-          const labelProgs = selectedModel.labels.map(label => {
-            const lkey = getLabelStatsKey(selectedModel.id, label);
-            return label === currentLetter
-              ? nuevoProgreso
-              : labelStats[lkey]?.progress || 0;
-          });
-          const avgProgress = Math.round(
-            labelProgs.reduce((a, b) => a + b, 0) / labelProgs.length
-          );
-          const totalSamples = selectedModel.labels.reduce(
-            (acc, label) => {
-              const lkey = getLabelStatsKey(selectedModel.id, label);
-              return acc + (label === currentLetter ? nuevasMuestras : (labelStats[lkey]?.samples || 0));
-            },
-            0
-          );
-          const updatedModels = [...models];
-          updatedModels[modelIndex] = {
-            ...selectedModel,
-            progress: avgProgress,
-            samples: totalSamples,
-          };
-          setModels(updatedModels);
-        }
+  const extractLandmarksArray = (multiHandLandmarks) => {
+    if (!multiHandLandmarks || multiHandLandmarks.length === 0) return null;
+    
+    const landmarks = [];
+    
+    // Procesar hasta 2 manos
+    for (let i = 0; i < Math.min(2, multiHandLandmarks.length); i++) {
+      for (const landmark of multiHandLandmarks[i]) {
+        landmarks.push(landmark.x, landmark.y, landmark.z);
       }
     }
-  };
-
-  const handleDeleteModel = (modelId) => {
-    // Eliminar modelo
-    const modeloEliminado = models.find((model) => model.id === modelId);
-    setModels(models.filter((model) => model.id !== modelId));
-    // Eliminar stats de las etiquetas asociadas a ese modelo
-    if (modeloEliminado && Array.isArray(modeloEliminado.labels)) {
-      const nuevasStats = { ...labelStats };
-      modeloEliminado.labels.forEach(label => {
-        const key = getLabelStatsKey(modeloEliminado.id, label);
-        delete nuevasStats[key];
-      });
-      setLabelStats(nuevasStats);
-      // Si la etiqueta actual era de este modelo, limpiar selección
-      if (modeloEliminado.labels.includes(currentLetter)) {
-        setCurrentLetter('');
+    
+    // Rellenar con ceros si solo hay 1 mano
+    if (multiHandLandmarks.length === 1) {
+      for (let i = 0; i < 63; i++) {
+        landmarks.push(0.0);
       }
     }
-    // Si el modelo eliminado era el seleccionado, seleccionar otro
-    if (selectedModelId === modelId) {
-      const remaining = models.filter((model) => model.id !== modelId);
-      setSelectedModelId(remaining.length > 0 ? remaining[0].id : null);
+    
+    return landmarks.length === 126 ? landmarks : null;
+  };
+
+  const onResults = useCallback(async (results) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      const landmarks = extractLandmarksArray(results.multiHandLandmarks);
+      
+      if (landmarks) {
+        // Modo recolección
+        if (mode === 'collect' && collectingRef.current && selectedLabel) {
+          const now = Date.now();
+          if (now - lastCollectionTime.current > 1000) { // Límite de 1 muestra por segundo
+            try {
+              const result = await APIService.collectSample(
+                category, 
+                selectedLabel, 
+                landmarks,
+                {
+                  collection_mode: 'automatic',
+                  hand_count: results.multiHandLandmarks.length
+                }
+              );
+              
+              if (result.success) {
+                await loadDatasetStatus();
+                lastCollectionTime.current = now;
+                
+                // Parar automáticamente si se alcanza el límite
+                if (result.current_samples >= 30) {
+                  setIsCollecting(false);
+                  collectingRef.current = false;
+                }
+              }
+            } catch (error) {
+              console.error('Error recolectando:', error);
+            }
+          }
+        }
+        
+        // Modo práctica con predicción
+        else if (mode === 'practice') {
+          try {
+            const prediction = await APIService.predict(category, landmarks, {
+              threshold: 0.6,
+              returnAll: false
+            });
+            
+            setPredictionResult(prediction);
+          } catch (error) {
+            console.error('Error en predicción:', error);
+            setPredictionResult(null);
+          }
+        }
+      }
+
+      // Dibujar la mano
+      drawHand(ctx, results.multiHandLandmarks[0], canvas);
+    } else {
+      setPredictionResult(null);
+    }
+  }, [mode, selectedLabel, category]);
+
+  const drawHand = (ctx, landmarks, canvas) => {
+    // Dibujar conexiones
+    const connections = [
+      [0, 1], [1, 2], [2, 3], [3, 4],
+      [0, 5], [5, 6], [6, 7], [7, 8],
+      [5, 9], [9, 10], [10, 11], [11, 12],
+      [9, 13], [13, 14], [14, 15], [15, 16],
+      [13, 17], [17, 18], [18, 19], [19, 20],
+      [0, 17]
+    ];
+
+    ctx.strokeStyle = "rgba(0,255,0,0.6)";
+    ctx.lineWidth = 2;
+    
+    for (const [start, end] of connections) {
+      const startPoint = landmarks[start];
+      const endPoint = landmarks[end];
+      
+      ctx.beginPath();
+      ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
+      ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
+      ctx.stroke();
+    }
+
+    // Dibujar puntos
+    ctx.fillStyle = "red";
+    for (const landmark of landmarks) {
+      ctx.beginPath();
+      ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 5, 0, 2 * Math.PI);
+      ctx.fill();
     }
   };
 
-  const handleStartCamera = () => {
-    setIsCameraActive(true);
-  };
+  // Inicialización de MediaPipe
+  useEffect(() => {
+    if (!isCameraActive) return;
 
-  const handlePauseCamera = () => {
-    setIsCameraActive(false);
-  };
+    const hands = new Hands({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
 
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.8,
+      minTrackingConfidence: 0.8
+    });
+
+    hands.onResults(onResults);
+    handsRef.current = hands;
+
+    const videoElement = videoRef.current;
+    if (videoElement) {
+      const camera = new Camera(videoElement, {
+        onFrame: async () => {
+          if (videoElement) {
+            await hands.send({ image: videoElement });
+          }
+        },
+        width: 900,
+        height: 500
+      });
+      
+      cameraRef.current = camera;
+      camera.start();
+    }
+
+    return () => {
+      if (cameraRef.current) cameraRef.current.stop?.();
+      if (videoElement && videoElement.srcObject) {
+        videoElement.srcObject.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [isCameraActive, onResults]);
+
+  // Handlers principales
+  const handleStartCamera = () => setIsCameraActive(true);
   const handleStopCamera = () => {
     setIsCameraActive(false);
+    setIsCollecting(false);
+    collectingRef.current = false;
   };
 
-  const handleOpenCreateModelModal = () => {
-    setShowCreateModelModal(true);
+  const handleToggleCollection = () => {
+    if (!selectedLabel) {
+      alert('Selecciona una etiqueta primero');
+      return;
+    }
+    
+    const newCollecting = !isCollecting;
+    setIsCollecting(newCollecting);
+    collectingRef.current = newCollecting;
   };
 
-  const handleCloseCreateModelModal = () => {
-    setShowCreateModelModal(false);
-    setNewModelName('');
-    setNewModelType('Clasificación');
-    setNewModelLabels(['']);
-  };
-
-  const handleLabelChange = (index, value) => {
-    const nuevasEtiquetas = [...newModelLabels];
-    nuevasEtiquetas[index] = value;
-    setNewModelLabels(nuevasEtiquetas);
-  };
-
-  const handleAddLabel = () => {
-    setNewModelLabels([...newModelLabels, '']);
-  };
-
-  const handleRemoveLabel = (index) => {
-    if (newModelLabels.length === 1) return;
-    const nuevasEtiquetas = newModelLabels.filter((_, i) => i !== index);
-    setNewModelLabels(nuevasEtiquetas);
-  };
-
-  const handleCreateModel = (e) => {
-    e.preventDefault();
-    if (!newModelName.trim()) return;
-    const etiquetasLimpias = newModelLabels.map(et => et.trim()).filter(et => et !== '');
-    if (etiquetasLimpias.length === 0) return;
-    const nuevoModelo = {
-      id: Date.now(),
-      name: newModelName,
-      type: newModelType,
-      labels: etiquetasLimpias,
-      samples: 0,
-      progress: 0,
-    };
-    setModels(prevModels => [...prevModels, nuevoModelo]);
-    handleCloseCreateModelModal();
-    setCurrentLetter('');
-    setSelectedModelId(nuevoModelo.id);
-    // Inicializar stats para nuevas etiquetas de este modelo si no existen
-    setLabelStats(prev => {
-      const nuevoStats = { ...prev };
-      etiquetasLimpias.forEach(label => {
-        const key = getLabelStatsKey(nuevoModelo.id, label);
-        if (!nuevoStats[key]) {
-          nuevoStats[key] = { samples: 0, progress: 0, precision: 0 };
-        }
-      });
-      return nuevoStats;
-    });
-  };
-
-  const handleSelectLabel = (label) => {
-    setCurrentLetter(label);
-    // Si la etiqueta no tiene stats para este modelo, inicializarlos
-    if (selectedModel) {
-      const key = getLabelStatsKey(selectedModel.id, label);
-      setLabelStats(prev => {
-        if (prev[key]) return prev;
-        return {
-          ...prev,
-          [key]: { samples: 0, progress: 0, precision: 0 }
-        };
-      });
+  const handleStartTraining = async () => {
+    try {
+      setMode('train');
+      const result = await APIService.startTraining(category);
+      setTrainingProgress({ status: 'training', progress: 0, message: 'Iniciando...' });
+    } catch (error) {
+      console.error('Error iniciando entrenamiento:', error);
+      alert('Error iniciando entrenamiento');
     }
   };
 
-  const handleSelectModel = (modelId) => {
-    setSelectedModelId(modelId);
-    setCurrentLetter('');
+  const handleSwitchMode = (newMode) => {
+    setMode(newMode);
+    setIsCollecting(false);
+    collectingRef.current = false;
+    setPredictionResult(null);
+    setTrainingProgress(null);
+  };
+
+  const getLabelSamples = (label) => {
+    return datasetStatus.labels?.[label]?.samples || 0;
+  };
+
+  const isLabelReady = (label) => {
+    return getLabelSamples(label) >= 30;
+  };
+
+  const allLabelsReady = () => {
+    return availableLabels.every(label => isLabelReady(label));
   };
 
   return (
-    <div className="training-container">
-      {/* Modal para crear modelo */}
-      {showCreateModelModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h2>Crear Nuevo Modelo</h2>
-            <form onSubmit={handleCreateModel}>
-              <div className="form-group">
-                <label>Nombre del modelo</label>
-                <input
-                  type="text"
-                  value={newModelName}
-                  onChange={(e) => setNewModelName(e.target.value)}
-                  required
-                  placeholder=""
-                />
-              </div>
-              <div className="form-group">
-                <label>Tipo de modelo</label>
-                <select
-                  value={newModelType}
-                  onChange={(e) => setNewModelType(e.target.value)}
-                >
-                  <option value="Clasificación">Vocales</option>
-                  <option value="Regresión">Numeros</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Etiquetas (Letras/Números)</label>
-                {newModelLabels.map((label, idx) => (
-                  <div key={idx} className="label-input-container">
-                    <input
-                      type="text"
-                      value={label}
-                      onChange={(e) => handleLabelChange(idx, e.target.value)}
-                      required
-                      placeholder={`Etiqueta ${idx + 1}`}
-                      className="label-input"
-                    />
-                    {newModelLabels.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveLabel(idx)}
-                        className="remove-label-btn"
-                        aria-label="Eliminar etiqueta"
-                        title="Eliminar etiqueta"
-                      >
-                        ✖
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  onClick={handleAddLabel}
-                  className="add-label-btn"
-                >
-                  + Agregar otra etiqueta
-                </button>
-              </div>
-              <div className="modal-actions">
-                <button type="submit" className="modal-btn crear">
-                  Crear
-                </button>
-                <button
-                  type="button"
-                  className="modal-btn cancelar"
-                  onClick={handleCloseCreateModelModal}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
+    <div className="training-integrated">
+      {/* Header con controles de modo */}
       <div className="training-header">
-        <button className="back-button" onClick={handleBackToHome}>
-          ← Volver al Inicio
-        </button>
-        <h1>Crea y entrena modelos personalizados</h1>
-        <button className='NuevoModelo' onClick={handleOpenCreateModelModal}>Crear Modelo</button>
+        <h1>Entrenamiento Integrado - {category}</h1>
+        <div className="mode-selector">
+          <button 
+            className={mode === 'collect' ? 'active' : ''} 
+            onClick={() => handleSwitchMode('collect')}
+          >
+            📊 Recolectar
+          </button>
+          <button 
+            className={mode === 'train' ? 'active' : ''} 
+            onClick={() => handleSwitchMode('train')}
+            disabled={!allLabelsReady()}
+          >
+            🧠 Entrenar
+          </button>
+          <button 
+            className={mode === 'practice' ? 'active' : ''} 
+            onClick={() => handleSwitchMode('practice')}
+          >
+            🎯 Practicar
+          </button>
+        </div>
       </div>
 
-      {/* Main Content */}
       <div className="training-content">
-        {/* Left Column - Mis Modelos */}
-        <div className="models-section">
-          <div className="section-header">
-            <h2>🧠 Mis Modelos</h2>
-          </div>
-
-          {models.length === 0 ? (
-            <div className="no-models">
-              <p>No tienes modelos creados aún</p>
-              <p>Crea tu primer modelo para comenzar</p>
-            </div>
-          ) : (
-            models.map((model) => (
-              <div
-                key={model.id}
-                className={`model-card${selectedModelId === model.id ? ' selected-model' : ''}`}
-                style={{
-                  border: selectedModelId === model.id ? '2px solid #2D1B69' : undefined,
-                  boxShadow: selectedModelId === model.id ? '0 0 8px #2D1B6933' : undefined,
-                  cursor: 'pointer'
-                }}
-                onClick={() => handleSelectModel(model.id)}
-              >
-                <div className="model-header">
-                  <h3>{model.name}</h3>
+        {/* Panel izquierdo - Estado y controles */}
+        <div className="control-panel">
+          {/* Modo Recolección */}
+          {mode === 'collect' && (
+            <div className="collect-panel">
+              <h3>📊 Recolección de Datos</h3>
+              
+              <div className="label-selector">
+                <h4>Seleccionar Etiqueta:</h4>
+                {availableLabels.map(label => (
                   <button
-                    className="delete-button"
-                    onClick={e => {
-                      e.stopPropagation();
-                      handleDeleteModel(model.id);
-                    }}
+                    key={label}
+                    className={`label-btn ${selectedLabel === label ? 'selected' : ''} ${isLabelReady(label) ? 'complete' : ''}`}
+                    onClick={() => setSelectedLabel(label)}
                   >
-                    🗑️
+                    {label} ({getLabelSamples(label)}/30)
                   </button>
-                </div>
-                <div className="model-info">
-                  <p>
-                    <strong>Tipo:</strong> {model.type} •{' '}
-                    {Array.isArray(model.labels)
-                      ? `${model.labels.length} etiquetas`
-                      : `${model.labels} etiquetas`}
-                  </p>
-                  <p><strong>Muestras:</strong> {model.samples || 0} muestras</p>
-                  {Array.isArray(model.labels) && model.labels.length > 0 && (
-                    <div className="model-labels-info">
-                      <strong>Etiquetas:</strong> {model.labels.join(', ')}
+                ))}
+              </div>
+
+              <div className="collection-controls">
+                <button
+                  onClick={handleToggleCollection}
+                  disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)}
+                  className={isCollecting ? 'stop' : 'start'}
+                >
+                  {isCollecting ? '⏸️ Detener' : '▶️ Iniciar'} Recolección
+                </button>
+                
+                {selectedLabel && (
+                  <div className="progress-info">
+                    <p>Progreso para '{selectedLabel}': {getLabelSamples(selectedLabel)}/30</p>
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-fill" 
+                        style={{width: `${(getLabelSamples(selectedLabel) / 30) * 100}%`}}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Modo Entrenamiento */}
+          {mode === 'train' && (
+            <div className="train-panel">
+              <h3>🧠 Entrenamiento del Modelo</h3>
+              
+              <div className="dataset-summary">
+                <h4>Estado del Dataset:</h4>
+                {availableLabels.map(label => (
+                  <div key={label} className="label-status">
+                    <span>{label}: {getLabelSamples(label)}/30</span>
+                    <span className={isLabelReady(label) ? 'ready' : 'pending'}>
+                      {isLabelReady(label) ? '✅' : '⏳'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={handleStartTraining}
+                disabled={!allLabelsReady() || trainingProgress?.status === 'training'}
+                className="train-button"
+              >
+                {trainingProgress?.status === 'training' ? 'Entrenando...' : 'Iniciar Entrenamiento'}
+              </button>
+
+              {trainingProgress && (
+                <div className="training-progress">
+                  <h4>Progreso: {trainingProgress.status}</h4>
+                  <p>{trainingProgress.message}</p>
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill" 
+                      style={{width: `${trainingProgress.progress}%`}}
+                    />
+                  </div>
+                  <p>{trainingProgress.progress}%</p>
+                  
+                  {trainingProgress.metrics && (
+                    <div className="metrics">
+                      <p>Precisión: {(trainingProgress.metrics.accuracy * 100).toFixed(2)}%</p>
+                      <p>F1-Score: {trainingProgress.metrics.f1_score?.toFixed(3)}</p>
                     </div>
                   )}
                 </div>
-                <div className="model-progress">
-                  <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${model.progress || 0}%` }}></div>
+              )}
+            </div>
+          )}
+
+          {/* Modo Práctica */}
+          {mode === 'practice' && (
+            <div className="practice-panel">
+              <h3>🎯 Práctica con IA</h3>
+              
+              {predictionResult ? (
+                <div className="prediction-result">
+                  <h4>Predicción: {predictionResult.prediction}</h4>
+                  <p>Confianza: {predictionResult.percentage}%</p>
+                  <div className="confidence-bar">
+                    <div 
+                      className="confidence-fill" 
+                      style={{
+                        width: `${predictionResult.percentage}%`,
+                        backgroundColor: predictionResult.high_confidence ? '#4CAF50' : '#FF9800'
+                      }}
+                    />
                   </div>
-                  <span className="progress-text">{model.progress || 0}%</span>
+                  
+                  {predictionResult.top_3 && (
+                    <div className="top-predictions">
+                      <h5>Top 3:</h5>
+                      {predictionResult.top_3.map((pred, i) => (
+                        <div key={i} className="prediction-item">
+                          <span>{pred.label}: {pred.percentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))
+              ) : (
+                <p>Muestra tu mano para obtener una predicción</p>
+              )}
+            </div>
           )}
         </div>
 
-        {/* Right Column - Cámara de Entrenamiento */}
-        <div className="camera-section">
-          <div className="section-header">
-            <h2>📹 Cámara de Entrenamiento</h2>
+        {/* Panel derecho - Cámara */}
+        <div className="camera-panel">
+          <div className="camera-controls">
+            <button onClick={handleStartCamera} disabled={isCameraActive}>
+              📷 Iniciar Cámara
+            </button>
+            <button onClick={handleStopCamera} disabled={!isCameraActive}>
+              ⏹️ Detener Cámara
+            </button>
           </div>
 
           <div className="camera-feed">
-            {isCameraActive ? (
-              <MediapipeHands />
-            ) : (
-              <div className="camera-placeholder">
-                <div className="camera-icon-large">📹</div>
-                <p>Cámara no iniciada</p>
-                <p className="camera-description">
-                  Haz clic en "Iniciar Cámara" para comenzar
-                </p>
-              </div>
-            )}
-
-            {/* Controles de cámara */}
-            <div className="camera-controls">
-              <button
-                className="camera-btn"
-                onClick={handleStartCamera}
-                disabled={isCameraActive}
-              >
-                📷 Iniciar Cámara
-              </button>
-              <button
-                className="camera-btn"
-                onClick={handlePauseCamera}
-                disabled={!isCameraActive}
-              >
-                ⏸️ Pausar
-              </button>
-              <button
-                className="camera-btn"
-                onClick={handleStopCamera}
-                disabled={!isCameraActive}
-              >
-                ⏹️ Detener
-              </button>
-            </div>
+            <video ref={videoRef} style={{ display: 'none' }} width="900" height="500" autoPlay playsInline />
+            <canvas 
+              ref={canvasRef} 
+              width="900" 
+              height="500" 
+              style={{
+                width: '100%',
+                maxWidth: '600px',
+                height: 'auto',
+                border: '2px solid #ddd',
+                borderRadius: '8px'
+              }}
+            />
           </div>
 
-          {/* Mostrar las etiquetas del modelo seleccionado como botones para seleccionar */}
-          <div className="training-controls">
-            <h3>
-              {selectedModel
-                ? `Entrenamiento: ${currentLetter || 'Selecciona una etiqueta'}`
-                : 'Selecciona un modelo para entrenar'}
-            </h3>
-            <div className="etiquetas-disponibles">
-              {!selectedModel || modelLabels.length === 0 ? (
-                <span className="no-labels-message">
-                  {selectedModel
-                    ? 'Este modelo no tiene etiquetas'
-                    : 'Crea o selecciona un modelo para ver etiquetas aquí'}
-                </span>
-              ) : (
-                modelLabels.map((label, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className={`etiqueta-btn${currentLetter === label ? ' seleccionada' : ''}`}
-                    onClick={() => handleSelectLabel(label)}
-                  >
-                    {label}
-                  </button>
-                ))
-              )}
+          {/* Indicadores de estado */}
+          <div className="status-indicators">
+            <div className={`indicator ${isCameraActive ? 'active' : ''}`}>
+              📷 Cámara: {isCameraActive ? 'Activa' : 'Inactiva'}
             </div>
-            <div className="current-letter">
-              <div className="letter-display">{currentLetter || '?'}</div>
-            </div>
-            <button
-              className="collect-button"
-              onClick={handleCollectData}
-              disabled={
-                !isCameraActive ||
-                !currentLetter ||
-                samples >= MUESTRAS_OBJETIVO
-              }
-            >
-              Recolectar Datos
-            </button>
-            {/* Tarjetas de información debajo de Recolectar Datos */}
-            <div className="training-cards-container" style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'center' }}>
-              <div className="training-card" style={{
-                background: '#fff',
-                color: '#2D1B69',
-                borderRadius: '12px',
-                padding: '1rem 1.5rem',
-                minWidth: '120px',
-                textAlign: 'center',
-                boxShadow: '0 2px 8px rgba(45,27,105,0.10)'
-              }}>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Total de muestras</div>
-                <div style={{ fontSize: '2rem', fontWeight: 800 }}>{samples} / {MUESTRAS_OBJETIVO}</div>
+            {mode === 'collect' && (
+              <div className={`indicator ${isCollecting ? 'active' : ''}`}>
+                📊 Recolección: {isCollecting ? 'Activa' : 'Pausada'}
               </div>
-              <div className="training-card" style={{
-                background: '#fff',
-                color: '#2D1B69',
-                borderRadius: '12px',
-                padding: '1rem 1.5rem',
-                minWidth: '120px',
-                textAlign: 'center',
-                boxShadow: '0 2px 8px rgba(45,27,105,0.10)'
-              }}>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Precisión</div>
-                <div style={{ fontSize: '2rem', fontWeight: 800 }}>{precision}%</div>
-              </div>
-              <div className="training-card" style={{
-                background: samples >= MUESTRAS_OBJETIVO ? '#11998E' : '#eee',
-                color: samples >= MUESTRAS_OBJETIVO ? '#fff' : '#aaa',
-                borderRadius: '12px',
-                padding: '1rem 1.5rem',
-                minWidth: '120px',
-                textAlign: 'center',
-                boxShadow: '0 2px 8px rgba(45,27,105,0.10)'
-              }}>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Estado</div>
-                <div style={{ fontSize: '2rem', fontWeight: 800 }}>
-                  {samples >= MUESTRAS_OBJETIVO ? 'Listo' : 'Pendiente'}
-                </div>
-              </div>
-            </div>
-            {/* Fin tarjetas */}
+            )}
           </div>
         </div>
       </div>
     </div>
   );
-}
+};
 
-export default TrainingPage;
+export default TrainingIntegrated;

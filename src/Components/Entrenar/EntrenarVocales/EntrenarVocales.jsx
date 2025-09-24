@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './EntrenarVocales.css';
-import DeteccionVocales from '../../Camara/camaradeteccionVocales';
+// Cambiar la importación para usar importación nombrada
+import { DeteccionVocales } from '../../Camara/camaradeteccionVocales';
 
 // 🔥 CLAVES SEPARADAS SOLO PARA PRÁCTICA (no interfieren con TrainingPage)
 const LOCAL_STORAGE_PRACTICE_KEY = 'practice_vocales_stats';
