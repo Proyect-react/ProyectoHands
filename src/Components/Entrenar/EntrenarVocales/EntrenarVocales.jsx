@@ -26,6 +26,8 @@ function EntrenarVocales() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [currentPrecision, setCurrentPrecision] = useState(0);
   const [sessionStartTime, setSessionStartTime] = useState(null);
+  const [availableModels, setAvailableModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState(null);
 
   // Usar useRef para el intervalo
   const autoIncrementInterval = useRef(null);
@@ -114,6 +116,32 @@ function EntrenarVocales() {
   const handlePrecisionUpdate = useCallback((precision) => {
     setCurrentPrecision(precision);
   }, []);
+
+  // Función para cargar modelos disponibles
+  const loadAvailableModels = useCallback(async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/predict/available');
+      if (response.ok) {
+        const data = await response.json();
+        const vocalesModels = data.available_models?.filter(model => 
+          model.category === 'vocales'
+        ) || [];
+        setAvailableModels(vocalesModels);
+        
+        // Seleccionar el primer modelo disponible por defecto
+        if (vocalesModels.length > 0 && !selectedModel) {
+          setSelectedModel(vocalesModels[0].model_name || 'default');
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando modelos:', error);
+    }
+  }, [selectedModel]);
+
+  // Cargar modelos al montar el componente
+  useEffect(() => {
+    loadAvailableModels();
+  }, [loadAvailableModels]);
 
   // Efecto para manejar el intervalo de incremento automático
   // 1. Efecto solo para limpiar al desmontar
@@ -309,6 +337,8 @@ clearLabelData('vocales', 'A');
               <DeteccionVocales
                 character={characterFromURL}
                 onPrecisionUpdate={handlePrecisionUpdate}
+                mode="practice"
+                selectedModel={selectedModel}
               />
             ) : (
               <div className="camera-placeholder">
@@ -326,6 +356,33 @@ clearLabelData('vocales', 'A');
             <div className="current-letter">
               <div className="letter-display">{currentLetter || '?'}</div>
             </div>
+
+            {/* Selector de Modelo */}
+            {availableModels.length > 0 && (
+              <div className="model-selector" style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                  Modelo de IA:
+                </label>
+                <select 
+                  value={selectedModel || ''} 
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    borderRadius: '6px',
+                    border: '1px solid #ddd',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  <option value="">Seleccionar modelo...</option>
+                  {availableModels.map((model, index) => (
+                    <option key={index} value={model.model_name || 'default'}>
+                      {model.model_name || 'Modelo Default'} (Precisión: {model.accuracy}%)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {/* Tarjetas de información */}
             <div className="training-cards-container" style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'center' }}>
               <div className="training-card" style={{
@@ -341,16 +398,28 @@ clearLabelData('vocales', 'A');
                 <div style={{ fontSize: '2rem', fontWeight: 800 }}>{currentSamples} / {MUESTRAS_OBJETIVO}</div>
               </div>
               <div className="training-card" style={{
-                background: '#fff',
+                background: currentPrecision >= 80 ? '#e8f5e8' : currentPrecision >= 50 ? '#fff3e0' : '#ffebee',
                 color: '#2D1B69',
                 borderRadius: '12px',
                 padding: '1rem 1.5rem',
                 minWidth: '120px',
                 textAlign: 'center',
-                boxShadow: '0 2px 8px rgba(45,27,105,0.10)'
+                boxShadow: '0 2px 8px rgba(45,27,105,0.10)',
+                border: `2px solid ${currentPrecision >= 80 ? '#4CAF50' : currentPrecision >= 50 ? '#FF9800' : '#f44336'}`
               }}>
-                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Precisión actual</div>
-                <div style={{ fontSize: '2rem', fontWeight: 800 }}>{currentPrecision}%</div>
+                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>Precisión {currentLetter}</div>
+                <div style={{ 
+                  fontSize: '2rem', 
+                  fontWeight: 800,
+                  color: currentPrecision >= 80 ? '#4CAF50' : currentPrecision >= 50 ? '#FF9800' : '#f44336'
+                }}>
+                  {currentPrecision}%
+                </div>
+                {selectedModel && (
+                  <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '0.5rem' }}>
+                    Modelo: {selectedModel}
+                  </div>
+                )}
               </div>
               <div className="training-card" style={{
                 background: currentSamples >= MUESTRAS_OBJETIVO ? '#11998E' : '#eee',
