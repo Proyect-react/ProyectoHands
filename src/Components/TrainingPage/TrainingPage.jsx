@@ -5,6 +5,37 @@ import { Camera } from "@mediapipe/camera_utils";
 import APIService from '../../services/apiService';
 import './TrainingPage.css';
 
+// 🗑️ FUNCIONES PARA BORRAR DATOS
+const clearCategoryData = async (category) => {
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}`, {
+      method: 'DELETE'
+    });
+    
+    const result = await response.json();
+    console.log('✅ Datos eliminados:', result.message);
+    return result;
+  } catch (error) {
+    console.error('❌ Error eliminando datos:', error);
+    throw error;
+  }
+};
+
+const clearLabelData = async (category, label) => {
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}?label=${label}`, {
+      method: 'DELETE'
+    });
+    
+    const result = await response.json();
+    console.log('✅ Etiqueta eliminada:', result.message);
+    return result;
+  } catch (error) {
+    console.error('❌ Error eliminando etiqueta:', error);
+    throw error;
+  }
+};
+
 const TrainingIntegrated = ({ category = "vocales" }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -12,27 +43,50 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
   const cameraRef = useRef(null);
 
   // Estados principales
-  const [mode, setMode] = useState('collect'); // collect, train, practice
+  const [mode, setMode] = useState('collect');
   const [selectedLabel, setSelectedLabel] = useState('');
   const [isCollecting, setIsCollecting] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
+  const [modelName, setModelName] = useState("modelo_default");
+  const [epochs, setEpochs] = useState(20);
+
   
   // Estados de datos
   const [datasetStatus, setDatasetStatus] = useState({});
   const [trainingProgress, setTrainingProgress] = useState(null);
   const [predictionResult, setPredictionResult] = useState(null);
-  const [availableLabels] = useState(['A', 'E', 'I', 'O', 'U']);
+  const vocales = ['A', 'E', 'I', 'O', 'U'];
+  const numeros = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+  const operaciones = ['+', "-", "*", "/",]
+  const [availableLabels] = useState([...vocales, ...numeros, ...operaciones]);
+  
 
-  // Referencias para callbacks
+  // 🔧 REFERENCIAS PARA CONTROL DE ESTADO
   const collectingRef = useRef(false);
+  const selectedLabelRef = useRef('');
   const lastCollectionTime = useRef(0);
+  const processingRef = useRef(false);
+  
+  // 🎯 CONFIGURACIÓN DE RENDIMIENTO
+  const COLLECTION_INTERVAL = 1000; // 2 segundos entre muestras
+  const RENDER_THROTTLE = 100; // Limitar renders a cada 100ms
+  const lastRenderTime = useRef(0);
+
+  // Sincronizar refs con estados
+  useEffect(() => {
+    collectingRef.current = isCollecting;
+  }, [isCollecting]);
+
+  useEffect(() => {
+    selectedLabelRef.current = selectedLabel;
+  }, [selectedLabel]);
 
   // Cargar estado del dataset al inicio
   useEffect(() => {
     loadDatasetStatus();
   }, [category]);
 
-  // Polling para progreso de entrenamiento
+  // Polling para progreso de entrenamiento (optimizado)
   useEffect(() => {
     let interval;
     if (mode === 'train' && trainingProgress?.status === 'training') {
@@ -47,7 +101,7 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
         } catch (error) {
           console.error('Error verificando progreso:', error);
         }
-      }, 2000);
+      }, 3000); // Aumentado a 3 segundos para reducir carga
     }
 
     return () => {
@@ -61,6 +115,64 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
       setDatasetStatus(status);
     } catch (error) {
       console.error('Error cargando estado:', error);
+    }
+  };
+
+  // 🗑️ FUNCIÓN PARA BORRAR DATOS (mejorada)
+  const handleClearData = async (type = 'current') => {
+    if (type === 'current' && !selectedLabel) {
+      alert('⚠️ Selecciona una etiqueta primero');
+      return;
+    }
+
+    // Detener recolección durante limpieza
+    const wasCollecting = isCollecting;
+    if (wasCollecting) {
+      setIsCollecting(false);
+      collectingRef.current = false;
+    }
+
+    let confirmMessage = '';
+    
+    if (type === 'current') {
+      const currentSamples = getLabelSamples(selectedLabel);
+      confirmMessage = `¿Eliminar todas las muestras de "${selectedLabel}"?\n\nSe eliminarán ${currentSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
+    } else if (type === 'all') {
+      const totalSamples = Object.values(datasetStatus.labels || {}).reduce((sum, label) => sum + (label.samples || 0), 0);
+      confirmMessage = `¿Eliminar TODAS las muestras de la categoría "${category}"?\n\nSe eliminarán ${totalSamples} muestras de todas las etiquetas.\n\nEsta acción NO se puede deshacer.`;
+    }
+
+    const userConfirmed = window.confirm(`⚠️ CONFIRMACIÓN\n\n${confirmMessage}`);
+    if (!userConfirmed) {
+      // Restaurar estado de recolección si se cancela
+      if (wasCollecting) {
+        setIsCollecting(true);
+        collectingRef.current = true;
+      }
+      return;
+    }
+
+    try {
+      if (type === 'current') {
+        await clearLabelData(category, selectedLabel);
+        alert(`✅ Datos de "${selectedLabel}" eliminados correctamente`);
+      } else if (type === 'all') {
+        await clearCategoryData(category);
+        alert(`✅ Todas las muestras de "${category}" eliminadas correctamente`);
+      }
+
+      // Recargar estado del dataset
+      await loadDatasetStatus();
+      
+    } catch (error) {
+      alert(`❌ Error eliminando datos: ${error.message}`);
+      console.error('Error eliminando:', error);
+      
+      // Restaurar estado de recolección en caso de error
+      if (wasCollecting) {
+        setIsCollecting(true);
+        collectingRef.current = true;
+      }
     }
   };
 
@@ -86,71 +198,98 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
     return landmarks.length === 126 ? landmarks : null;
   };
 
+  // 🚀 OPTIMIZACIÓN DEL CALLBACK PRINCIPAL
   const onResults = useCallback(async (results) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+    // 🎭 THROTTLING DE RENDER PARA MEJOR PERFORMANCE
+    const now = Date.now();
+    const shouldRender = now - lastRenderTime.current > RENDER_THROTTLE;
+    
+    if (shouldRender) {
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+      lastRenderTime.current = now;
+    }
 
+    // 🖐️ PROCESAMIENTO DE MANOS
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       const landmarks = extractLandmarksArray(results.multiHandLandmarks);
       
       if (landmarks) {
-        // Modo recolección
-        if (mode === 'collect' && collectingRef.current && selectedLabel) {
-          const now = Date.now();
-          if (now - lastCollectionTime.current > 1000) { // Límite de 1 muestra por segundo
+        // 📊 MODO RECOLECCIÓN (con protecciones mejoradas)
+        if (mode === 'collect' && collectingRef.current && selectedLabelRef.current && !processingRef.current) {
+          const timeSinceLastCollection = now - lastCollectionTime.current;
+          
+          if (timeSinceLastCollection > COLLECTION_INTERVAL) {
+            processingRef.current = true; // Bloquear procesamiento concurrente
+            
             try {
+              console.log(`📝 Recolectando para etiqueta: ${selectedLabelRef.current}`);
+              
               const result = await APIService.collectSample(
                 category, 
-                selectedLabel, 
+                selectedLabelRef.current, // Usar ref para evitar stale closures
                 landmarks,
                 {
                   collection_mode: 'automatic',
-                  hand_count: results.multiHandLandmarks.length
+                  hand_count: results.multiHandLandmarks.length,
+                  timestamp: new Date().toISOString()
                 }
               );
               
               if (result.success) {
+                console.log(`✅ Muestra ${result.current_samples} guardada para ${selectedLabelRef.current}`);
                 await loadDatasetStatus();
                 lastCollectionTime.current = now;
                 
                 // Parar automáticamente si se alcanza el límite
                 if (result.current_samples >= 30) {
+                  console.log(`🏁 Límite alcanzado para ${selectedLabelRef.current}`);
                   setIsCollecting(false);
                   collectingRef.current = false;
                 }
               }
             } catch (error) {
-              console.error('Error recolectando:', error);
+              console.error('❌ Error recolectando:', error);
+            } finally {
+              processingRef.current = false; // Liberar bloqueo
             }
           }
         }
         
-        // Modo práctica con predicción
-        else if (mode === 'practice') {
-          try {
-            const prediction = await APIService.predict(category, landmarks, {
-              threshold: 0.6,
-              returnAll: false
-            });
-            
-            setPredictionResult(prediction);
-          } catch (error) {
-            console.error('Error en predicción:', error);
-            setPredictionResult(null);
+        // 🎯 MODO PRÁCTICA CON PREDICCIÓN
+        else if (mode === 'practice' && !processingRef.current) {
+          // Throttling para predicciones también
+          if (now - lastCollectionTime.current > 500) { // Predicción cada 500ms
+            try {
+              const prediction = await APIService.predict(category, landmarks, {
+                threshold: 0.6,
+                returnAll: false
+              });
+              
+              setPredictionResult(prediction);
+              lastCollectionTime.current = now;
+            } catch (error) {
+              console.error('Error en predicción:', error);
+              setPredictionResult(null);
+            }
           }
         }
       }
 
-      // Dibujar la mano
-      drawHand(ctx, results.multiHandLandmarks[0], canvas);
+      // 🖌️ DIBUJAR LA MANO (solo si es tiempo de render)
+      if (shouldRender) {
+        drawHand(canvas.getContext("2d"), results.multiHandLandmarks[0], canvas);
+      }
     } else {
-      setPredictionResult(null);
+      if (mode === 'practice') {
+        setPredictionResult(null);
+      }
     }
-  }, [mode, selectedLabel, category]);
+  }, [mode, category]); // Dependencias mínimas para evitar recreaciones
 
   const drawHand = (ctx, landmarks, canvas) => {
     // Dibujar conexiones
@@ -185,9 +324,15 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
     }
   };
 
-  // Inicialización de MediaPipe
+  // 🎥 INICIALIZACIÓN DE MEDIAPIPE (optimizada)
   useEffect(() => {
-    if (!isCameraActive) return;
+    if (!isCameraActive) {
+      // Limpiar estados cuando se desactiva la cámara
+      processingRef.current = false;
+      lastCollectionTime.current = 0;
+      lastRenderTime.current = 0;
+      return;
+    }
 
     const hands = new Hands({
       locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -207,12 +352,16 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
     if (videoElement) {
       const camera = new Camera(videoElement, {
         onFrame: async () => {
-          if (videoElement) {
-            await hands.send({ image: videoElement });
+          if (videoElement && hands) {
+            try {
+              await hands.send({ image: videoElement });
+            } catch (error) {
+              console.error('Error enviando frame:', error);
+            }
           }
         },
-        width: 900,
-        height: 500
+        width: 640,  // Reducido para mejor performance
+        height: 480  // Reducido para mejor performance
       });
       
       cameraRef.current = camera;
@@ -220,19 +369,36 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
     }
 
     return () => {
-      if (cameraRef.current) cameraRef.current.stop?.();
+      if (cameraRef.current) {
+        try {
+          cameraRef.current.stop?.();
+        } catch (error) {
+          console.warn('Error deteniendo cámara:', error);
+        }
+      }
       if (videoElement && videoElement.srcObject) {
-        videoElement.srcObject.getTracks().forEach(track => track.stop());
+        videoElement.srcObject.getTracks().forEach(track => {
+          try {
+            track.stop();
+          } catch (error) {
+            console.warn('Error deteniendo track:', error);
+          }
+        });
+      }
+      if (handsRef.current) {
+        handsRef.current.onResults(() => {}); // Limpiar callback
       }
     };
   }, [isCameraActive, onResults]);
 
   // Handlers principales
   const handleStartCamera = () => setIsCameraActive(true);
+  
   const handleStopCamera = () => {
     setIsCameraActive(false);
     setIsCollecting(false);
     collectingRef.current = false;
+    processingRef.current = false;
   };
 
   const handleToggleCollection = () => {
@@ -242,27 +408,70 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
     }
     
     const newCollecting = !isCollecting;
+    console.log(`🔄 Cambiando recolección a: ${newCollecting} para etiqueta: ${selectedLabel}`);
+    
     setIsCollecting(newCollecting);
     collectingRef.current = newCollecting;
+    
+    if (newCollecting) {
+      // Reset timers al iniciar recolección
+      lastCollectionTime.current = 0;
+      processingRef.current = false;
+    }
   };
 
-  const handleStartTraining = async () => {
+  const handleStartTraining = async (name, epochs) => {
     try {
       setMode('train');
-      const result = await APIService.startTraining(category);
+      const result = await APIService.startTraining(category, { name, epochs });
       setTrainingProgress({ status: 'training', progress: 0, message: 'Iniciando...' });
     } catch (error) {
       console.error('Error iniciando entrenamiento:', error);
       alert('Error iniciando entrenamiento');
     }
   };
+  
 
   const handleSwitchMode = (newMode) => {
-    setMode(newMode);
+    console.log(`🔄 Cambiando modo de ${mode} a ${newMode}`);
+    
+    // Detener recolección al cambiar modo
     setIsCollecting(false);
     collectingRef.current = false;
+    processingRef.current = false;
+    
+    setMode(newMode);
     setPredictionResult(null);
     setTrainingProgress(null);
+    
+    // Reset timers
+    lastCollectionTime.current = 0;
+    lastRenderTime.current = 0;
+  };
+
+  // 🏷️ CAMBIO DE ETIQUETA CON PROTECCIÓN
+  const handleLabelChange = (label) => {
+    console.log(`🏷️ Cambiando etiqueta de ${selectedLabel} a ${label}`);
+    
+    // Detener recolección temporalmente
+    const wasCollecting = isCollecting;
+    if (wasCollecting) {
+      setIsCollecting(false);
+      collectingRef.current = false;
+    }
+    
+    // Cambiar etiqueta
+    setSelectedLabel(label);
+    selectedLabelRef.current = label;
+    
+    // Restaurar recolección si estaba activa (después de un pequeño delay)
+    if (wasCollecting) {
+      setTimeout(() => {
+        setIsCollecting(true);
+        collectingRef.current = true;
+        lastCollectionTime.current = 0; // Reset timer
+      }, 500); // Medio segundo de pausa
+    }
   };
 
   const getLabelSamples = (label) => {
@@ -276,6 +485,7 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
   const allLabelsReady = () => {
     return availableLabels.every(label => isLabelReady(label));
   };
+  
 
   return (
     <div className="training-integrated">
@@ -292,7 +502,6 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
           <button 
             className={mode === 'train' ? 'active' : ''} 
             onClick={() => handleSwitchMode('train')}
-            disabled={!allLabelsReady()}
           >
             🧠 Entrenar
           </button>
@@ -319,20 +528,50 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
                   <button
                     key={label}
                     className={`label-btn ${selectedLabel === label ? 'selected' : ''} ${isLabelReady(label) ? 'complete' : ''}`}
-                    onClick={() => setSelectedLabel(label)}
+                    onClick={() => handleLabelChange(label)}
+                    disabled={isCollecting} // Deshabilitar cambio durante recolección
                   >
                     {label} ({getLabelSamples(label)}/30)
                   </button>
                 ))}
               </div>
 
+              {/* ⚠️ INDICADOR DE ETIQUETA ACTIVA */}
+              {selectedLabel && (
+                <div className="active-label-indicator" style={{
+                  background: isCollecting ? '#4CAF50' : '#f0f0f0',
+                  color: isCollecting ? 'white' : '#333',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  margin: '10px 0',
+                  textAlign: 'center',
+                  fontWeight: 'bold'
+                }}>
+                  🎯 Recolectando para: {selectedLabel}
+                  {isCollecting && (
+                    <div style={{ fontSize: '12px', marginTop: '5px' }}>
+                      ⏱️ Siguiente muestra en {Math.max(0, Math.ceil((COLLECTION_INTERVAL - (Date.now() - lastCollectionTime.current)) / 1000))}s
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="collection-controls">
                 <button
                   onClick={handleToggleCollection}
                   disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)}
                   className={isCollecting ? 'stop' : 'start'}
+                  style={{
+                    background: isCollecting ? '#ff4757' : '#2ecc71',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 20px',
+                    borderRadius: '8px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
                 >
-                  {isCollecting ? '⏸️ Detener' : '▶️ Iniciar'} Recolección
+                  {isCollecting ? '⏹️ DETENER' : '▶️ INICIAR'} Recolección
                 </button>
                 
                 {selectedLabel && (
@@ -346,11 +585,52 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
                     </div>
                   </div>
                 )}
+
+                {/* 🗑️ BOTONES DE BORRADO */}
+                <div className="clear-controls" style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => handleClearData('current')}
+                    disabled={!selectedLabel || getLabelSamples(selectedLabel) === 0 || isCollecting}
+                    style={{
+                      background: '#ff4757',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 15px',
+                      borderRadius: '5px',
+                      cursor: selectedLabel && getLabelSamples(selectedLabel) > 0 && !isCollecting ? 'pointer' : 'not-allowed',
+                      fontWeight: '600',
+                      fontSize: '14px',
+                      opacity: selectedLabel && getLabelSamples(selectedLabel) > 0 && !isCollecting ? 1 : 0.6
+                    }}
+                    title={isCollecting ? 'Detén la recolección primero' : `Borrar todas las muestras de "${selectedLabel}"`}
+                  >
+                    🗑️ Borrar {selectedLabel || 'Etiqueta'}
+                  </button>
+
+                  <button
+                    onClick={() => handleClearData('all')}
+                    disabled={Object.values(datasetStatus.labels || {}).every(label => (label.samples || 0) === 0) || isCollecting}
+                    style={{
+                      background: '#ff3838',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 15px',
+                      borderRadius: '5px',
+                      cursor: Object.values(datasetStatus.labels || {}).some(label => (label.samples || 0) > 0) && !isCollecting ? 'pointer' : 'not-allowed',
+                      fontWeight: '600',
+                      fontSize: '14px',
+                      opacity: Object.values(datasetStatus.labels || {}).some(label => (label.samples || 0) > 0) && !isCollecting ? 1 : 0.6
+                    }}
+                    title={isCollecting ? 'Detén la recolección primero' : "Borrar todas las muestras de todas las etiquetas"}
+                  >
+                    💀 Borrar Todo
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Modo Entrenamiento */}
+          {/* Resto de modos... (igual que antes) */}
           {mode === 'train' && (
             <div className="train-panel">
               <h3>🧠 Entrenamiento del Modelo</h3>
@@ -369,7 +649,7 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
 
               <button
                 onClick={handleStartTraining}
-                disabled={!allLabelsReady() || trainingProgress?.status === 'training'}
+                disabled={trainingProgress?.status === 'training'}
                 className="train-button"
               >
                 {trainingProgress?.status === 'training' ? 'Entrenando...' : 'Iniciar Entrenamiento'}
@@ -398,7 +678,6 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
             </div>
           )}
 
-          {/* Modo Práctica */}
           {mode === 'practice' && (
             <div className="practice-panel">
               <h3>🎯 Práctica con IA</h3>
@@ -435,47 +714,115 @@ const TrainingIntegrated = ({ category = "vocales" }) => {
           )}
         </div>
 
-        {/* Panel derecho - Cámara */}
-        <div className="camera-panel">
-          <div className="camera-controls">
-            <button onClick={handleStartCamera} disabled={isCameraActive}>
-              📷 Iniciar Cámara
-            </button>
-            <button onClick={handleStopCamera} disabled={!isCameraActive}>
-              ⏹️ Detener Cámara
-            </button>
-          </div>
+        {/* Panel derecho - Cámara o Entrenamiento */}
+<div className="camera-panel">
+  {/* Si estamos en modo entrenamiento, mostrar formulario en vez de cámara */}
+  {mode === 'train' ? (
+    <div className="training-form">
+      <h3>⚙️ Configuración de Entrenamiento</h3>
+      
+      <div className="form-group">
+        <label htmlFor="modelName">Nombre del Modelo:</label>
+        <input 
+          type="text" 
+          id="modelName" 
+          value={modelName} 
+          onChange={(e) => setModelName(e.target.value)} 
+          placeholder="Ej: modelo_vocales"
+        />
+      </div>
 
-          <div className="camera-feed">
-            <video ref={videoRef} style={{ display: 'none' }} width="900" height="500" autoPlay playsInline />
-            <canvas 
-              ref={canvasRef} 
-              width="900" 
-              height="500" 
-              style={{
-                width: '100%',
-                maxWidth: '600px',
-                height: 'auto',
-                border: '2px solid #ddd',
-                borderRadius: '8px'
-              }}
+      <div className="form-group">
+        <label htmlFor="epochs">Número de Épocas:</label>
+        <input 
+          type="number" 
+          id="epochs" 
+          min="1" 
+          max="200" 
+          value={epochs} 
+          onChange={(e) => setEpochs(parseInt(e.target.value))}
+        />
+      </div>
+
+      <button 
+        onClick={() => handleStartTraining(modelName, epochs)} 
+        disabled={trainingProgress?.status === 'training'}
+      >
+        {trainingProgress?.status === 'training' ? '⏳ Entrenando...' : '🚀 Entrenar Modelo'}
+      </button>
+
+      {/* Mostrar progreso */}
+      {trainingProgress && (
+        <div className="training-progress">
+          <h4>Progreso: {trainingProgress.status}</h4>
+          <p>{trainingProgress.message}</p>
+          <div className="progress-bar">
+            <div 
+              className="progress-fill" 
+              style={{width: `${trainingProgress.progress}%`}}
             />
           </div>
+          <p>{trainingProgress.progress}%</p>
+        </div>
+      )}
+    </div>
+  ) : (
+    <>
+      {/* Panel normal de cámara */}
+      <div className="camera-controls">
+        <button onClick={handleStartCamera} disabled={isCameraActive}>
+          📷 Iniciar Cámara
+        </button>
+        <button onClick={handleStopCamera} disabled={!isCameraActive}>
+          ⏹️ Detener Cámara
+        </button>
+      </div>
 
-          {/* Indicadores de estado */}
+      <div className="camera-feed">
+        <video ref={videoRef} style={{ display: 'none' }} width="640" height="480" autoPlay playsInline />
+        <canvas 
+          ref={canvasRef} 
+          width="640" 
+          height="480" 
+          style={{
+            width: '100%',
+            maxWidth: '600px',
+            height: 'auto',
+            border: '2px solid #ddd',
+            borderRadius: '8px'
+          }}
+        />
+      </div>
+    </>
+  )}
+</div>
+
+
+          {/* Indicadores de estado mejorados */}
           <div className="status-indicators">
             <div className={`indicator ${isCameraActive ? 'active' : ''}`}>
               📷 Cámara: {isCameraActive ? 'Activa' : 'Inactiva'}
             </div>
             {mode === 'collect' && (
-              <div className={`indicator ${isCollecting ? 'active' : ''}`}>
-                📊 Recolección: {isCollecting ? 'Activa' : 'Pausada'}
-              </div>
+              <>
+                <div className={`indicator ${isCollecting ? 'active' : ''}`}>
+                  📊 Recolección: {isCollecting ? 'Activa' : 'Pausada'}
+                </div>
+                {selectedLabel && (
+                  <div className="indicator">
+                    🏷️ Etiqueta: {selectedLabel}
+                  </div>
+                )}
+                {processingRef.current && (
+                  <div className="indicator active">
+                    ⚡ Procesando muestra...
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
-    </div>
   );
 };
 

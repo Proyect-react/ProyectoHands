@@ -16,7 +16,7 @@ const drawHand = (ctx, handLandmarks, canvas) => {
 };
 // =======================================
 
-const DeteccionVocalesConBackend = ({ character = "A", onPrecisionUpdate, mode = "practice" }) => {
+function DeteccionVocales({ character = "A", onPrecisionUpdate, mode = "practice" }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const cameraRef = useRef(null);
@@ -212,6 +212,8 @@ const DeteccionVocalesConBackend = ({ character = "A", onPrecisionUpdate, mode =
       </div>
     </div>
   );
-};
+}
 
-export default DeteccionVocalesConBackend;
+// Exportación nombrada para evitar el error de importación
+export { DeteccionVocales };
+export default DeteccionVocales;
