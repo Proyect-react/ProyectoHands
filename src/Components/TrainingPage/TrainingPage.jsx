@@ -2,33 +2,26 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
-import APIService from '../../services/apiService';
+import apiService from '../../services/apiService';
 import './TrainingPage.css';
 
 // Funciones para borrar datos
 const clearCategoryData = async (category) => {
   try {
-    const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}`, {
-      method: 'DELETE'
-    });
-    const result = await response.json();
-    console.log('Datos eliminados:', result.message);
-    return result;
+    const response = await apiService.clearCategoryData(category);
+    console.log('Datos eliminados:', response.message);
+    return response;
   } catch (error) {
     console.error('Error eliminando datos:', error);
     throw error;
   }
 };
 
-
 const clearLabelData = async (category, label) => {
   try {
-    const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}?label=${label}`, {
-      method: 'DELETE'
-    });
-    const result = await response.json();
-    console.log('Etiqueta eliminada:', result.message);
-    return result;
+    const response = await apiService.clearLabelData(category, label);
+    console.log('Etiqueta eliminada:', response.message);
+    return response;
   } catch (error) {
     console.error('Error eliminando etiqueta:', error);
     throw error;
@@ -50,7 +43,6 @@ const TrainingIntegrated = () => {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [modelName, setModelName] = useState("modelo_default");
   const [epochs, setEpochs] = useState(50);
-  
 
   // Estados de datos
   const [datasetStatus, setDatasetStatus] = useState({});
@@ -87,12 +79,15 @@ const TrainingIntegrated = () => {
   const selectedLabelRef = useRef('');
   const lastCollectionTime = useRef(0);
   const processingRef = useRef(false);
-  
-  
+
   // Configuración de rendimiento
   const COLLECTION_INTERVAL = 1000;
   const RENDER_THROTTLE = 100;
   const lastRenderTime = useRef(0);
+
+  // Parámetros para la distancia mínima de la mano (en modo práctica)
+  // Se puede ajustar este valor para requerir que la mano esté más cerca o más lejos
+  const MIN_HAND_SIZE = 0.18; // tamaño mínimo de la mano (en proporción al ancho de la imagen) - ahora requiere que la mano esté más cerca
 
   // Sincronizar refs con estados
   useEffect(() => {
@@ -116,9 +111,9 @@ const TrainingIntegrated = () => {
     if (mode === 'train' && trainingProgress?.status === 'training') {
       interval = setInterval(async () => {
         try {
-          const progress = await APIService.getTrainingProgress(selectedCategory);
+          const progress = await apiService.getTrainingProgress(selectedCategory);
           setTrainingProgress(progress);
-          
+
           if (progress.status === 'completed' || progress.status === 'error') {
             clearInterval(interval);
             loadAvailableModels(); // Recargar modelos después del entrenamiento
@@ -138,7 +133,7 @@ const TrainingIntegrated = () => {
   // useCallback para evitar advertencia de dependencia faltante
   const loadDatasetStatus = useCallback(async () => {
     try {
-      const status = await APIService.getDatasetStatus(selectedCategory);
+      const status = await apiService.getDatasetStatus(selectedCategory);
       setDatasetStatus(status);
     } catch (error) {
       console.error('Error cargando estado:', error);
@@ -148,13 +143,13 @@ const TrainingIntegrated = () => {
   // useCallback para evitar advertencia de dependencia faltante
   const loadAvailableModels = useCallback(async () => {
     try {
-      const models = await APIService.getAvailableModels();
+      const models = await apiService.getAvailableModels();
       // Filtrar modelos por categoría actual
-      const filteredModels = models.available_models?.filter(model => 
+      const filteredModels = models.available_models?.filter(model =>
         model.category === selectedCategory
       ) || [];
       setAvailableModels(filteredModels);
-      
+
       // Seleccionar el primer modelo si existe
       if (filteredModels.length > 0 && !selectedModel) {
         setSelectedModel(filteredModels[0].model_name || 'default');
@@ -179,7 +174,7 @@ const TrainingIntegrated = () => {
     }
 
     let confirmMessage = '';
-    
+
     if (type === 'current') {
       const currentSamples = getLabelSamples(selectedLabel);
       confirmMessage = `¿Eliminar todas las muestras de "${selectedLabel}" en categoría "${selectedCategory}"?\n\nSe eliminarán ${currentSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
@@ -207,11 +202,11 @@ const TrainingIntegrated = () => {
       }
 
       await loadDatasetStatus();
-      
+
     } catch (error) {
       alert(`Error eliminando datos: ${error.message}`);
       console.error('Error eliminando:', error);
-      
+
       if (wasCollecting) {
         setIsCollecting(true);
         collectingRef.current = true;
@@ -221,22 +216,36 @@ const TrainingIntegrated = () => {
 
   const extractLandmarksArray = (multiHandLandmarks) => {
     if (!multiHandLandmarks || multiHandLandmarks.length === 0) return null;
-    
+
     const landmarks = [];
-    
+
     for (let i = 0; i < Math.min(2, multiHandLandmarks.length); i++) {
       for (const landmark of multiHandLandmarks[i]) {
         landmarks.push(landmark.x, landmark.y, landmark.z);
       }
     }
-    
+
     if (multiHandLandmarks.length === 1) {
       for (let i = 0; i < 63; i++) {
         landmarks.push(0.0);
       }
     }
-    
+
     return landmarks.length === 126 ? landmarks : null;
+  };
+
+  // Función para calcular el "tamaño" de la mano (bounding box)
+  const calcularTamanioMano = (landmarks) => {
+    if (!landmarks || landmarks.length === 0) return 0;
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    for (const punto of landmarks) {
+      if (punto.x < minX) minX = punto.x;
+      if (punto.x > maxX) maxX = punto.x;
+      if (punto.y < minY) minY = punto.y;
+      if (punto.y > maxY) maxY = punto.y;
+    }
+    // Retorna el ancho de la mano en proporción a la imagen
+    return maxX - minX;
   };
 
   // Callback principal de MediaPipe
@@ -246,7 +255,8 @@ const TrainingIntegrated = () => {
 
     const now = Date.now();
     const shouldRender = now - lastRenderTime.current > RENDER_THROTTLE;
-    
+
+    // Siempre renderiza la mano (no desaparece aunque se esté recolectando o prediciendo)
     if (shouldRender) {
       const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -254,22 +264,28 @@ const TrainingIntegrated = () => {
       lastRenderTime.current = now;
     }
 
+    // Si hay mano(s) detectada(s)
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       const landmarks = extractLandmarksArray(results.multiHandLandmarks);
-      
+
+      // Dibuja la mano siempre (no desaparece)
+      if (shouldRender) {
+        drawHand(canvas.getContext("2d"), results.multiHandLandmarks[0], canvas);
+      }
+
       if (landmarks) {
-        // Modo recolección
+        // --- MODO RECOLECCIÓN ---
         if (mode === 'collect' && collectingRef.current && selectedLabelRef.current && !processingRef.current) {
           const timeSinceLastCollection = now - lastCollectionTime.current;
-          
+
           if (timeSinceLastCollection > COLLECTION_INTERVAL) {
             processingRef.current = true;
-            
+
             try {
               console.log(`Recolectando para etiqueta: ${selectedLabelRef.current} en categoría: ${selectedCategory}`);
-              
-              const result = await APIService.collectSample(
-                selectedCategory, 
+
+              const result = await apiService.collectSample(
+                selectedCategory,
                 selectedLabelRef.current,
                 landmarks,
                 {
@@ -278,12 +294,12 @@ const TrainingIntegrated = () => {
                   timestamp: new Date().toISOString()
                 }
               );
-              
+
               if (result.success) {
                 console.log(`Muestra ${result.current_samples} guardada para ${selectedLabelRef.current}`);
                 await loadDatasetStatus();
                 lastCollectionTime.current = now;
-                
+
                 if (result.current_samples >= 30) {
                   console.log(`Límite alcanzado para ${selectedLabelRef.current}`);
                   setIsCollecting(false);
@@ -297,30 +313,40 @@ const TrainingIntegrated = () => {
             }
           }
         }
-        
-        // Modo práctica con predicción
+
+        // --- MODO PRÁCTICA ---
         else if (mode === 'practice' && !processingRef.current && selectedModel) {
-          if (now - lastCollectionTime.current > 500) {
-            try {
-              const prediction = await APIService.practicePredict(selectedCategory, landmarks, {
-                threshold: 0.7,
-                modelName: selectedModel  // este es el modelo seleccionado en la UI
-              });
-              
-              setPredictionResult(prediction);
-              lastCollectionTime.current = now;
-            } catch (error) {
-              console.error('Error en predicción:', error);
-              setPredictionResult(null);
+          // Calcula el tamaño de la mano detectada
+          const handSize = calcularTamanioMano(results.multiHandLandmarks[0]);
+          // Solo predice si la mano está suficientemente cerca (grande)
+          if (handSize >= MIN_HAND_SIZE) {
+            if (now - lastCollectionTime.current > 500) {
+              try {
+                const prediction = await apiService.practicePredict(selectedCategory, landmarks, {
+                  threshold: 0.9,
+                  modelName: selectedModel  // este es el modelo seleccionado en la UI
+                });
+
+                setPredictionResult(prediction);
+                lastCollectionTime.current = now;
+              } catch (error) {
+                console.error('Error en predicción:', error);
+                setPredictionResult(null);
+              }
             }
+          } else {
+            // Si la mano está muy lejos, muestra mensaje de acercar la mano
+            setPredictionResult({
+              prediction: "Acerca tu mano a la cámara",
+              percentage: 0,
+              high_confidence: false,
+              top_3: []
+            });
           }
         }
       }
-
-      if (shouldRender) {
-        drawHand(canvas.getContext("2d"), results.multiHandLandmarks[0], canvas);
-      }
     } else {
+      // Si no hay mano, en práctica muestra mensaje de "pon tu mano"
       if (mode === 'practice') {
         setPredictionResult(null);
       }
@@ -339,11 +365,11 @@ const TrainingIntegrated = () => {
 
     ctx.strokeStyle = "rgba(0,255,0,0.6)";
     ctx.lineWidth = 2;
-    
+
     for (const [start, end] of connections) {
       const startPoint = landmarks[start];
       const endPoint = landmarks[end];
-      
+
       ctx.beginPath();
       ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
       ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
@@ -396,7 +422,7 @@ const TrainingIntegrated = () => {
         width: 640,
         height: 480
       });
-      
+
       cameraRef.current = camera;
       camera.start();
     }
@@ -426,7 +452,7 @@ const TrainingIntegrated = () => {
 
   // Handlers principales
   const handleStartCamera = () => setIsCameraActive(true);
-  
+
   const handleStopCamera = () => {
     setIsCameraActive(false);
     setIsCollecting(false);
@@ -439,13 +465,13 @@ const TrainingIntegrated = () => {
       alert('Selecciona una etiqueta primero');
       return;
     }
-    
+
     const newCollecting = !isCollecting;
     console.log(`Cambiando recolección a: ${newCollecting} para etiqueta: ${selectedLabel} en categoría: ${selectedCategory}`);
-    
+
     setIsCollecting(newCollecting);
     collectingRef.current = newCollecting;
-    
+
     if (newCollecting) {
       lastCollectionTime.current = 0;
       processingRef.current = false;
@@ -456,9 +482,9 @@ const TrainingIntegrated = () => {
     try {
       setMode('train');
       // eslint-disable-next-line no-unused-vars
-      const result = await APIService.startTraining(selectedCategory, { 
-        name: modelName, 
-        epochs 
+      const result = await apiService.startTraining(selectedCategory, {
+        name: modelName,
+        epochs
       });
       setTrainingProgress({ status: 'training', progress: 0, message: 'Iniciando...' });
     } catch (error) {
@@ -469,28 +495,28 @@ const TrainingIntegrated = () => {
 
   const handleSwitchMode = (newMode) => {
     console.log(`Cambiando modo de ${mode} a ${newMode}`);
-    
+
     setIsCollecting(false);
     collectingRef.current = false;
     processingRef.current = false;
-    
+
     setMode(newMode);
     setPredictionResult(null);
     setTrainingProgress(null);
-    
+
     lastCollectionTime.current = 0;
     lastRenderTime.current = 0;
   };
 
   const handleCategoryChange = (newCategory) => {
     console.log(`Cambiando categoría de ${selectedCategory} a ${newCategory}`);
-    
+
     // Detener recolección si está activa
     if (isCollecting) {
       setIsCollecting(false);
       collectingRef.current = false;
     }
-    
+
     setSelectedCategory(newCategory);
     setSelectedLabel(''); // Reset label selection
     setSelectedModel(''); // Reset model selection
@@ -499,16 +525,16 @@ const TrainingIntegrated = () => {
 
   const handleLabelChange = (label) => {
     console.log(`Cambiando etiqueta de ${selectedLabel} a ${label}`);
-    
+
     const wasCollecting = isCollecting;
     if (wasCollecting) {
       setIsCollecting(false);
       collectingRef.current = false;
     }
-    
+
     setSelectedLabel(label);
     selectedLabelRef.current = label;
-    
+
     if (wasCollecting) {
       setTimeout(() => {
         setIsCollecting(true);
@@ -536,20 +562,20 @@ const TrainingIntegrated = () => {
       <div className="training-header">
         <h1>Entrenamiento IA Avanzado</h1>
         <div className="mode-selector">
-          <button 
-            className={mode === 'collect' ? 'active' : ''} 
+          <button
+            className={mode === 'collect' ? 'active' : ''}
             onClick={() => handleSwitchMode('collect')}
           >
             📊 Recolectar
           </button>
-          <button 
-            className={mode === 'train' ? 'active' : ''} 
+          <button
+            className={mode === 'train' ? 'active' : ''}
             onClick={() => handleSwitchMode('train')}
           >
             🧠 Entrenar
           </button>
-          <button 
-            className={mode === 'practice' ? 'active' : ''} 
+          <button
+            className={mode === 'practice' ? 'active' : ''}
             onClick={() => handleSwitchMode('practice')}
           >
             🎯 Practicar
@@ -560,7 +586,7 @@ const TrainingIntegrated = () => {
       <div className="training-content">
         {/* Panel izquierdo - Estado y controles */}
         <div className="control-panel">
-          
+
           {/* Selector de Categoría (siempre visible) */}
           <div className="category-selector" style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px' }}>
             <h4>Seleccionar Categoría:</h4>
@@ -586,7 +612,7 @@ const TrainingIntegrated = () => {
               ))}
             </div>
             <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
-              Categoría actual: <strong>{categories[selectedCategory]?.name}</strong> 
+              Categoría actual: <strong>{categories[selectedCategory]?.name}</strong>
               ({getCurrentLabels().length} etiquetas)
             </p>
           </div>
@@ -595,7 +621,7 @@ const TrainingIntegrated = () => {
           {mode === 'collect' && (
             <div className="collect-panel">
               <h3>📊 Recolección de Datos - {categories[selectedCategory]?.name}</h3>
-              
+
               <div className="label-selector">
                 <h4>Seleccionar Etiqueta:</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '8px' }}>
@@ -606,10 +632,10 @@ const TrainingIntegrated = () => {
                       onClick={() => handleLabelChange(label)}
                       disabled={isCollecting}
                       style={{
-                        background: selectedLabel === label 
-                          ? categories[selectedCategory].color 
-                          : isLabelReady(label) 
-                            ? '#4CAF50' 
+                        background: selectedLabel === label
+                          ? categories[selectedCategory].color
+                          : isLabelReady(label)
+                            ? '#4CAF50'
                             : '#f0f0f0',
                         color: selectedLabel === label || isLabelReady(label) ? 'white' : '#333',
                         border: 'none',
@@ -664,13 +690,13 @@ const TrainingIntegrated = () => {
                 >
                   {isCollecting ? '⏹️ DETENER' : '▶️ INICIAR'} Recolección
                 </button>
-                
+
                 {selectedLabel && (
                   <div className="progress-info">
                     <p>Progreso para '{selectedLabel}': {getLabelSamples(selectedLabel)}/30</p>
                     <div className="progress-bar" style={{ background: '#e0e0e0', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div 
-                        className="progress-fill" 
+                      <div
+                        className="progress-fill"
                         style={{
                           width: `${(getLabelSamples(selectedLabel) / 30) * 100}%`,
                           height: '100%',
@@ -730,13 +756,13 @@ const TrainingIntegrated = () => {
           {mode === 'train' && (
             <div className="train-panel">
               <h3>🧠 Entrenamiento del Modelo - {categories[selectedCategory]?.name}</h3>
-              
+
               <div className="dataset-summary">
                 <h4>Estado del Dataset:</h4>
                 {getCurrentLabels().map(label => (
-                  <div key={label} className="label-status" style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
+                  <div key={label} className="label-status" style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     padding: '5px 10px',
                     background: isLabelReady(label) ? '#e8f5e8' : '#fff3e0',
                     borderRadius: '4px',
@@ -753,11 +779,11 @@ const TrainingIntegrated = () => {
               <div className="training-form" style={{ margin: '20px 0' }}>
                 <div className="form-group">
                   <label htmlFor="modelName">Nombre del Modelo:</label>
-                  <input 
-                    type="text" 
-                    id="modelName" 
-                    value={modelName} 
-                    onChange={(e) => setModelName(e.target.value)} 
+                  <input
+                    type="text"
+                    id="modelName"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
                     placeholder={`modelo_${selectedCategory}`}
                     style={{
                       width: '100%',
@@ -771,12 +797,12 @@ const TrainingIntegrated = () => {
 
                 <div className="form-group" style={{ marginTop: '15px' }}>
                   <label htmlFor="epochs">Número de Épocas:</label>
-                  <input 
-                    type="number" 
-                    id="epochs" 
-                    min="10" 
-                    max="200" 
-                    value={epochs} 
+                  <input
+                    type="number"
+                    id="epochs"
+                    min="10"
+                    max="200"
+                    value={epochs}
                     onChange={(e) => setEpochs(parseInt(e.target.value))}
                     style={{
                       width: '100%',
@@ -812,8 +838,8 @@ const TrainingIntegrated = () => {
                   <h4>Progreso: {trainingProgress.status}</h4>
                   <p>{trainingProgress.message}</p>
                   <div className="progress-bar" style={{ background: '#e0e0e0', height: '20px', borderRadius: '10px', overflow: 'hidden' }}>
-                    <div 
-                      className="progress-fill" 
+                    <div
+                      className="progress-fill"
                       style={{
                         width: `${trainingProgress.progress}%`,
                         height: '100%',
@@ -823,13 +849,13 @@ const TrainingIntegrated = () => {
                     />
                   </div>
                   <p>{trainingProgress.progress}%</p>
-                  
+
                   {trainingProgress.metrics && (
-                    <div className="metrics" style={{ 
-                      background: '#f5f5f5', 
-                      padding: '10px', 
-                      borderRadius: '8px', 
-                      marginTop: '10px' 
+                    <div className="metrics" style={{
+                      background: '#f5f5f5',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      marginTop: '10px'
                     }}>
                       <p>Precisión: {(trainingProgress.metrics.accuracy * 100).toFixed(2)}%</p>
                       <p>F1-Score: {trainingProgress.metrics.f1_score?.toFixed(3)}</p>
@@ -844,16 +870,16 @@ const TrainingIntegrated = () => {
           {mode === 'practice' && (
             <div className="practice-panel">
               <h3>🎯 Práctica con IA - {categories[selectedCategory]?.name}</h3>
-              
+
               {/* Selector de Modelo */}
               <div className="model-selector" style={{ marginBottom: '20px' }}>
                 <h4>Seleccionar Modelo:</h4>
                 {availableModels.length === 0 ? (
-                  <div style={{ 
-                    padding: '20px', 
-                    background: '#fff3e0', 
-                    borderRadius: '8px', 
-                    textAlign: 'center' 
+                  <div style={{
+                    padding: '20px',
+                    background: '#fff3e0',
+                    borderRadius: '8px',
+                    textAlign: 'center'
                   }}>
                     <p>No hay modelos entrenados para la categoría "{categories[selectedCategory]?.name}"</p>
                     <p style={{ fontSize: '14px', color: '#666' }}>
@@ -894,39 +920,47 @@ const TrainingIntegrated = () => {
               {selectedModel && (
                 <>
                   {predictionResult ? (
-                    <div className="prediction-result" style={{ 
-                      padding: '15px', 
-                      background: '#f8f9fa', 
+                    <div className="prediction-result" style={{
+                      padding: '15px',
+                      background: '#f8f9fa',
                       borderRadius: '10px',
                       border: `2px solid ${categories[selectedCategory].color}40`
                     }}>
                       <h4 style={{ color: categories[selectedCategory].color }}>
-                        Predicción: {predictionResult.prediction}
+                        {predictionResult.prediction === "Acerca tu mano a la cámara"
+                          ? "Acerca tu mano a la cámara"
+                          : `Predicción: ${predictionResult.prediction}`}
                       </h4>
-                      <p>Confianza: {predictionResult.percentage}%</p>
-                      <div className="confidence-bar" style={{ 
-                        background: '#e0e0e0', 
-                        height: '10px', 
-                        borderRadius: '5px', 
-                        overflow: 'hidden' 
-                      }}>
-                        <div 
-                          className="confidence-fill" 
-                          style={{
-                            width: `${predictionResult.percentage}%`,
-                            height: '100%',
-                            background: predictionResult.high_confidence ? '#4CAF50' : '#FF9800',
-                            transition: 'width 0.3s ease'
-                          }}
-                        />
-                      </div>
-                      
-                      {predictionResult.top_3 && (
+                      <p>
+                        {predictionResult.prediction === "Acerca tu mano a la cámara"
+                          ? "La mano está demasiado lejos o no es visible"
+                          : `Confianza: ${predictionResult.percentage}%`}
+                      </p>
+                      {predictionResult.prediction !== "Acerca tu mano a la cámara" && (
+                        <div className="confidence-bar" style={{
+                          background: '#e0e0e0',
+                          height: '10px',
+                          borderRadius: '5px',
+                          overflow: 'hidden'
+                        }}>
+                          <div
+                            className="confidence-fill"
+                            style={{
+                              width: `${predictionResult.percentage}%`,
+                              height: '100%',
+                              background: predictionResult.high_confidence ? '#4CAF50' : '#FF9800',
+                              transition: 'width 0.3s ease'
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {predictionResult.top_3 && predictionResult.top_3.length > 0 && predictionResult.prediction !== "Acerca tu mano a la cámara" && (
                         <div className="top-predictions" style={{ marginTop: '15px' }}>
                           <h5>Top 3 Predicciones:</h5>
                           {predictionResult.top_3.map((pred, i) => (
-                            <div key={i} className="prediction-item" style={{ 
-                              display: 'flex', 
+                            <div key={i} className="prediction-item" style={{
+                              display: 'flex',
                               justifyContent: 'space-between',
                               padding: '5px 0',
                               borderBottom: i < predictionResult.top_3.length - 1 ? '1px solid #eee' : 'none'
@@ -943,10 +977,10 @@ const TrainingIntegrated = () => {
                       )}
                     </div>
                   ) : (
-                    <div style={{ 
-                      padding: '40px', 
-                      textAlign: 'center', 
-                      background: '#f8f9fa', 
+                    <div style={{
+                      padding: '40px',
+                      textAlign: 'center',
+                      background: '#f8f9fa',
                       borderRadius: '10px',
                       border: '2px dashed #ddd'
                     }}>
@@ -965,8 +999,8 @@ const TrainingIntegrated = () => {
         {/* Panel derecho - Cámara */}
         <div className="camera-panel">
           <div className="camera-controls">
-            <button 
-              onClick={handleStartCamera} 
+            <button
+              onClick={handleStartCamera}
               disabled={isCameraActive}
               style={{
                 background: isCameraActive ? '#ccc' : '#4CAF50',
@@ -979,8 +1013,8 @@ const TrainingIntegrated = () => {
             >
               📷 Iniciar Cámara
             </button>
-            <button 
-              onClick={handleStopCamera} 
+            <button
+              onClick={handleStopCamera}
               disabled={!isCameraActive}
               style={{
                 background: !isCameraActive ? '#ccc' : '#f44336',
@@ -998,10 +1032,10 @@ const TrainingIntegrated = () => {
 
           <div className="camera-feed">
             <video ref={videoRef} style={{ display: 'none' }} width="640" height="480" autoPlay playsInline />
-            <canvas 
-              ref={canvasRef} 
-              width="640" 
-              height="480" 
+            <canvas
+              ref={canvasRef}
+              width="640"
+              height="480"
               style={{
                 width: '100%',
                 maxWidth: '600px',
@@ -1013,9 +1047,9 @@ const TrainingIntegrated = () => {
           </div>
 
           {/* Indicadores de estado */}
-          <div className="status-indicators" style={{ 
-            display: 'flex', 
-            gap: '10px', 
+          <div className="status-indicators" style={{
+            display: 'flex',
+            gap: '10px',
             marginTop: '10px',
             flexWrap: 'wrap'
           }}>
@@ -1028,7 +1062,7 @@ const TrainingIntegrated = () => {
             }}>
               📷 Cámara: {isCameraActive ? 'Activa' : 'Inactiva'}
             </div>
-            
+
             {mode === 'collect' && (
               <>
                 <div className={`indicator ${isCollecting ? 'active' : ''}`} style={{
