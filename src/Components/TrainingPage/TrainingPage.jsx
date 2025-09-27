@@ -87,7 +87,7 @@ const TrainingIntegrated = () => {
 
   // Parámetros para la distancia mínima de la mano (en modo práctica)
   // Se puede ajustar este valor para requerir que la mano esté más cerca o más lejos
-  const MIN_HAND_SIZE = 0.18; // tamaño mínimo de la mano (en proporción al ancho de la imagen) - ahora requiere que la mano esté más cerca
+  const MIN_HAND_SIZE = 0.17; // tamaño mínimo de la mano (en proporción al ancho de la imagen) - ahora requiere que la mano esté más cerca
 
   // Sincronizar refs con estados
   useEffect(() => {
