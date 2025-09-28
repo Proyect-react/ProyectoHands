@@ -1,13 +1,18 @@
-// src/services/tfjsTrainer.js - VERSIÓN CORREGIDA
+// src/services/tfjsTrainer.js - VERSIÓN COMPLETA CORREGIDA
 import * as tf from '@tensorflow/tfjs';
 
 class TfJsTrainer {
   constructor() {
     this.models = new Map();
-    this.modelLabels = new Map(); // Para guardar las etiquetas de cada modelo
+    this.modelLabels = new Map();
+    // 🆕 Contador para nombres únicos
+    this.modelCounter = 0;
   }
 
   async trainModel(X, y, labels, epochs = 50, batchSize = 16, onProgress = null) {
+    // 🆕 LIMPIAR cualquier modelo existente antes de empezar
+    await this.cleanup();
+    
     let xs = null;
     let ys = null;
     let model = null;
@@ -60,7 +65,7 @@ class TfJsTrainer {
       console.log('📐 Tipo de xs:', xs.dtype);
       console.log('📐 Tipo de ys:', ys.dtype);
 
-      // Crear modelo
+      // 🆕 Crear modelo con scope único
       console.log('🏗️ Creando modelo...');
       model = this.createModel(X[0].length, labels.length);
       
@@ -120,11 +125,11 @@ class TfJsTrainer {
       }
 
       const result = {
-        model: model, // ← ASEGURAR que el modelo se devuelve
+        model: model,
         history: history.history,
         finalAccuracy,
         finalLoss,
-        labels: labels // ← ASEGURAR que las etiquetas se devuelven
+        labels: labels
       };
 
       console.log('📦 Resultado preparado:', {
@@ -153,59 +158,79 @@ class TfJsTrainer {
     }
   }
 
+  // 🆕 MÉTODO createModel CORREGIDO con nombres únicos
   createModel(inputShape, numClasses) {
     console.log(`Creando modelo con inputShape: ${inputShape}, numClasses: ${numClasses}`);
     
-    const model = tf.sequential();
+    // 🆕 Usar scope único para evitar conflictos de nombres
+    const modelId = `model_${Date.now()}_${this.modelCounter++}`;
     
-    // Capa de entrada
-    model.add(tf.layers.dense({
-      units: 128,
-      activation: 'relu',
-      inputShape: [inputShape]
-    }));
-    
-    model.add(tf.layers.batchNormalization());
-    model.add(tf.layers.dropout({ rate: 0.3 }));
-    
-    // Capas ocultas
-    model.add(tf.layers.dense({ 
-      units: 64, 
-      activation: 'relu' 
-    }));
-    model.add(tf.layers.dropout({ rate: 0.3 }));
-    
-    model.add(tf.layers.dense({ 
-      units: 32, 
-      activation: 'relu' 
-    }));
-    model.add(tf.layers.dropout({ rate: 0.2 }));
-    
-    // Capa de salida
-    model.add(tf.layers.dense({ 
-      units: numClasses, 
-      activation: 'softmax' 
-    }));
-    
-    // Compilar modelo
-    model.compile({
-      optimizer: tf.train.adam(0.001),
-      loss: 'sparseCategoricalCrossentropy',
-      metrics: ['accuracy']
+    return tf.tidy(() => {
+      const model = tf.sequential();
+      
+      // Capa de entrada con nombre único
+      model.add(tf.layers.dense({
+        units: 128,
+        activation: 'relu',
+        inputShape: [inputShape],
+        name: `dense_input_${modelId}`
+      }));
+      
+      model.add(tf.layers.batchNormalization({
+        name: `batch_norm_1_${modelId}`
+      }));
+      model.add(tf.layers.dropout({ 
+        rate: 0.3,
+        name: `dropout_1_${modelId}`
+      }));
+      
+      // Capas ocultas con nombres únicos
+      model.add(tf.layers.dense({ 
+        units: 64, 
+        activation: 'relu',
+        name: `dense_hidden_1_${modelId}`
+      }));
+      model.add(tf.layers.dropout({ 
+        rate: 0.3,
+        name: `dropout_2_${modelId}`
+      }));
+      
+      model.add(tf.layers.dense({ 
+        units: 32, 
+        activation: 'relu',
+        name: `dense_hidden_2_${modelId}`
+      }));
+      model.add(tf.layers.dropout({ 
+        rate: 0.2,
+        name: `dropout_3_${modelId}`
+      }));
+      
+      // Capa de salida con nombre único
+      model.add(tf.layers.dense({ 
+        units: numClasses, 
+        activation: 'softmax',
+        name: `dense_output_${modelId}`
+      }));
+      
+      // Compilar modelo
+      model.compile({
+        optimizer: tf.train.adam(0.001),
+        loss: 'sparseCategoricalCrossentropy',
+        metrics: ['accuracy']
+      });
+      
+      console.log('✅ Modelo creado exitosamente con ID:', modelId);
+      return model;
     });
-    
-    console.log('Modelo creado exitosamente');
-    return model;
   }
 
-  // CORRECCIÓN: Modificar saveModel para recibir el modelo como parámetro
+  // Modificar saveModel para SOBRESCRIBIR modelos existentes
   async saveModel(category, modelName, trainedModel, labels) {
     try {
-      console.log('💾 Intentando guardar modelo...');
+      console.log('💾 Guardando/Sobrescribiendo modelo...');
       console.log('  - category:', category);
       console.log('  - modelName:', modelName);
       console.log('  - trainedModel existe:', !!trainedModel);
-      console.log('  - trainedModel type:', typeof trainedModel);
       console.log('  - labels:', labels);
 
       if (!trainedModel) {
@@ -227,14 +252,27 @@ class TfJsTrainer {
       const key = `${category}_${modelName}`;
       console.log('🔑 Key del modelo:', key);
       
-      // Guardar modelo en memoria
+      // SOBRESCRIBIR: Verificar si ya existe un modelo
+      const existingModel = this.models.get(key);
+      if (existingModel) {
+        console.log('🔄 Modelo existente encontrado, sobrescribiendo...');
+        // Limpiar modelo anterior para evitar memory leaks
+        try {
+          tf.dispose(existingModel);
+          console.log('🧹 Modelo anterior limpiado de memoria');
+        } catch (disposeError) {
+          console.warn('⚠️ Error limpiando modelo anterior:', disposeError);
+        }
+      }
+      
+      // Guardar/Sobrescribir modelo en memoria
       this.models.set(key, trainedModel);
       this.modelLabels.set(key, labels);
       
-      console.log('✅ Modelo guardado en memoria');
+      console.log('✅ Modelo guardado/sobrescrito en memoria');
       console.log('📊 Modelos en memoria ahora:', this.models.size);
       
-      // Guardar información del modelo en localStorage
+      // Guardar/Sobrescribir información del modelo en localStorage
       const modelInfo = {
         category,
         modelName,
@@ -246,14 +284,15 @@ class TfJsTrainer {
           name: layer.name,
           type: layer.getClassName(),
           units: layer.units || 'N/A'
-        }))
+        })),
+        overwritten: !!existingModel // Indicar si se sobrescribió
       };
       
       const infoKey = `${key}_info`;
       localStorage.setItem(infoKey, JSON.stringify(modelInfo));
       
-      console.log('💾 Información guardada en localStorage con key:', infoKey);
-      console.log('✅ Modelo', key, 'guardado exitosamente');
+      console.log('💾 Información guardada/sobrescrita en localStorage con key:', infoKey);
+      console.log(existingModel ? '🔄 Modelo SOBRESCRITO exitosamente' : '✅ Modelo NUEVO guardado exitosamente', key);
       
       return modelInfo;
       
@@ -385,8 +424,49 @@ class TfJsTrainer {
     return false;
   }
 
-  // Limpiar modelos de memoria
-  cleanup() {
+  // 🆕 MÉTODO cleanup mejorado
+  async cleanup() {
+    console.log('🧹 Limpiando modelos anteriores...');
+    
+    // Limpiar modelos de memoria
+    this.models.forEach((model, key) => {
+      try {
+        console.log(`🗑️ Limpiando modelo: ${key}`);
+        tf.dispose(model);
+      } catch (error) {
+        console.warn(`Error limpiando modelo ${key}:`, error);
+      }
+    });
+    this.models.clear();
+    this.modelLabels.clear();
+    
+    // 🆕 Limpiar cualquier tensor residual
+    try {
+      const tensorsBefore = tf.memory().numTensors;
+      tf.engine().startScope();
+      tf.engine().endScope();
+      const tensorsAfter = tf.memory().numTensors;
+      console.log(`🧹 Tensores limpiados: ${tensorsBefore - tensorsAfter}`);
+    } catch (error) {
+      console.warn('Error en limpieza de scope:', error);
+    }
+    
+    console.log('✅ Limpieza completada');
+  }
+
+  // 🆕 Método para verificar memoria
+  getMemoryStats() {
+    const memory = tf.memory();
+    return {
+      modelsInMemory: this.models.size,
+      tensorCount: memory.numTensors,
+      memoryUsage: memory.numBytes,
+      memoryMB: Math.round(memory.numBytes / (1024 * 1024) * 100) / 100
+    };
+  }
+
+  // Limpiar modelos de memoria (método legacy - mantener compatibilidad)
+  cleanupLegacy() {
     this.models.forEach((model) => {
       try {
         tf.dispose(model);
@@ -398,8 +478,8 @@ class TfJsTrainer {
     this.modelLabels.clear();
   }
 
-  // Método para obtener estadísticas de memoria
-  getMemoryStats() {
+  // Método para obtener estadísticas de memoria (legacy)
+  getMemoryStatsLegacy() {
     return {
       modelsInMemory: this.models.size,
       tensorCount: tf.memory().numTensors,

@@ -10,6 +10,8 @@ import './TrainingPage.css';
 import localDataManager from '../../services/localDataManager';
 import tfjsTrainer from '../../services/tfjsTrainer';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+
 const TrainingIntegrated = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -31,6 +33,14 @@ const TrainingIntegrated = () => {
   const [trainingProgress, setTrainingProgress] = useState(null);
   const [predictionResult, setPredictionResult] = useState(null);
   const [availableModels, setAvailableModels] = useState([]);
+
+  // 🆕 ESTADOS PARA BUFFER
+  const [bufferStatus, setBufferStatus] = useState({
+    count: 0,
+    totalCollected: 0,
+    sending: false,
+    lastSent: null
+  });
 
   // Definición de categorías y sus etiquetas
   const categories = {
@@ -62,26 +72,148 @@ const TrainingIntegrated = () => {
   const lastCollectionTime = useRef(0);
   const processingRef = useRef(false);
 
+  // 🆕 BUFFER PARA MUESTRAS
+  const sampleBufferRef = useRef([]);
+  const BUFFER_SIZE = 10;
+  const bufferStatusRef = useRef({
+    count: 0,
+    totalCollected: 0,
+    sending: false
+  });
+
   // Configuración de rendimiento
   const COLLECTION_INTERVAL = 1000;
   const RENDER_THROTTLE = 100;
   const lastRenderTime = useRef(0);
   const MIN_HAND_SIZE = 0.17;
 
-  // Sincronizar refs con estados
-  useEffect(() => {
-    collectingRef.current = isCollecting;
-  }, [isCollecting]);
+  // ========== FUNCIONES PARA SUBIR MODELO AL BACKEND ==========
 
-  useEffect(() => {
-    selectedLabelRef.current = selectedLabel;
-  }, [selectedLabel]);
+  const uploadModelToBackend = async (model, category, modelName) => {
+  try {
+    console.log("🚀 Subiendo modelo al backend...");
 
-  // Cargar estado del dataset del BACKEND al inicio
-  useEffect(() => {
-    loadBackendDatasetStatus();
-    loadLocalModels();
-  }, [selectedCategory]);
+    // ✅ USAR tf.io.browserHTTPRequest CORRECTAMENTE
+    const saveResult = await model.save(
+      tf.io.browserHTTPRequest(`${API_BASE_URL}/train/upload-model`, {
+        method: 'POST'
+      })
+    );
+
+    console.log("✅ Modelo subido exitosamente al backend:", saveResult);
+    
+    return {
+      success: true,
+      message: `Modelo ${modelName} subido exitosamente al backend`,
+      modelInfo: saveResult
+    };
+
+  } catch (error) {
+    console.error("❌ Error subiendo modelo:", error);
+    
+    // ✅ INTENTAR MÉTODO ALTERNATIVO si falla
+    console.log("🔄 Intentando método alternativo...");
+    try {
+      return await uploadModelAlternative(model, category, modelName);
+    } catch (altError) {
+      console.warn("⚠️ Modelo no se pudo subir, pero está guardado localmente");
+      return { 
+        success: false, 
+        message: "Modelo guardado localmente pero no en backend",
+        error: error.message 
+      };
+    }
+  }
+};
+
+// ✅ MÉTODO ALTERNATIVO CORREGIDO
+const uploadModelAlternative = async (model, category, modelName) => {
+  try {
+    console.log("🔄 Usando método alternativo para subir modelo...");
+    
+    // ✅ GUARDAR modelo para obtener artefactos
+    const saveResult = await model.save('indexeddb://temp-upload');
+    console.log("✅ Modelo guardado temporalmente:", saveResult);
+    
+    // ✅ CARGAR el modelo usando tf.loadLayersModel (CORRECTO)
+    const loadedModel = await tf.loadLayersModel('indexeddb://temp-upload');
+    console.log("✅ Modelo cargado desde temporal");
+    
+    // Obtener la información del modelo directamente
+    const modelTopology = loadedModel.modelTopology;
+    const weightSpecs = loadedModel.weightSpecs;
+    const weightData = loadedModel.weightData;
+    
+    // Crear FormData
+    const formData = new FormData();
+    
+    // ✅ Crear el objeto de modelo correctamente
+    const modelArtifacts = {
+      modelTopology: modelTopology,
+      weightSpecs: weightSpecs,
+      format: 'layers-model',
+      generatedBy: 'TensorFlow.js',
+      convertedBy: 'Hands Recognition App',
+      userDefinedMetadata: {
+        category: category,
+        modelName: modelName,
+        uploadDate: new Date().toISOString()
+      }
+    };
+    
+    // Agregar model.json
+    const modelJSONBlob = new Blob([JSON.stringify(modelArtifacts)], { 
+      type: 'application/json' 
+    });
+    formData.append('files', modelJSONBlob, 'model.json');
+    
+    // Agregar weights.bin si existe
+    if (weightData) {
+      const weightsBlob = new Blob([weightData], { 
+        type: 'application/octet-stream' 
+      });
+      formData.append('files', weightsBlob, 'weights.bin');
+    }
+    
+    // Agregar metadata
+    formData.append('category', category);
+    formData.append('model_name', modelName);
+    formData.append('upload_timestamp', new Date().toISOString());
+    
+    console.log("📤 Enviando modelo al backend...");
+    
+    // Enviar al backend
+    const response = await fetch(`${API_BASE_URL}/train/upload-model`, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log("✅ Modelo subido (método alternativo):", result);
+    
+    // Limpiar modelo temporal
+    try {
+      await tf.io.removeModel('indexeddb://temp-upload');
+    } catch (e) {
+      console.log("No se pudo limpiar modelo temporal");
+    }
+    
+    return {
+      success: true,
+      message: 'Modelo subido exitosamente usando método alternativo',
+      result: result
+    };
+    
+  } catch (error) {
+    console.error("❌ Error en método alternativo:", error);
+    throw error;
+  }
+};
 
   // ========== FUNCIONES PARA BACKEND (RECOLECCIÓN) ==========
 
@@ -96,21 +228,113 @@ const TrainingIntegrated = () => {
     }
   }, [selectedCategory]);
 
-  // Enviar muestra al backend (SOLO backend)
-  const sendSampleToBackend = useCallback(async (landmarks, label) => {
+  // ========== FUNCIONES DE BUFFER ==========
+
+  const sendBufferToBackend = useCallback(async () => {
+    if (sampleBufferRef.current.length === 0 || bufferStatusRef.current.sending) {
+      return;
+    }
+
+    console.log(`🚀 Enviando ${sampleBufferRef.current.length} muestras al backend...`);
+
+    // Marcar como enviando
+    setBufferStatus(prev => ({ ...prev, sending: true }));
+    bufferStatusRef.current.sending = true;
+
     try {
-      const result = await apiService.collectSample(selectedCategory, label, landmarks);
-      console.log('✅ Muestra enviada al backend:', result);
-      
-      // Actualizar estado del dataset después de enviar
+      const samplesToSend = [...sampleBufferRef.current];
+
+      // Enviar en lote
+      const batchResult = await apiService.collectBatchSamples(selectedCategory, samplesToSend);
+
+      console.log(`✅ Lote enviado exitosamente:`, batchResult);
+
+      // Limpiar buffer después del envío exitoso
+      sampleBufferRef.current = [];
+
+      // Actualizar estado
+      setBufferStatus(prev => ({
+        ...prev,
+        count: 0,
+        sending: false,
+        lastSent: new Date().toISOString()
+      }));
+
+      bufferStatusRef.current.count = 0;
+      bufferStatusRef.current.sending = false;
+
+      // Actualizar estado del dataset
       await loadBackendDatasetStatus();
-      
-      return result;
+
     } catch (error) {
-      console.error('Error enviando muestra al backend:', error);
-      throw error;
+      console.error('❌ Error enviando lote al backend:', error);
+      setBufferStatus(prev => ({ ...prev, sending: false }));
+      bufferStatusRef.current.sending = false;
     }
   }, [selectedCategory, loadBackendDatasetStatus]);
+
+  const addToBuffer = useCallback((landmarks, label) => {
+    // VERIFICAR SILENCIOSAMENTE SI YA LLEGÓ AL LÍMITE
+    const currentSamples = getLabelSamples(label);
+    if (currentSamples >= 30) {
+      // Detener sin mostrar mensajes
+      setIsCollecting(false);
+      collectingRef.current = false;
+      return; // No agregar más muestras
+    }
+
+    const sample = {
+      landmarks,
+      label,
+      timestamp: new Date().toISOString(),
+      id: Date.now() + Math.random()
+    };
+
+    sampleBufferRef.current.push(sample);
+
+    const newCount = sampleBufferRef.current.length;
+    const newTotal = bufferStatusRef.current.totalCollected + 1;
+
+    // Actualizar estado del buffer
+    setBufferStatus(prev => ({
+      ...prev,
+      count: newCount,
+      totalCollected: newTotal
+    }));
+
+    bufferStatusRef.current.count = newCount;
+    bufferStatusRef.current.totalCollected = newTotal;
+
+    console.log(`📦 Buffer: ${newCount}/10 | ${label}: ${currentSamples}/30`);
+
+    // Enviar si se alcanza el límite
+    if (newCount >= BUFFER_SIZE) {
+      sendBufferToBackend();
+    }
+  }, [sendBufferToBackend]);
+
+  const flushBuffer = useCallback(async () => {
+    if (sampleBufferRef.current.length > 0) {
+      console.log(`🔄 Enviando muestras restantes: ${sampleBufferRef.current.length}`);
+      await sendBufferToBackend();
+    }
+  }, [sendBufferToBackend]);
+
+  const clearBuffer = useCallback(() => {
+    sampleBufferRef.current = [];
+    setBufferStatus({
+      count: 0,
+      totalCollected: 0,
+      sending: false,
+      lastSent: null
+    });
+    bufferStatusRef.current = {
+      count: 0,
+      totalCollected: 0,
+      sending: false
+    };
+    console.log('🧹 Buffer limpiado');
+  }, []);
 
   // ========== FUNCIONES PARA ENTRENAMIENTO LOCAL ==========
 
@@ -133,7 +357,7 @@ const TrainingIntegrated = () => {
       // Verificar que hay datos suficientes en el backend
       const backendStatus = await apiService.getDatasetStatus(selectedCategory);
       console.log('📊 Estado del dataset en backend:', backendStatus);
-      
+
       if (!backendStatus.summary?.ready_to_train) {
         const insufficientLabels = Object.entries(backendStatus.labels || {})
           .filter(([_, info]) => (info.samples || 0) < 30)
@@ -146,27 +370,37 @@ const TrainingIntegrated = () => {
 
       // Descargar datos del backend y preparar para entrenamiento local
       setTrainingProgress({ status: 'training', progress: 10, message: 'Descargando datos del backend...' });
-      
-      // Simular descarga de datos del backend (en una implementación real, necesitarías un endpoint para esto)
-      // Por ahora, usaremos los datos locales como si fueran descargados del backend
-      const { X, y, labels } = localDataManager.loadTrainingData(selectedCategory);
 
-      console.log('📥 Datos preparados para entrenamiento:', {
-        muestras: X.length,
-        etiquetas: labels.length,
-        shapeX: X.length > 0 ? `${X.length}x${X[0].length}` : '0x0'
+      // DESCARGAR DATOS REALES DEL BACKEND
+      const backendData = await apiService.downloadTrainingData(selectedCategory);
+
+      console.log('📥 Datos descargados del backend:', {
+        categoria: backendData.category,
+        muestras: backendData.statistics.total_samples,
+        etiquetas: backendData.statistics.total_labels,
+        labels: backendData.labels,
+        shapeX: backendData.statistics.features_per_sample
       });
 
-      if (X.length === 0 || y.length === 0) {
-        throw new Error('No se pudieron descargar datos válidos del backend');
+      if (!backendData.X || backendData.X.length === 0) {
+        throw new Error(`No hay muestras disponibles en el backend para la categoría '${selectedCategory}'`);
       }
 
-      if (labels.length === 0) {
-        throw new Error('No se encontraron etiquetas válidas en el backend');
+      if (!backendData.y || backendData.y.length === 0) {
+        throw new Error(`No hay etiquetas válidas en el backend para la categoría '${selectedCategory}'`);
       }
+
+      if (!backendData.labels || backendData.labels.length === 0) {
+        throw new Error(`No se encontraron definiciones de etiquetas en el backend para '${selectedCategory}'`);
+      }
+
+      // Extraer datos para entrenamiento
+      const X = backendData.X;
+      const y = backendData.y;
+      const labels = backendData.labels;
 
       // Entrenar con TensorFlow.js LOCAL
-      setTrainingProgress({ status: 'training', progress: 20, message: 'Iniciando entrenamiento ' });
+      setTrainingProgress({ status: 'training', progress: 20, message: 'Iniciando entrenamiento local...' });
 
       console.log('🧠 Iniciando entrenamiento local con TensorFlow.js...');
       const result = await tfjsTrainer.trainModel(
@@ -191,22 +425,33 @@ const TrainingIntegrated = () => {
 
       // Guardar modelo localmente
       setTrainingProgress({ status: 'training', progress: 90, message: 'Guardando modelo local...' });
-      
+
       console.log('💾 Guardando modelo local...');
       const modelInfo = await tfjsTrainer.saveModel(
-        selectedCategory, 
-        modelName, 
+        selectedCategory,
+        modelName,
         result.model,
         result.labels
       );
 
       console.log('✅ Modelo guardado localmente:', modelInfo);
 
+      // 🆕 SUBIR MODELO AL BACKEND
+      setTrainingProgress({ status: 'training', progress: 95, message: 'Subiendo modelo al backend...' });
+
+      try {
+        await uploadModelToBackend(result.model, selectedCategory, modelName);
+        console.log('🎉 ¡Modelo subido exitosamente al backend!');
+      } catch (uploadError) {
+        console.warn('⚠️ Modelo no se pudo subir al backend, pero está guardado localmente:', uploadError);
+        // No lanzamos error aquí para no interrumpir el flujo
+      }
+
       // Completar
       setTrainingProgress({
         status: 'completed',
         progress: 100,
-        message: '✅ Modelo entrenado localmente y guardado exitosamente',
+        message: '✅ Modelo entrenado localmente y subido al backend',
         metrics: {
           accuracy: (result.finalAccuracy * 100).toFixed(1) + '%',
           loss: result.finalLoss.toFixed(4)
@@ -220,7 +465,7 @@ const TrainingIntegrated = () => {
 
     } catch (error) {
       console.error('❌ Error detallado en entrenamiento local:', error);
-      
+
       setTrainingProgress({
         status: 'error',
         progress: 0,
@@ -303,7 +548,33 @@ const TrainingIntegrated = () => {
     return maxX - minX;
   };
 
-  // Callback principal de MediaPipe
+  // ========== EFECTOS ==========
+
+  useEffect(() => {
+    collectingRef.current = isCollecting;
+  }, [isCollecting]);
+
+  useEffect(() => {
+    selectedLabelRef.current = selectedLabel;
+  }, [selectedLabel]);
+
+  // Sincronizar buffer status
+  useEffect(() => {
+    bufferStatusRef.current = bufferStatus;
+  }, [bufferStatus]);
+
+  // Cargar estado del dataset del BACKEND al inicio
+  useEffect(() => {
+    loadBackendDatasetStatus();
+    loadLocalModels();
+  }, [selectedCategory, loadBackendDatasetStatus, loadLocalModels]);
+
+  // Limpiar buffer al cambiar de categoría o etiqueta
+  useEffect(() => {
+    clearBuffer();
+  }, [selectedCategory, selectedLabel, clearBuffer]);
+
+  // Callback principal de MediaPipe - 🆕 CON BUFFER
   const onResults = useCallback(async (results) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -326,29 +597,32 @@ const TrainingIntegrated = () => {
       }
 
       if (landmarks) {
-        // --- MODO RECOLECCIÓN (SOLO BACKEND) ---
+        // --- MODO RECOLECCIÓN (BUFFER LOCAL → BACKEND) ---
         if (mode === 'collect' && collectingRef.current && selectedLabelRef.current && !processingRef.current) {
+
+          // VERIFICAR LÍMITE SILENCIOSAMENTE
+          const currentSamples = getLabelSamples(selectedLabelRef.current);
+          if (currentSamples >= 30) {
+            // Detener sin logs visibles
+            setIsCollecting(false);
+            collectingRef.current = false;
+            processingRef.current = false;
+            return;
+          }
+
           const timeSinceLastCollection = now - lastCollectionTime.current;
 
           if (timeSinceLastCollection > COLLECTION_INTERVAL) {
             processingRef.current = true;
 
             try {
-              console.log(`🌐 Enviando muestra al backend para: ${selectedLabelRef.current}`);
+              // AGREGAR AL BUFFER
+              addToBuffer(landmarks, selectedLabelRef.current);
 
-              // ENVIAR SOLO AL BACKEND
-              const result = await sendSampleToBackend(landmarks, selectedLabelRef.current);
-
-              console.log(`✅ Muestra ${result.current_samples || '?'} enviada al backend`);
               lastCollectionTime.current = now;
 
-              if (result.current_samples >= 30) {
-                console.log(`🎯 Límite alcanzado para ${selectedLabelRef.current}`);
-                setIsCollecting(false);
-                collectingRef.current = false;
-              }
             } catch (error) {
-              console.error('Error enviando al backend:', error);
+              console.error('Error agregando al buffer:', error);
             } finally {
               processingRef.current = false;
             }
@@ -387,7 +661,7 @@ const TrainingIntegrated = () => {
     } else if (mode === 'practice') {
       setPredictionResult(null);
     }
-  }, [mode, selectedCategory, selectedModel, sendSampleToBackend]);
+  }, [mode, selectedCategory, selectedModel, addToBuffer, extractLandmarksArray, calcularTamanioMano, predictLocally]);
 
   const drawHand = (ctx, landmarks, canvas) => {
     const connections = [
@@ -503,6 +777,8 @@ const TrainingIntegrated = () => {
     if (wasCollecting) {
       setIsCollecting(false);
       collectingRef.current = false;
+      // Enviar buffer antes de limpiar
+      await flushBuffer();
     }
 
     let confirmMessage = '';
@@ -533,7 +809,7 @@ const TrainingIntegrated = () => {
         await apiService.clearCategoryData(selectedCategory);
         alert(`Todas las muestras de "${selectedCategory}" eliminadas del backend`);
       }
-      
+
       // Recargar estado del backend
       await loadBackendDatasetStatus();
 
@@ -561,13 +837,15 @@ const TrainingIntegrated = () => {
     return categories[selectedCategory]?.labels || [];
   };
 
-  // Handlers básicos
+  // Handlers básicos - 🆕 CON FLUSH DE BUFFER
   const handleStartCamera = () => setIsCameraActive(true);
-  const handleStopCamera = () => {
+  const handleStopCamera = async () => {
     setIsCameraActive(false);
     setIsCollecting(false);
     collectingRef.current = false;
     processingRef.current = false;
+    // Enviar muestras pendientes al detener
+    await flushBuffer();
   };
 
   const handleToggleCollection = () => {
@@ -576,8 +854,16 @@ const TrainingIntegrated = () => {
       return;
     }
 
+    // 🆕 VERIFICAR SILENCIOSAMENTE
+    const currentSamples = getLabelSamples(selectedLabel);
+    if (currentSamples >= 30) {
+      // Simplemente no iniciar y mantener desactivado
+      setIsCollecting(false);
+      collectingRef.current = false;
+      return;
+    }
+
     const newCollecting = !isCollecting;
-    console.log(`Recolección ${newCollecting ? 'iniciada' : 'detenida'} para: ${selectedLabel}`);
 
     setIsCollecting(newCollecting);
     collectingRef.current = newCollecting;
@@ -585,14 +871,23 @@ const TrainingIntegrated = () => {
     if (newCollecting) {
       lastCollectionTime.current = 0;
       processingRef.current = false;
+    } else {
+      // Enviar buffer al detener recolección
+      flushBuffer();
     }
   };
 
-  const handleSwitchMode = (newMode) => {
+  const handleSwitchMode = async (newMode) => {
     console.log(`Cambiando a modo: ${newMode}`);
     setIsCollecting(false);
     collectingRef.current = false;
     processingRef.current = false;
+
+    // Enviar buffer antes de cambiar de modo
+    if (mode === 'collect') {
+      await flushBuffer();
+    }
+
     setMode(newMode);
     setPredictionResult(null);
     setTrainingProgress(null);
@@ -600,30 +895,36 @@ const TrainingIntegrated = () => {
     lastRenderTime.current = 0;
   };
 
-  const handleCategoryChange = (newCategory) => {
+  const handleCategoryChange = async (newCategory) => {
     console.log(`Cambiando categoría a: ${newCategory}`);
     if (isCollecting) {
       setIsCollecting(false);
       collectingRef.current = false;
+      await flushBuffer();
     }
     setSelectedCategory(newCategory);
     setSelectedLabel('');
     setSelectedModel('');
     setPredictionResult(null);
+    clearBuffer();
     loadBackendDatasetStatus();
     loadLocalModels();
   };
 
-  const handleLabelChange = (label) => {
-    console.log(`Cambiando etiqueta a: ${label}`);
+  const handleLabelChange = async (label) => {
     const wasCollecting = isCollecting;
     if (wasCollecting) {
       setIsCollecting(false);
       collectingRef.current = false;
+      await flushBuffer();
     }
     setSelectedLabel(label);
     selectedLabelRef.current = label;
-    if (wasCollecting) {
+    clearBuffer();
+
+    // 🆕 NO REINICIAR COLECCIÓN SI YA TIENE 30 MUESTRAS
+    const currentSamples = getLabelSamples(label);
+    if (wasCollecting && currentSamples < 30) {
       setTimeout(() => {
         setIsCollecting(true);
         collectingRef.current = true;
@@ -660,7 +961,18 @@ const TrainingIntegrated = () => {
           </button>
         </div>
 
-        
+        {/* Descripción del flujo */}
+        <div className="flow-description" style={{
+          marginTop: '10px',
+          padding: '10px',
+          background: '#f0f8ff',
+          borderRadius: '5px',
+          fontSize: '14px',
+          color: '#333'
+        }}>
+          <strong>Flujo:</strong>
+          📦 Buffer (10) → 🌐 Backend → 🧠 Entrena Local → ☁️ Sube al Backend → 🎯 Practica Local
+        </div>
       </div>
 
       <div className="training-content">
@@ -699,6 +1011,55 @@ const TrainingIntegrated = () => {
           {/* Modo Recolección */}
           {mode === 'collect' && (
             <div className="collect-panel">
+              <h3>📊 Recolección de Datos - {categories[selectedCategory]?.name}</h3>
+
+              {/* 🆕 INDICADOR DE BUFFER */}
+              <div style={{
+                background: bufferStatus.sending ? '#fff3e0' : bufferStatus.count > 0 ? '#e8f5e8' : '#f0f8ff',
+                padding: '10px',
+                borderRadius: '5px',
+                marginBottom: '10px',
+                fontSize: '14px',
+                border: `2px solid ${bufferStatus.sending ? '#FF9800' : bufferStatus.count > 0 ? '#4CAF50' : '#2196F3'}`
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    📦 <strong>Buffer:</strong> {bufferStatus.count}/10 muestras
+                    {bufferStatus.sending && ' 🚀 Enviando...'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    Total: {bufferStatus.totalCollected}
+                  </div>
+                </div>
+
+                {/* Barra de progreso del buffer */}
+                <div style={{
+                  background: '#e0e0e0',
+                  height: '4px',
+                  borderRadius: '2px',
+                  marginTop: '5px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{
+                    width: `${(bufferStatus.count / BUFFER_SIZE) * 100}%`,
+                    height: '100%',
+                    background: bufferStatus.sending ? '#FF9800' : '#4CAF50',
+                    transition: 'width 0.3s ease'
+                  }} />
+                </div>
+
+                <div style={{ fontSize: '11px', color: '#666', marginTop: '3px' }}>
+                  {bufferStatus.sending
+                    ? 'Enviando al backend...'
+                    : bufferStatus.count === 0
+                      ? 'Acumula 10 muestras → envío automático'
+                      : `${10 - bufferStatus.count} muestras más para envío automático`
+                  }
+                  {bufferStatus.lastSent && (
+                    <span> | Último envío: {new Date(bufferStatus.lastSent).toLocaleTimeString()}</span>
+                  )}
+                </div>
+              </div>
 
               <div className="label-selector">
                 <h4>Seleccionar Etiqueta:</h4>
@@ -708,7 +1069,7 @@ const TrainingIntegrated = () => {
                       key={label}
                       className={`label-btn ${selectedLabel === label ? 'selected' : ''} ${isLabelReady(label) ? 'complete' : ''}`}
                       onClick={() => handleLabelChange(label)}
-                      disabled={isCollecting}
+                      disabled={isCollecting || bufferStatus.sending}
                       style={{
                         background: selectedLabel === label
                           ? categories[selectedCategory].color
@@ -720,9 +1081,9 @@ const TrainingIntegrated = () => {
                         padding: '8px 12px',
                         borderRadius: '6px',
                         fontWeight: '600',
-                        cursor: !isCollecting ? 'pointer' : 'not-allowed',
+                        cursor: !isCollecting && !bufferStatus.sending ? 'pointer' : 'not-allowed',
                         fontSize: '14px',
-                        opacity: isCollecting ? 0.6 : 1
+                        opacity: isCollecting || bufferStatus.sending ? 0.6 : 1
                       }}
                     >
                       {label} ({getLabelSamples(label)}/30)
@@ -745,7 +1106,7 @@ const TrainingIntegrated = () => {
                   🎯 Recolectando: {selectedLabel} ({categories[selectedCategory]?.name})
                   {isCollecting && (
                     <div style={{ fontSize: '12px', marginTop: '5px' }}>
-                      ⏱️ Enviando al backend cada {COLLECTION_INTERVAL / 1000}s
+                      📦 Acumula en buffer → Envío cada 10 muestras
                     </div>
                   )}
                 </div>
@@ -754,10 +1115,10 @@ const TrainingIntegrated = () => {
               <div className="collection-controls">
                 <button
                   onClick={handleToggleCollection}
-                  disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)}
+                  disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel) || bufferStatus.sending}
                   className={isCollecting ? 'stop' : 'start'}
                   style={{
-                    background: isCollecting ? '#ff4757' : '#2ecc71',
+                    background: isCollecting ? '#ff4757' : bufferStatus.sending ? '#ccc' : '#2ecc71',
                     color: 'white',
                     border: 'none',
                     padding: '12px 20px',
@@ -766,7 +1127,11 @@ const TrainingIntegrated = () => {
                     cursor: 'pointer'
                   }}
                 >
-                  {isCollecting ? '⏹️ DETENER' : '▶️ INICIAR'} Recolección
+                  {bufferStatus.sending
+                    ? '⏳ ENVIANDO...'
+                    : isCollecting
+                      ? '⏹️ DETENER'
+                      : '▶️ INICIAR'} Recolección
                 </button>
 
                 {selectedLabel && (
@@ -790,38 +1155,38 @@ const TrainingIntegrated = () => {
                 <div className="clear-controls" style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => handleClearData('current')}
-                    disabled={!selectedLabel || getLabelSamples(selectedLabel) === 0 || isCollecting}
+                    disabled={!selectedLabel || getLabelSamples(selectedLabel) === 0 || isCollecting || bufferStatus.sending}
                     style={{
                       background: '#ff4757',
                       color: 'white',
                       border: 'none',
                       padding: '10px 15px',
                       borderRadius: '5px',
-                      cursor: selectedLabel && getLabelSamples(selectedLabel) > 0 && !isCollecting ? 'pointer' : 'not-allowed',
+                      cursor: selectedLabel && getLabelSamples(selectedLabel) > 0 && !isCollecting && !bufferStatus.sending ? 'pointer' : 'not-allowed',
                       fontWeight: '600',
                       fontSize: '14px',
-                      opacity: selectedLabel && getLabelSamples(selectedLabel) > 0 && !isCollecting ? 1 : 0.6
+                      opacity: selectedLabel && getLabelSamples(selectedLabel) > 0 && !isCollecting && !bufferStatus.sending ? 1 : 0.6
                     }}
-                    title={isCollecting ? 'Detén la recolección primero' : `Borrar todas las muestras de "${selectedLabel}" del backend`}
+                    title={isCollecting || bufferStatus.sending ? 'Detén la recolección primero' : `Borrar todas las muestras de "${selectedLabel}" del backend`}
                   >
                     🗑️ Borrar {selectedLabel || 'Etiqueta'}
                   </button>
 
                   <button
                     onClick={() => handleClearData('all')}
-                    disabled={!datasetStatus.summary?.total_samples || isCollecting}
+                    disabled={!datasetStatus.summary?.total_samples || isCollecting || bufferStatus.sending}
                     style={{
                       background: '#ff3838',
                       color: 'white',
                       border: 'none',
                       padding: '10px 15px',
                       borderRadius: '5px',
-                      cursor: datasetStatus.summary?.total_samples && !isCollecting ? 'pointer' : 'not-allowed',
+                      cursor: datasetStatus.summary?.total_samples && !isCollecting && !bufferStatus.sending ? 'pointer' : 'not-allowed',
                       fontWeight: '600',
                       fontSize: '14px',
-                      opacity: datasetStatus.summary?.total_samples && !isCollecting ? 1 : 0.6
+                      opacity: datasetStatus.summary?.total_samples && !isCollecting && !bufferStatus.sending ? 1 : 0.6
                     }}
-                    title={isCollecting ? 'Detén la recolección primero' : "Borrar todas las muestras del backend"}
+                    title={isCollecting || bufferStatus.sending ? 'Detén la recolección primero' : "Borrar todas las muestras del backend"}
                   >
                     💀 Borrar Todo
                   </button>
@@ -833,9 +1198,18 @@ const TrainingIntegrated = () => {
           {/* Modo Entrenamiento */}
           {mode === 'train' && (
             <div className="train-panel">
+              <h3>🧠 Entrenamiento - {categories[selectedCategory]?.name}</h3>
+              <div style={{
+                background: '#e8f5e8',
+                padding: '10px',
+                borderRadius: '5px',
+                marginBottom: '10px'
+              }}>
+                💻 <strong>Entrenamiento local + Subida automática al backend</strong>
+              </div>
 
               <div className="dataset-summary">
-                <h4>Muestras Listas Para Entrenar:</h4>
+                <h4>Estado del Dataset (Backend):</h4>
                 {getCurrentLabels().map(label => (
                   <div key={label} className="label-status" style={{
                     display: 'flex',
@@ -851,7 +1225,7 @@ const TrainingIntegrated = () => {
                     </span>
                   </div>
                 ))}
-                
+
                 <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
                   Total en backend: {datasetStatus.summary?.total_samples || 0} muestras
                 </div>
@@ -901,8 +1275,8 @@ const TrainingIntegrated = () => {
                 disabled={trainingProgress?.status === 'training' || !datasetStatus.summary?.ready_to_train}
                 className="train-button"
                 style={{
-                  background: trainingProgress?.status === 'training' || !datasetStatus.summary?.ready_to_train 
-                    ? '#ccc' 
+                  background: trainingProgress?.status === 'training' || !datasetStatus.summary?.ready_to_train
+                    ? '#ccc'
                     : categories[selectedCategory].color,
                   color: 'white',
                   border: 'none',
@@ -913,11 +1287,11 @@ const TrainingIntegrated = () => {
                   width: '100%'
                 }}
               >
-                {trainingProgress?.status === 'training' 
-                  ? 'Entrenando Localmente...' 
+                {trainingProgress?.status === 'training'
+                  ? 'Entrenando Localmente...'
                   : !datasetStatus.summary?.ready_to_train
                     ? 'Datos Insuficientes'
-                    : 'Iniciar Entrenamiento'
+                    : 'Iniciar Entrenamiento Local'
                 }
               </button>
 
@@ -957,6 +1331,15 @@ const TrainingIntegrated = () => {
           {/* Modo Práctica */}
           {mode === 'practice' && (
             <div className="practice-panel">
+              <h3>🎯 Práctica - {categories[selectedCategory]?.name}</h3>
+              <div style={{
+                background: '#e8f5e8',
+                padding: '10px',
+                borderRadius: '5px',
+                marginBottom: '10px'
+              }}>
+                💻 <strong>Predicción local</strong> - 100% offline con modelo guardado
+              </div>
 
               {/* Selector de Modelo */}
               <div className="model-selector" style={{ marginBottom: '20px' }}>
@@ -989,7 +1372,7 @@ const TrainingIntegrated = () => {
                         }}
                       >
                         <div style={{ fontWeight: 'bold' }}>
-                          {model.model_name || 'Modelo Default'} 
+                          {model.model_name || 'Modelo Default'} 💾
                         </div>
                         <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
                           Precisión: {model.accuracy}% | Muestras: {model.samples_used}
@@ -1073,7 +1456,7 @@ const TrainingIntegrated = () => {
                     }}>
                       <p>Muestra tu mano para obtener una predicción</p>
                       <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-                        Modelo activo: {selectedModel} 
+                        Modelo activo: {selectedModel} 💾
                       </p>
                     </div>
                   )}
@@ -1133,7 +1516,7 @@ const TrainingIntegrated = () => {
             />
           </div>
 
-          {/* Indicadores de estado */}
+          {/* Indicadores de estado - 🆕 CON BUFFER */}
           <div className="status-indicators" style={{
             display: 'flex',
             gap: '10px',
@@ -1159,8 +1542,21 @@ const TrainingIntegrated = () => {
                   background: isCollecting ? '#FF9800' : '#ccc',
                   color: 'white'
                 }}>
-                  🌐 Recolección: {isCollecting ? 'Enviando al Backend' : 'Pausada'}
+                  📦 Buffer: {isCollecting ? `${bufferStatus.count}/10` : 'Pausado'}
                 </div>
+
+                {bufferStatus.sending && (
+                  <div className="indicator" style={{
+                    padding: '5px 10px',
+                    borderRadius: '15px',
+                    fontSize: '12px',
+                    background: '#FF5722',
+                    color: 'white'
+                  }}>
+                    🚀 Enviando al Backend
+                  </div>
+                )}
+
                 {selectedLabel && (
                   <div className="indicator" style={{
                     padding: '5px 10px',
@@ -1197,7 +1593,18 @@ const TrainingIntegrated = () => {
               📂 {categories[selectedCategory].name}
             </div>
 
-            
+            {/* Indicador del flujo actualizado */}
+            <div className="indicator" style={{
+              padding: '5px 10px',
+              borderRadius: '15px',
+              fontSize: '12px',
+              background: '#6c5ce7',
+              color: 'white'
+            }}>
+              {mode === 'collect' && '📦→🌐 Buffer→Backend'}
+              {mode === 'train' && '🌐→💻→☁️ Backend→Local→Cloud'}
+              {mode === 'practice' && '💾 Local'}
+            </div>
           </div>
         </div>
       </div>

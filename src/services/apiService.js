@@ -283,21 +283,50 @@ class APIService {
         confidence_threshold: options.threshold || 0.7,
         model_name: options.modelName || null  // <-- pasar modelName
       };
-  
+
       const response = await fetch(`${API_BASE_URL}/predict/${category}/practice/check`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
-  
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
-  
+
       return await response.json();
     } catch (error) {
       console.error('Error en práctica de predicción:', error);
+      throw error;
+    }
+  }
+  // ========== DESCARGA DE DATOS PARA ENTRENAMIENTO ==========
+
+  async downloadTrainingData(category) {
+    try {
+      console.log(`📥 Descargando datos de entrenamiento para: ${category}`);
+
+      const response = await fetch(`${API_BASE_URL}/train/${category}/download-training-data`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      console.log(`✅ Datos descargados exitosamente:`, {
+        categoria: data.category,
+        muestras: data.statistics.total_samples,
+        etiquetas: data.statistics.total_labels,
+        labels: data.labels
+      });
+
+      return data;
+
+    } catch (error) {
+      console.error(`❌ Error descargando datos de ${category}:`, error);
       throw error;
     }
   }

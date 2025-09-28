@@ -216,41 +216,41 @@ function EntrenarVocales() {
   };
 
   // Función para borrar todas las muestras de una categoría
-const clearCategoryData = async (category) => {
-  try {
-    const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}`, {
-      method: 'DELETE'
-    });
-    
-    const result = await response.json();
-    console.log('✅ Datos eliminados:', result.message);
-    return result;
-  } catch (error) {
-    console.error('❌ Error eliminando datos:', error);
-  }
-};
+  const clearCategoryData = async (category) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}`, {
+        method: 'DELETE'
+      });
+      
+      const result = await response.json();
+      console.log('✅ Datos eliminados:', result.message);
+      return result;
+    } catch (error) {
+      console.error('❌ Error eliminando datos:', error);
+    }
+  };
 
-// Función para borrar muestras de una etiqueta específica
-const clearLabelData = async (category, label) => {
-  try {
-    const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}?label=${label}`, {
-      method: 'DELETE'
-    });
-    
-    const result = await response.json();
-    console.log('✅ Etiqueta eliminada:', result.message);
-    return result;
-  } catch (error) {
-    console.error('❌ Error eliminando etiqueta:', error);
-  }
-};
+  // Función para borrar muestras de una etiqueta específica
+  const clearLabelData = async (category, label) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}?label=${label}`, {
+        method: 'DELETE'
+      });
+      
+      const result = await response.json();
+      console.log('✅ Etiqueta eliminada:', result.message);
+      return result;
+    } catch (error) {
+      console.error('❌ Error eliminando etiqueta:', error);
+    }
+  };
 
-// Ejemplos de uso:
-// Borrar toda la categoría vocales
-clearCategoryData('vocales');
+  // Ejemplos de uso:
+  // Borrar toda la categoría vocales
+  // clearCategoryData('vocales');
 
-// Borrar solo las muestras de la letra "A"
-clearLabelData('vocales', 'A');
+  // Borrar solo las muestras de la letra "A"
+  // clearLabelData('vocales', 'A');
 
   return (
     <div className="training-container">
