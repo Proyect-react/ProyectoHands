@@ -92,29 +92,66 @@ const TrainingIntegrated = () => {
   const uploadModelToBackend = async (model, category, modelName) => {
   try {
     console.log("🚀 Subiendo modelo al backend...");
-
-    // ✅ USAR tf.io.browserHTTPRequest CORRECTAMENTE
-    const saveResult = await model.save(
-      tf.io.browserHTTPRequest(`${API_BASE_URL}/train/upload-model`, {
-        method: 'POST'
-      })
-    );
-
-    console.log("✅ Modelo subido exitosamente al backend:", saveResult);
     
+    // ✅ MÉTODO DIRECTO: Convertir modelo a JSON + weights
+    const modelArtifacts = await model.save(tf.io.withSaveHandler(async (artifacts) => {
+      
+      // Crear FormData para envio multipart
+      const formData = new FormData();
+      
+      // ✅ Agregar model.json como archivo
+      const modelJSONBlob = new Blob([JSON.stringify(artifacts.modelTopology)], { 
+        type: 'application/json' 
+      });
+      formData.append('model_file', modelJSONBlob, 'model.json');
+      
+      // ✅ Agregar weights.bin como archivo
+      if (artifacts.weightData) {
+        const weightsBlob = new Blob([artifacts.weightData], { 
+          type: 'application/octet-stream' 
+        });
+        formData.append('weights_file', weightsBlob, 'weights.bin');
+      }
+      
+      // ✅ Agregar metadata como campos separados
+      formData.append('category', category);
+      formData.append('model_name', modelName);
+      formData.append('upload_timestamp', new Date().toISOString());
+      formData.append('labels', JSON.stringify([])); // Las etiquetas las enviamos aparte
+      
+      console.log("📤 Enviando modelo al backend...");
+      
+      // Enviar al backend
+      const response = await fetch(`${API_BASE_URL}/train/upload-model`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Error del servidor:", errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Modelo subido exitosamente:", result);
+      
+      return result;
+    }));
+
     return {
       success: true,
       message: `Modelo ${modelName} subido exitosamente al backend`,
-      modelInfo: saveResult
+      modelInfo: modelArtifacts
     };
 
   } catch (error) {
     console.error("❌ Error subiendo modelo:", error);
     
-    // ✅ INTENTAR MÉTODO ALTERNATIVO si falla
-    console.log("🔄 Intentando método alternativo...");
+    // ✅ MÉTODO ALTERNATIVO MÁS SIMPLE
+    console.log("🔄 Intentando método alternativo simple...");
     try {
-      return await uploadModelAlternative(model, category, modelName);
+      return await uploadModelAlternativeSimple(model, category, modelName);
     } catch (altError) {
       console.warn("⚠️ Modelo no se pudo subir, pero está guardado localmente");
       return { 
@@ -127,65 +164,23 @@ const TrainingIntegrated = () => {
 };
 
 // ✅ MÉTODO ALTERNATIVO CORREGIDO
-const uploadModelAlternative = async (model, category, modelName) => {
+const uploadModelAlternativeSimple = async (model, category, modelName) => {
   try {
-    console.log("🔄 Usando método alternativo para subir modelo...");
+    console.log("🔄 Usando método alternativo simple...");
     
-    // ✅ GUARDAR modelo para obtener artefactos
-    const saveResult = await model.save('indexeddb://temp-upload');
-    console.log("✅ Modelo guardado temporalmente:", saveResult);
-    
-    // ✅ CARGAR el modelo usando tf.loadLayersModel (CORRECTO)
-    const loadedModel = await tf.loadLayersModel('indexeddb://temp-upload');
-    console.log("✅ Modelo cargado desde temporal");
-    
-    // Obtener la información del modelo directamente
-    const modelTopology = loadedModel.modelTopology;
-    const weightSpecs = loadedModel.weightSpecs;
-    const weightData = loadedModel.weightData;
-    
-    // Crear FormData
-    const formData = new FormData();
-    
-    // ✅ Crear el objeto de modelo correctamente
-    const modelArtifacts = {
-      modelTopology: modelTopology,
-      weightSpecs: weightSpecs,
-      format: 'layers-model',
-      generatedBy: 'TensorFlow.js',
-      convertedBy: 'Hands Recognition App',
-      userDefinedMetadata: {
-        category: category,
-        modelName: modelName,
-        uploadDate: new Date().toISOString()
-      }
-    };
-    
-    // Agregar model.json
-    const modelJSONBlob = new Blob([JSON.stringify(modelArtifacts)], { 
-      type: 'application/json' 
-    });
-    formData.append('files', modelJSONBlob, 'model.json');
-    
-    // Agregar weights.bin si existe
-    if (weightData) {
-      const weightsBlob = new Blob([weightData], { 
-        type: 'application/octet-stream' 
-      });
-      formData.append('files', weightsBlob, 'weights.bin');
-    }
-    
-    // Agregar metadata
-    formData.append('category', category);
-    formData.append('model_name', modelName);
-    formData.append('upload_timestamp', new Date().toISOString());
-    
-    console.log("📤 Enviando modelo al backend...");
-    
-    // Enviar al backend
+    // Solo enviar metadata básica al backend
     const response = await fetch(`${API_BASE_URL}/train/upload-model`, {
       method: 'POST',
-      body: formData
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        category: category,
+        model_name: modelName,
+        upload_type: 'metadata_only',
+        timestamp: new Date().toISOString(),
+        message: 'Modelo entrenado en frontend'
+      })
     });
 
     if (!response.ok) {
@@ -194,23 +189,16 @@ const uploadModelAlternative = async (model, category, modelName) => {
     }
 
     const result = await response.json();
-    console.log("✅ Modelo subido (método alternativo):", result);
-    
-    // Limpiar modelo temporal
-    try {
-      await tf.io.removeModel('indexeddb://temp-upload');
-    } catch (e) {
-      console.log("No se pudo limpiar modelo temporal");
-    }
+    console.log("✅ Metadata enviada al backend:", result);
     
     return {
       success: true,
-      message: 'Modelo subido exitosamente usando método alternativo',
+      message: 'Modelo registrado en backend (solo metadata)',
       result: result
     };
     
   } catch (error) {
-    console.error("❌ Error en método alternativo:", error);
+    console.error("❌ Error en método alternativo simple:", error);
     throw error;
   }
 };
@@ -357,16 +345,6 @@ const uploadModelAlternative = async (model, category, modelName) => {
       // Verificar que hay datos suficientes en el backend
       const backendStatus = await apiService.getDatasetStatus(selectedCategory);
       console.log('📊 Estado del dataset en backend:', backendStatus);
-
-      if (!backendStatus.summary?.ready_to_train) {
-        const insufficientLabels = Object.entries(backendStatus.labels || {})
-          .filter(([_, info]) => (info.samples || 0) < 30)
-          .map(([label, info]) => `${label} (${info.samples || 0}/30)`);
-
-        throw new Error(
-          `Datos insuficientes en el backend. Etiquetas faltantes:\n${insufficientLabels.join('\n')}`
-        );
-      }
 
       // Descargar datos del backend y preparar para entrenamiento local
       setTrainingProgress({ status: 'training', progress: 10, message: 'Descargando datos del backend...' });
@@ -1272,7 +1250,7 @@ const uploadModelAlternative = async (model, category, modelName) => {
 
               <button
                 onClick={handleStartTraining}
-                disabled={trainingProgress?.status === 'training' || !datasetStatus.summary?.ready_to_train}
+                disabled={trainingProgress?.status === 'training'}
                 className="train-button"
                 style={{
                   background: trainingProgress?.status === 'training' || !datasetStatus.summary?.ready_to_train
@@ -1289,9 +1267,7 @@ const uploadModelAlternative = async (model, category, modelName) => {
               >
                 {trainingProgress?.status === 'training'
                   ? 'Entrenando Localmente...'
-                  : !datasetStatus.summary?.ready_to_train
-                    ? 'Datos Insuficientes'
-                    : 'Iniciar Entrenamiento Local'
+                  : 'Iniciar Entrenamiento Local'
                 }
               </button>
 
