@@ -2,17 +2,22 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
+import * as tf from '@tensorflow/tfjs';
 import apiService from '../../services/apiService';
 import './TrainingPage.css';
 
-// Funciones para borrar datos
+// Nuevos servicios locales
+import localDataManager from '../../services/localDataManager';
+import tfjsTrainer from '../../services/tfjsTrainer';
+
+// Funciones para borrar datos (mantenemos ambas: local y backend)
 const clearCategoryData = async (category) => {
   try {
     const response = await apiService.clearCategoryData(category);
-    console.log('Datos eliminados:', response.message);
+    console.log('Datos eliminados del backend:', response.message);
     return response;
   } catch (error) {
-    console.error('Error eliminando datos:', error);
+    console.error('Error eliminando datos del backend:', error);
     throw error;
   }
 };
@@ -20,10 +25,10 @@ const clearCategoryData = async (category) => {
 const clearLabelData = async (category, label) => {
   try {
     const response = await apiService.clearLabelData(category, label);
-    console.log('Etiqueta eliminada:', response.message);
+    console.log('Etiqueta eliminada del backend:', response.message);
     return response;
   } catch (error) {
-    console.error('Error eliminando etiqueta:', error);
+    console.error('Error eliminando etiqueta del backend:', error);
     throw error;
   }
 };
@@ -41,14 +46,15 @@ const TrainingIntegrated = () => {
   const [selectedModel, setSelectedModel] = useState('');
   const [isCollecting, setIsCollecting] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [modelName, setModelName] = useState("modelo_default");
+  const [modelName, setModelName] = useState("modelo_local");
   const [epochs, setEpochs] = useState(50);
 
-  // Estados de datos
+  // Estados de datos - AHORA CON DATOS LOCALES
   const [datasetStatus, setDatasetStatus] = useState({});
   const [trainingProgress, setTrainingProgress] = useState(null);
   const [predictionResult, setPredictionResult] = useState(null);
   const [availableModels, setAvailableModels] = useState([]);
+  const [useLocalTraining, setUseLocalTraining] = useState(true); // Nuevo: toggle local/backend
 
   // Definición de categorías y sus etiquetas
   const categories = {
@@ -85,9 +91,8 @@ const TrainingIntegrated = () => {
   const RENDER_THROTTLE = 100;
   const lastRenderTime = useRef(0);
 
-  // Parámetros para la distancia mínima de la mano (en modo práctica)
-  // Se puede ajustar este valor para requerir que la mano esté más cerca o más lejos
-  const MIN_HAND_SIZE = 0.17; // tamaño mínimo de la mano (en proporción al ancho de la imagen) - ahora requiere que la mano esté más cerca
+  // Parámetros para la distancia mínima de la mano
+  const MIN_HAND_SIZE = 0.17;
 
   // Sincronizar refs con estados
   useEffect(() => {
@@ -98,121 +103,163 @@ const TrainingIntegrated = () => {
     selectedLabelRef.current = selectedLabel;
   }, [selectedLabel]);
 
-  // Cargar estado del dataset y modelos al inicio y cuando cambie la categoría
+  // Cargar estado del dataset LOCAL al inicio
   useEffect(() => {
-    loadDatasetStatus();
-    loadAvailableModels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadLocalDatasetStatus();
+    loadLocalModels();
   }, [selectedCategory]);
 
-  // Polling para progreso de entrenamiento
-  useEffect(() => {
-    let interval;
-    if (mode === 'train' && trainingProgress?.status === 'training') {
-      interval = setInterval(async () => {
-        try {
-          const progress = await apiService.getTrainingProgress(selectedCategory);
-          setTrainingProgress(progress);
+  // ========== FUNCIONES LOCALES ==========
 
-          if (progress.status === 'completed' || progress.status === 'error') {
-            clearInterval(interval);
-            loadAvailableModels(); // Recargar modelos después del entrenamiento
-          }
-        } catch (error) {
-          console.error('Error verificando progreso:', error);
-        }
-      }, 3000);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, trainingProgress?.status, selectedCategory]);
-
-  // useCallback para evitar advertencia de dependencia faltante
-  const loadDatasetStatus = useCallback(async () => {
+  // Cargar estado del dataset local
+  const loadLocalDatasetStatus = useCallback(() => {
     try {
-      const status = await apiService.getDatasetStatus(selectedCategory);
+      const status = localDataManager.getLocalDatasetStatus(selectedCategory);
       setDatasetStatus(status);
     } catch (error) {
-      console.error('Error cargando estado:', error);
+      console.error('Error cargando estado local:', error);
+      setDatasetStatus({ labels: {}, totalSamples: 0 });
     }
   }, [selectedCategory]);
 
-  // useCallback para evitar advertencia de dependencia faltante
-  const loadAvailableModels = useCallback(async () => {
+  // Cargar modelos locales
+  const loadLocalModels = useCallback(async () => {
     try {
-      const models = await apiService.getAvailableModels();
-      // Filtrar modelos por categoría actual
-      const filteredModels = models.available_models?.filter(model =>
-        model.category === selectedCategory
-      ) || [];
-      setAvailableModels(filteredModels);
-
-      // Seleccionar el primer modelo si existe
-      if (filteredModels.length > 0 && !selectedModel) {
-        setSelectedModel(filteredModels[0].model_name || 'default');
-      }
+      // En una implementación real, esto cargaría de IndexedDB
+      const localModels = await tfjsTrainer.getLocalModels(selectedCategory);
+      setAvailableModels(localModels);
     } catch (error) {
-      console.error('Error cargando modelos:', error);
+      console.error('Error cargando modelos locales:', error);
       setAvailableModels([]);
     }
-  }, [selectedCategory, selectedModel]);
+  }, [selectedCategory]);
 
-  // Función para borrar datos
-  const handleClearData = async (type = 'current') => {
-    if (type === 'current' && !selectedLabel) {
-      alert('Selecciona una etiqueta primero');
-      return;
-    }
-
-    const wasCollecting = isCollecting;
-    if (wasCollecting) {
-      setIsCollecting(false);
-      collectingRef.current = false;
-    }
-
-    let confirmMessage = '';
-
-    if (type === 'current') {
-      const currentSamples = getLabelSamples(selectedLabel);
-      confirmMessage = `¿Eliminar todas las muestras de "${selectedLabel}" en categoría "${selectedCategory}"?\n\nSe eliminarán ${currentSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
-    } else if (type === 'all') {
-      const totalSamples = Object.values(datasetStatus.labels || {}).reduce((sum, label) => sum + (label.samples || 0), 0);
-      confirmMessage = `¿Eliminar TODAS las muestras de la categoría "${selectedCategory}"?\n\nSe eliminarán ${totalSamples} muestras de todas las etiquetas.\n\nEsta acción NO se puede deshacer.`;
-    }
-
-    const userConfirmed = window.confirm(`CONFIRMACIÓN\n\n${confirmMessage}`);
-    if (!userConfirmed) {
-      if (wasCollecting) {
-        setIsCollecting(true);
-        collectingRef.current = true;
-      }
-      return;
-    }
-
+  // Guardar muestra localmente
+  const saveSampleLocally = useCallback(async (landmarks, label) => {
     try {
-      if (type === 'current') {
-        await clearLabelData(selectedCategory, selectedLabel);
-        alert(`Datos de "${selectedLabel}" eliminados correctamente`);
-      } else if (type === 'all') {
-        await clearCategoryData(selectedCategory);
-        alert(`Todas las muestras de "${selectedCategory}" eliminadas correctamente`);
+      const result = localDataManager.saveLocalData(selectedCategory, label, landmarks);
+      console.log('✅ Muestra guardada localmente:', result);
+      loadLocalDatasetStatus(); // Actualizar UI
+      return result;
+    } catch (error) {
+      console.error('Error guardando localmente:', error);
+      throw error;
+    }
+  }, [selectedCategory, loadLocalDatasetStatus]);
+
+  // Entrenamiento LOCAL con TensorFlow.js
+  const handleLocalTraining = async () => {
+    try {
+      setTrainingProgress({ status: 'training', progress: 0, message: 'Validando datos...' });
+
+      // Validar que hay datos suficientes
+      const status = localDataManager.getLocalDatasetStatus(selectedCategory);
+      if (!status.readyToTrain) {
+        const labelsFaltantes = Object.entries(status.labels)
+          .filter(([_, info]) => !info.ready)
+          .map(([label, info]) => `${label} (${info.samples}/30)`);
+
+        throw new Error(
+          `Datos insuficientes. Etiquetas faltantes:\n${labelsFaltantes.join('\n')}`
+        );
       }
 
-      await loadDatasetStatus();
+      // Cargar datos locales
+      setTrainingProgress({ status: 'training', progress: 10, message: 'Cargando datos...' });
+      const { X, y, labels } = localDataManager.loadTrainingData(selectedCategory);
+
+      console.log('Datos cargados para entrenamiento:', {
+        muestras: X.length,
+        etiquetas: labels.length,
+        shapeX: X.length > 0 ? `${X.length}x${X[0].length}` : '0x0'
+      });
+
+      if (X.length === 0 || y.length === 0) {
+        throw new Error('No se pudieron cargar datos válidos para entrenar');
+      }
+
+      // Entrenar con TensorFlow.js
+      setTrainingProgress({ status: 'training', progress: 20, message: 'Iniciando entrenamiento...' });
+
+      const result = await tfjsTrainer.trainModel(
+        X, y, labels, epochs, 16,
+        (progress, message) => {
+          setTrainingProgress({ status: 'training', progress, message });
+        }
+      );
+
+      // Guardar modelo localmente
+      setTrainingProgress({ status: 'training', progress: 90, message: 'Guardando modelo...' });
+      const modelInfo = await tfjsTrainer.saveModel(selectedCategory, modelName);
+
+      // Completar
+      setTrainingProgress({
+        status: 'completed',
+        progress: 100,
+        message: '✅ Modelo entrenado y guardado exitosamente',
+        metrics: {
+          accuracy: (result.finalAccuracy * 100).toFixed(1) + '%',
+          loss: result.finalLoss.toFixed(4)
+        }
+      });
+
+      // Recargar modelos disponibles
+      await loadLocalModels();
+
+      console.log('✅ Entrenamiento completado exitosamente');
 
     } catch (error) {
-      alert(`Error eliminando datos: ${error.message}`);
-      console.error('Error eliminando:', error);
+      console.error('Error detallado en entrenamiento local:', error);
+      setTrainingProgress({
+        status: 'error',
+        progress: 0,
+        message: `❌ Error: ${error.message}`
+      });
 
-      if (wasCollecting) {
-        setIsCollecting(true);
-        collectingRef.current = true;
-      }
+      // Mostrar alerta con más detalles
+      setTimeout(() => {
+        alert(`Error en entrenamiento:\n${error.message}\n\nRevisa la consola para más detalles.`);
+      }, 500);
     }
   };
+
+  // Predicción LOCAL
+  const predictLocally = async (landmarks) => {
+    try {
+      if (!tfjsTrainer.hasModel(selectedCategory, selectedModel)) {
+        throw new Error('Modelo local no cargado');
+      }
+
+      const predictions = await tfjsTrainer.predict(selectedCategory, selectedModel, landmarks);
+      const labels = await tfjsTrainer.getModelLabels(selectedCategory, selectedModel);
+
+      // Encontrar la predicción con mayor confianza
+      const maxConfidence = Math.max(...predictions);
+      const predictedIndex = predictions.indexOf(maxConfidence);
+      const predictedLabel = labels[predictedIndex];
+
+      // Crear ranking top 3
+      const ranking = predictions.map((confidence, index) => ({
+        label: labels[index],
+        confidence: confidence,
+        percentage: (confidence * 100).toFixed(1)
+      })).sort((a, b) => b.confidence - a.confidence).slice(0, 3);
+
+      return {
+        prediction: predictedLabel,
+        confidence: maxConfidence,
+        percentage: (maxConfidence * 100).toFixed(1),
+        high_confidence: maxConfidence > 0.7,
+        top_3: ranking
+      };
+
+    } catch (error) {
+      console.error('Error en predicción local:', error);
+      return null;
+    }
+  };
+
+  // ========== FUNCIONES EXISTENTES MODIFICADAS ==========
 
   const extractLandmarksArray = (multiHandLandmarks) => {
     if (!multiHandLandmarks || multiHandLandmarks.length === 0) return null;
@@ -234,7 +281,6 @@ const TrainingIntegrated = () => {
     return landmarks.length === 126 ? landmarks : null;
   };
 
-  // Función para calcular el "tamaño" de la mano (bounding box)
   const calcularTamanioMano = (landmarks) => {
     if (!landmarks || landmarks.length === 0) return 0;
     let minX = 1, maxX = 0, minY = 1, maxY = 0;
@@ -244,11 +290,10 @@ const TrainingIntegrated = () => {
       if (punto.y < minY) minY = punto.y;
       if (punto.y > maxY) maxY = punto.y;
     }
-    // Retorna el ancho de la mano en proporción a la imagen
     return maxX - minX;
   };
 
-  // Callback principal de MediaPipe
+  // Callback principal de MediaPipe - MODIFICADO
   const onResults = useCallback(async (results) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -256,7 +301,6 @@ const TrainingIntegrated = () => {
     const now = Date.now();
     const shouldRender = now - lastRenderTime.current > RENDER_THROTTLE;
 
-    // Siempre renderiza la mano (no desaparece aunque se esté recolectando o prediciendo)
     if (shouldRender) {
       const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -264,17 +308,15 @@ const TrainingIntegrated = () => {
       lastRenderTime.current = now;
     }
 
-    // Si hay mano(s) detectada(s)
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       const landmarks = extractLandmarksArray(results.multiHandLandmarks);
 
-      // Dibuja la mano siempre (no desaparece)
       if (shouldRender) {
         drawHand(canvas.getContext("2d"), results.multiHandLandmarks[0], canvas);
       }
 
       if (landmarks) {
-        // --- MODO RECOLECCIÓN ---
+        // --- MODO RECOLECCIÓN (AHORA LOCAL) ---
         if (mode === 'collect' && collectingRef.current && selectedLabelRef.current && !processingRef.current) {
           const timeSinceLastCollection = now - lastCollectionTime.current;
 
@@ -282,60 +324,57 @@ const TrainingIntegrated = () => {
             processingRef.current = true;
 
             try {
-              console.log(`Recolectando para etiqueta: ${selectedLabelRef.current} en categoría: ${selectedCategory}`);
+              console.log(`Recolectando localmente para: ${selectedLabelRef.current}`);
 
-              const result = await apiService.collectSample(
-                selectedCategory,
-                selectedLabelRef.current,
-                landmarks,
-                {
-                  collection_mode: 'automatic',
-                  hand_count: results.multiHandLandmarks.length,
-                  timestamp: new Date().toISOString()
-                }
-              );
+              // GUARDAR LOCALMENTE en lugar de enviar al backend
+              const result = await saveSampleLocally(landmarks, selectedLabelRef.current);
 
-              if (result.success) {
-                console.log(`Muestra ${result.current_samples} guardada para ${selectedLabelRef.current}`);
-                await loadDatasetStatus();
-                lastCollectionTime.current = now;
+              console.log(`Muestra ${result.current} guardada localmente`);
+              lastCollectionTime.current = now;
 
-                if (result.current_samples >= 30) {
-                  console.log(`Límite alcanzado para ${selectedLabelRef.current}`);
-                  setIsCollecting(false);
-                  collectingRef.current = false;
-                }
+              if (result.current >= 30) {
+                console.log(`Límite alcanzado para ${selectedLabelRef.current}`);
+                setIsCollecting(false);
+                collectingRef.current = false;
               }
             } catch (error) {
-              console.error('Error recolectando:', error);
+              console.error('Error recolectando localmente:', error);
             } finally {
               processingRef.current = false;
             }
           }
         }
 
-        // --- MODO PRÁCTICA ---
+        // --- MODO PRÁCTICA (AHORA LOCAL) ---
         else if (mode === 'practice' && !processingRef.current && selectedModel) {
-          // Calcula el tamaño de la mano detectada
           const handSize = calcularTamanioMano(results.multiHandLandmarks[0]);
-          // Solo predice si la mano está suficientemente cerca (grande)
+
           if (handSize >= MIN_HAND_SIZE) {
             if (now - lastCollectionTime.current > 500) {
               try {
-                const prediction = await apiService.practicePredict(selectedCategory, landmarks, {
-                  threshold: 0.9,
-                  modelName: selectedModel  // este es el modelo seleccionado en la UI
-                });
+                let prediction;
 
-                setPredictionResult(prediction);
-                lastCollectionTime.current = now;
+                if (useLocalTraining) {
+                  // PREDICCIÓN LOCAL
+                  prediction = await predictLocally(landmarks);
+                } else {
+                  // PREDICCIÓN BACKEND (original)
+                  prediction = await apiService.practicePredict(selectedCategory, landmarks, {
+                    threshold: 0.9,
+                    modelName: selectedModel
+                  });
+                }
+
+                if (prediction) {
+                  setPredictionResult(prediction);
+                  lastCollectionTime.current = now;
+                }
               } catch (error) {
                 console.error('Error en predicción:', error);
                 setPredictionResult(null);
               }
             }
           } else {
-            // Si la mano está muy lejos, muestra mensaje de acercar la mano
             setPredictionResult({
               prediction: "Acerca tu mano a la cámara",
               percentage: 0,
@@ -345,13 +384,10 @@ const TrainingIntegrated = () => {
           }
         }
       }
-    } else {
-      // Si no hay mano, en práctica muestra mensaje de "pon tu mano"
-      if (mode === 'practice') {
-        setPredictionResult(null);
-      }
+    } else if (mode === 'practice') {
+      setPredictionResult(null);
     }
-  }, [mode, selectedCategory, selectedModel, loadDatasetStatus]);
+  }, [mode, selectedCategory, selectedModel, useLocalTraining, saveSampleLocally]);
 
   const drawHand = (ctx, landmarks, canvas) => {
     const connections = [
@@ -384,7 +420,7 @@ const TrainingIntegrated = () => {
     }
   };
 
-  // Inicialización de MediaPipe
+  // Inicialización de MediaPipe (sin cambios)
   useEffect(() => {
     if (!isCameraActive) {
       processingRef.current = false;
@@ -445,14 +481,115 @@ const TrainingIntegrated = () => {
         });
       }
       if (handsRef.current) {
-        handsRef.current.onResults(() => {});
+        handsRef.current.onResults(() => { });
       }
     };
   }, [isCameraActive, onResults]);
 
-  // Handlers principales
-  const handleStartCamera = () => setIsCameraActive(true);
+  // ========== HANDLERS MODIFICADOS ==========
 
+  const handleStartTraining = async () => {
+    if (useLocalTraining) {
+      // ENTRENAMIENTO LOCAL
+      await handleLocalTraining();
+    } else {
+      // ENTRENAMIENTO BACKEND (original)
+      try {
+        setMode('train');
+        const result = await apiService.startTraining(selectedCategory, {
+          name: modelName,
+          epochs
+        });
+        setTrainingProgress({ status: 'training', progress: 0, message: 'Iniciando...' });
+      } catch (error) {
+        console.error('Error iniciando entrenamiento en backend:', error);
+        alert('Error iniciando entrenamiento');
+      }
+    }
+  };
+
+  const handleClearData = async (type = 'current') => {
+    if (type === 'current' && !selectedLabel) {
+      alert('Selecciona una etiqueta primero');
+      return;
+    }
+
+    const wasCollecting = isCollecting;
+    if (wasCollecting) {
+      setIsCollecting(false);
+      collectingRef.current = false;
+    }
+
+    let confirmMessage = '';
+
+    if (type === 'current') {
+      const currentSamples = getLabelSamples(selectedLabel);
+      confirmMessage = `¿Eliminar todas las muestras de "${selectedLabel}"?\n\nSe eliminarán ${currentSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
+    } else if (type === 'all') {
+      const totalSamples = Object.values(datasetStatus.labels || {}).reduce((sum, label) => sum + (label.samples || 0), 0);
+      confirmMessage = `¿Eliminar TODAS las muestras de "${selectedCategory}"?\n\nSe eliminarán ${totalSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
+    }
+
+    const userConfirmed = window.confirm(`CONFIRMACIÓN\n\n${confirmMessage}`);
+    if (!userConfirmed) {
+      if (wasCollecting) {
+        setIsCollecting(true);
+        collectingRef.current = true;
+      }
+      return;
+    }
+
+    try {
+      if (useLocalTraining) {
+        // LIMPIAR DATOS LOCALES
+        if (type === 'current') {
+          localDataManager.clearLabelData(selectedCategory, selectedLabel);
+          alert(`Datos locales de "${selectedLabel}" eliminados`);
+        } else if (type === 'all') {
+          localDataManager.clearCategoryData(selectedCategory);
+          alert(`Todos los datos locales de "${selectedCategory}" eliminados`);
+        }
+        loadLocalDatasetStatus();
+      } else {
+        // LIMPIAR DATOS BACKEND (original)
+        if (type === 'current') {
+          await clearLabelData(selectedCategory, selectedLabel);
+          alert(`Datos de "${selectedLabel}" eliminados del backend`);
+        } else if (type === 'all') {
+          await clearCategoryData(selectedCategory);
+          alert(`Todas las muestras de "${selectedCategory}" eliminadas del backend`);
+        }
+        // Recargar estado del backend
+        // loadDatasetStatus(); // Si mantienes esta función
+      }
+
+    } catch (error) {
+      alert(`Error eliminando datos: ${error.message}`);
+      console.error('Error eliminando:', error);
+
+      if (wasCollecting) {
+        setIsCollecting(true);
+        collectingRef.current = true;
+      }
+    }
+  };
+
+  // ========== FUNCIONES AUXILIARES ==========
+
+  const getLabelSamples = (label) => {
+    return datasetStatus.labels?.[label]?.samples || 0;
+  };
+
+  const isLabelReady = (label) => {
+    return getLabelSamples(label) >= 30;
+  };
+
+  const getCurrentLabels = () => {
+    return categories[selectedCategory]?.labels || [];
+  };
+
+  // Handlers que se mantienen igual
+  const handleStartCamera = () => setIsCameraActive(true);
   const handleStopCamera = () => {
     setIsCameraActive(false);
     setIsCollecting(false);
@@ -467,7 +604,7 @@ const TrainingIntegrated = () => {
     }
 
     const newCollecting = !isCollecting;
-    console.log(`Cambiando recolección a: ${newCollecting} para etiqueta: ${selectedLabel} en categoría: ${selectedCategory}`);
+    console.log(`Recolección ${newCollecting ? 'iniciada' : 'detenida'} para: ${selectedLabel}`);
 
     setIsCollecting(newCollecting);
     collectingRef.current = newCollecting;
@@ -478,63 +615,41 @@ const TrainingIntegrated = () => {
     }
   };
 
-  const handleStartTraining = async () => {
-    try {
-      setMode('train');
-      // eslint-disable-next-line no-unused-vars
-      const result = await apiService.startTraining(selectedCategory, {
-        name: modelName,
-        epochs
-      });
-      setTrainingProgress({ status: 'training', progress: 0, message: 'Iniciando...' });
-    } catch (error) {
-      console.error('Error iniciando entrenamiento:', error);
-      alert('Error iniciando entrenamiento');
-    }
-  };
-
   const handleSwitchMode = (newMode) => {
-    console.log(`Cambiando modo de ${mode} a ${newMode}`);
-
+    console.log(`Cambiando a modo: ${newMode}`);
     setIsCollecting(false);
     collectingRef.current = false;
     processingRef.current = false;
-
     setMode(newMode);
     setPredictionResult(null);
     setTrainingProgress(null);
-
     lastCollectionTime.current = 0;
     lastRenderTime.current = 0;
   };
 
   const handleCategoryChange = (newCategory) => {
-    console.log(`Cambiando categoría de ${selectedCategory} a ${newCategory}`);
-
-    // Detener recolección si está activa
+    console.log(`Cambiando categoría a: ${newCategory}`);
     if (isCollecting) {
       setIsCollecting(false);
       collectingRef.current = false;
     }
-
     setSelectedCategory(newCategory);
-    setSelectedLabel(''); // Reset label selection
-    setSelectedModel(''); // Reset model selection
+    setSelectedLabel('');
+    setSelectedModel('');
     setPredictionResult(null);
+    loadLocalDatasetStatus();
+    loadLocalModels();
   };
 
   const handleLabelChange = (label) => {
-    console.log(`Cambiando etiqueta de ${selectedLabel} a ${label}`);
-
+    console.log(`Cambiando etiqueta a: ${label}`);
     const wasCollecting = isCollecting;
     if (wasCollecting) {
       setIsCollecting(false);
       collectingRef.current = false;
     }
-
     setSelectedLabel(label);
     selectedLabelRef.current = label;
-
     if (wasCollecting) {
       setTimeout(() => {
         setIsCollecting(true);
@@ -544,23 +659,13 @@ const TrainingIntegrated = () => {
     }
   };
 
-  const getLabelSamples = (label) => {
-    return datasetStatus.labels?.[label]?.samples || 0;
-  };
-
-  const isLabelReady = (label) => {
-    return getLabelSamples(label) >= 30;
-  };
-
-  const getCurrentLabels = () => {
-    return categories[selectedCategory]?.labels || [];
-  };
+  // ========== RENDER ==========
 
   return (
     <div className="training-integrated">
-      {/* Header con controles de modo */}
+      {/* Header con toggle local/backend */}
       <div className="training-header">
-        <h1>Entrenamiento IA Avanzado</h1>
+        <h1>Entrenamiento IA {useLocalTraining ? 'Local' : 'Backend'}</h1>
         <div className="mode-selector">
           <button
             className={mode === 'collect' ? 'active' : ''}
@@ -581,13 +686,30 @@ const TrainingIntegrated = () => {
             🎯 Practicar
           </button>
         </div>
+
+        {/* Toggle Local/Backend */}
+        <div className="training-toggle" style={{ marginTop: '10px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>🌐 Backend</span>
+            <input
+              type="checkbox"
+              checked={useLocalTraining}
+              onChange={(e) => setUseLocalTraining(e.target.checked)}
+              style={{ transform: 'scale(1.2)' }}
+            />
+            <span>💻 Local (Offline)</span>
+          </label>
+          <small style={{ color: '#666' }}>
+            {useLocalTraining ? 'Todo funciona sin internet' : 'Requiere conexión al backend'}
+          </small>
+        </div>
       </div>
 
       <div className="training-content">
-        {/* Panel izquierdo - Estado y controles */}
+        {/* Panel izquierdo - Controles */}
         <div className="control-panel">
 
-          {/* Selector de Categoría (siempre visible) */}
+          {/* Selector de Categoría */}
           <div className="category-selector" style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px' }}>
             <h4>Seleccionar Categoría:</h4>
             <div className="category-buttons" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
@@ -613,7 +735,8 @@ const TrainingIntegrated = () => {
             </div>
             <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
               Categoría actual: <strong>{categories[selectedCategory]?.name}</strong>
-              ({getCurrentLabels().length} etiquetas)
+              ({getCurrentLabels().length} etiquetas) |
+              Modo: <strong>{useLocalTraining ? 'Local' : 'Backend'}</strong>
             </p>
           </div>
 
@@ -621,6 +744,15 @@ const TrainingIntegrated = () => {
           {mode === 'collect' && (
             <div className="collect-panel">
               <h3>📊 Recolección de Datos - {categories[selectedCategory]?.name}</h3>
+              <div style={{
+                background: useLocalTraining ? '#e8f5e8' : '#fff3e0',
+                padding: '10px',
+                borderRadius: '5px',
+                marginBottom: '10px',
+                fontSize: '14px'
+              }}>
+                {useLocalTraining ? '💾 Guardando localmente' : '🌐 Enviando al backend'}
+              </div>
 
               <div className="label-selector">
                 <h4>Seleccionar Etiqueta:</h4>
@@ -652,6 +784,7 @@ const TrainingIntegrated = () => {
                   ))}
                 </div>
               </div>
+
 
               {/* Indicador de etiqueta activa */}
               {selectedLabel && (
@@ -755,7 +888,17 @@ const TrainingIntegrated = () => {
           {/* Modo Entrenamiento */}
           {mode === 'train' && (
             <div className="train-panel">
-              <h3>🧠 Entrenamiento del Modelo - {categories[selectedCategory]?.name}</h3>
+              <h3>🧠 Entrenamiento - {categories[selectedCategory]?.name}</h3>
+              <div style={{
+                background: useLocalTraining ? '#e8f5e8' : '#fff3e0',
+                padding: '10px',
+                borderRadius: '5px',
+                marginBottom: '10px'
+              }}>
+                {useLocalTraining ?
+                  '💻 Entrenamiento local con TensorFlow.js' :
+                  '🌐 Entrenamiento en el backend'}
+              </div>
 
               <div className="dataset-summary">
                 <h4>Estado del Dataset:</h4>
@@ -869,7 +1012,17 @@ const TrainingIntegrated = () => {
           {/* Modo Práctica */}
           {mode === 'practice' && (
             <div className="practice-panel">
-              <h3>🎯 Práctica con IA - {categories[selectedCategory]?.name}</h3>
+              <h3>🎯 Práctica - {categories[selectedCategory]?.name}</h3>
+              <div style={{
+                background: useLocalTraining ? '#e8f5e8' : '#fff3e0',
+                padding: '10px',
+                borderRadius: '5px',
+                marginBottom: '10px'
+              }}>
+                {useLocalTraining ?
+                  '💻 Predicción local (offline)' :
+                  '🌐 Predicción en el backend'}
+              </div>
 
               {/* Selector de Modelo */}
               <div className="model-selector" style={{ marginBottom: '20px' }}>
