@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
 import apiService from '../../services/apiService';
+import { autoModelManager } from '../../utils/autoModelManager';
 import './TrainingPage.css';
 
 // Funciones para borrar datos
@@ -49,6 +50,70 @@ const TrainingIntegrated = () => {
   const [trainingProgress, setTrainingProgress] = useState(null);
   const [predictionResult, setPredictionResult] = useState(null);
   const [availableModels, setAvailableModels] = useState([]);
+
+  // ✅ NUEVO: Estado para modelos automáticos
+    const [localModels, setLocalModels] = useState([]);
+    const [currentLocalModel, setCurrentLocalModel] = useState(null);
+
+    // ✅ AL INICIAR: Cargar modelos locales y verificar nuevos
+    useEffect(() => {
+        initializeAutoModels();
+    }, [selectedCategory]);
+
+    const initializeAutoModels = async () => {
+        // 1. Cargar modelos ya almacenados
+        const storedModels = await autoModelManager.getStoredModels();
+        setLocalModels(storedModels);
+
+        // 2. Cargar el primer modelo disponible
+        const categoryModels = storedModels.filter(m => m.category === selectedCategory);
+        if (categoryModels.length > 0 && !currentLocalModel) {
+            await autoModelManager.loadModel(selectedCategory, categoryModels[0].model_name);
+            setCurrentLocalModel(categoryModels[0]);
+        }
+
+        // 3. Verificar si hay nuevos modelos en el backend
+        try {
+            await autoModelManager.checkForNewModels(selectedCategory);
+            // Actualizar lista después de verificar
+            const updatedModels = await autoModelManager.getStoredModels();
+            setLocalModels(updatedModels);
+        } catch (error) {
+            console.log('Backend no disponible para verificar nuevos modelos');
+        }
+    };
+
+    // ✅ MONITOREAR progreso de entrenamiento para almacenar automáticamente
+    useEffect(() => {
+        if (trainingProgress?.status === 'completed') {
+            // ¡Entrenamiento terminado! Almacenar automáticamente
+            setTimeout(() => {
+                autoModelManager.autoStoreModel(selectedCategory, modelName);
+                initializeAutoModels(); // Recargar lista
+            }, 2000);
+        }
+    }, [trainingProgress?.status]);
+
+    // ✅ PREDICCIÓN INTELIGENTE: Local primero, luego backend
+    const handleSmartPrediction = async (landmarks) => {
+        // 1. INTENTAR PREDICCIÓN LOCAL (rápida, offline)
+        if (currentLocalModel) {
+            try {
+                const localPrediction = await autoModelManager.predictLocal(landmarks);
+                return localPrediction;
+            } catch (error) {
+                console.warn('Predicción local falló, intentando con backend...');
+            }
+        }
+
+        // 2. FALLBACK A BACKEND (si está disponible)
+        try {
+            const backendPrediction = await apiService.practicePredict(selectedCategory, landmarks);
+            return { ...backendPrediction, source: 'backend' };
+        } catch (error) {
+            throw new Error('Sistema no disponible');
+        }
+    };
 
   // Definición de categorías y sus etiquetas
   const categories = {
