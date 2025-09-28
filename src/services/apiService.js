@@ -1,14 +1,62 @@
-// src/services/apiService.js - VERSIÓN ACTUALIZADA CON DESCARGA DE MODELOS
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+// src/services/apiService.js - ACTUALIZADO PARA RENDER
+// 🚨 URL CORREGIDA PARA RENDER
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
 
 class APIService {
+  constructor() {
+    // 🆕 CONFIGURACIÓN DE TIMEOUT Y RETRY
+    this.timeout = 30000; // 30 segundos para Render (puede ser lento)
+    this.retryAttempts = 3;
+    
+    console.log(`🌐 API Service inicializado con URL: ${API_BASE_URL}`);
+  }
+
+  // 🆕 MÉTODO PARA HACER PETICIONES CON RETRY Y TIMEOUT
+  async fetchWithRetry(url, options = {}, attempt = 1) {
+    try {
+      console.log(`📡 Petición ${attempt}/${this.retryAttempts}: ${url}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...options.headers,
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response;
+    } catch (error) {
+      console.warn(`⚠️ Intento ${attempt} falló:`, error.message);
+      
+      if (attempt < this.retryAttempts && !error.name === 'AbortError') {
+        console.log(`🔄 Reintentando en 2 segundos...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return this.fetchWithRetry(url, options, attempt + 1);
+      }
+      
+      throw error;
+    }
+  }
+
   // ========== RECOLECCIÓN DE DATOS ==========
 
   async collectSample(category, label, landmarks, metadata = {}) {
     try {
-      const response = await fetch(`${API_BASE_URL}/collect/sample/landmarks`, {
+      console.log(`📤 Enviando muestra: ${category}/${label}`);
+      
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/collect/sample/landmarks`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category,
           label,
@@ -18,70 +66,84 @@ class APIService {
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      return await response.json();
+      const result = await response.json();
+      console.log(`✅ Muestra enviada exitosamente`);
+      return result;
     } catch (error) {
-      console.error('Error enviando muestra:', error);
+      console.error('❌ Error enviando muestra:', error);
       throw error;
     }
   }
 
   async collectBatchSamples(category, samples) {
     try {
+      console.log(`📦 Enviando lote de ${samples.length} muestras`);
+      
       const samplesWithMetadata = samples.map(sample => ({
         ...sample,
         category,
         timestamp: new Date().toISOString()
       }));
 
-      const response = await fetch(`${API_BASE_URL}/collect/batch/landmarks`, {
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/collect/batch/landmarks`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(samplesWithMetadata)
       });
 
-      return await response.json();
+      const result = await response.json();
+      console.log(`✅ Lote enviado exitosamente`);
+      return result;
     } catch (error) {
-      console.error('Error enviando lote de muestras:', error);
+      console.error('❌ Error enviando lote de muestras:', error);
       throw error;
     }
   }
 
   async getDatasetStatus(category) {
     try {
-      const response = await fetch(`${API_BASE_URL}/collect/dataset/${category}/summary`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json();
+      console.log(`🔍 Obteniendo estado del dataset: ${category}`);
+      
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/collect/dataset/${category}/summary`);
+      const result = await response.json();
+      
+      console.log(`✅ Estado obtenido para ${category}`);
+      return result;
     } catch (error) {
-      console.error('Error obteniendo estado del dataset:', error);
+      console.error('❌ Error obteniendo estado del dataset:', error);
       throw error;
     }
   }
 
   async clearCategoryData(category) {
     try {
-      const response = await fetch(`${API_BASE_URL}/collect/clear/${category}`, {
+      console.log(`🗑️ Eliminando datos de categoría: ${category}`);
+      
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/collect/clear/${category}`, {
         method: 'DELETE'
       });
-      return await response.json();
+      
+      const result = await response.json();
+      console.log(`✅ Datos eliminados de ${category}`);
+      return result;
     } catch (error) {
-      console.error('Error eliminando datos de categoría:', error);
+      console.error('❌ Error eliminando datos de categoría:', error);
       throw error;
     }
   }
 
   async clearLabelData(category, label) {
     try {
-      const response = await fetch(`${API_BASE_URL}/collect/clear/${category}?label=${label}`, {
+      console.log(`🗑️ Eliminando etiqueta ${label} de ${category}`);
+      
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/collect/clear/${category}?label=${label}`, {
         method: 'DELETE'
       });
-      return await response.json();
+      
+      const result = await response.json();
+      console.log(`✅ Etiqueta ${label} eliminada`);
+      return result;
     } catch (error) {
-      console.error('Error eliminando datos de etiqueta:', error);
+      console.error('❌ Error eliminando datos de etiqueta:', error);
       throw error;
     }
   }
@@ -90,6 +152,8 @@ class APIService {
 
   async startTraining(category, options = {}) {
     try {
+      console.log(`🧠 Iniciando entrenamiento: ${category}`);
+      
       const requestBody = {
         model_name: options.name || 'default',
         epochs: options.epochs || 50,
@@ -97,90 +161,83 @@ class APIService {
         learning_rate: options.learning_rate || 0.001
       };
 
-      const response = await fetch(`${API_BASE_URL}/train/${category}/advanced`, {
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/train/${category}/advanced`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
-      return await response.json();
+      const result = await response.json();
+      console.log(`✅ Entrenamiento iniciado para ${category}`);
+      return result;
     } catch (error) {
-      console.error('Error iniciando entrenamiento:', error);
+      console.error('❌ Error iniciando entrenamiento:', error);
       throw error;
     }
   }
 
   async getTrainingProgress(category) {
     try {
-      const response = await fetch(`${API_BASE_URL}/train/progress/${category}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/train/progress/${category}`);
       return await response.json();
     } catch (error) {
-      console.error('Error verificando progreso:', error);
+      console.error('❌ Error verificando progreso:', error);
       throw error;
     }
   }
 
   async getTrainingModels(category) {
     try {
-      const response = await fetch(`${API_BASE_URL}/train/${category}/models`);
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/train/${category}/models`);
       return await response.json();
     } catch (error) {
-      console.error('Error obteniendo modelos de entrenamiento:', error);
+      console.error('❌ Error obteniendo modelos de entrenamiento:', error);
       throw error;
     }
   }
 
   async deleteModel(category, modelName) {
     try {
-      const response = await fetch(`${API_BASE_URL}/train/${category}/models/${modelName}`, {
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/train/${category}/models/${modelName}`, {
         method: 'DELETE'
       });
       return await response.json();
     } catch (error) {
-      console.error('Error eliminando modelo:', error);
+      console.error('❌ Error eliminando modelo:', error);
       throw error;
     }
   }
 
   async getModelInfo(category, modelName) {
     try {
-      const response = await fetch(`${API_BASE_URL}/train/${category}/models/${modelName}/info`);
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/train/${category}/models/${modelName}/info`);
       return await response.json();
     } catch (error) {
-      console.error('Error obteniendo información del modelo:', error);
+      console.error('❌ Error obteniendo información del modelo:', error);
       throw error;
     }
   }
 
-  // ========== 🆕 DESCARGA DE MODELOS ==========
+  // ========== 🚨 DESCARGA DE MODELOS (URL CORREGIDA) ==========
 
   async getAvailableModelsForDownload() {
     try {
       console.log('🔍 Obteniendo modelos disponibles para descarga...');
       
-      const response = await fetch(`${API_BASE_URL}/train/models/available`);
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/train/models/available`);
       
-      if (!response.ok) {
-        if (response.status === 404) {
-          console.log('ℹ️ No hay modelos disponibles en el backend');
-          return { models: [], total: 0 };
-        }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
       const data = await response.json();
-      
-      console.log(`✅ Encontrados ${data.total} modelos disponibles para descarga`);
+      console.log(`✅ Encontrados ${data.total || 0} modelos disponibles para descarga`);
       
       return data;
     } catch (error) {
       console.error('❌ Error obteniendo modelos disponibles:', error);
+      
+      // 🆕 FALLBACK: Si no hay modelos, devolver estructura vacía
+      if (error.message.includes('404')) {
+        console.log('ℹ️ No hay modelos disponibles en el backend');
+        return { models: [], total: 0 };
+      }
+      
       throw error;
     }
   }
@@ -189,16 +246,10 @@ class APIService {
     try {
       console.log(`📋 Obteniendo información de descarga para: ${category}/${modelName}`);
       
-      const response = await fetch(`${API_BASE_URL}/train/download/model/${category}/${modelName}/info`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/train/download/model/${category}/${modelName}/info`);
       const info = await response.json();
       
       console.log(`✅ Información de descarga obtenida para ${category}/${modelName}`);
-      
       return info;
     } catch (error) {
       console.error(`❌ Error obteniendo información de descarga:`, error);
@@ -213,14 +264,9 @@ class APIService {
       const endpoint = fileType === 'model' ? 'model.json' : 'weights.bin';
       const url = `${API_BASE_URL}/train/download/model/${category}/${modelName}/${endpoint}`;
       
-      const response = await fetch(url);
+      const response = await this.fetchWithRetry(url);
       
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
       console.log(`✅ ${fileType} descargado exitosamente`);
-      
       return response;
     } catch (error) {
       console.error(`❌ Error descargando ${fileType}:`, error);
@@ -239,20 +285,14 @@ class APIService {
         model_name: options.modelName || null
       };
 
-      const response = await fetch(`${API_BASE_URL}/predict/${category}/predict`, {
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/predict/${category}/predict`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
       return await response.json();
     } catch (error) {
-      console.error('Error en predicción:', error);
+      console.error('❌ Error en predicción:', error);
       throw error;
     }
   }
@@ -265,62 +305,58 @@ class APIService {
         confidence_threshold: options.threshold || 0.7
       };
 
-      const response = await fetch(`${API_BASE_URL}/predict/${category}/batch-predict`, {
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/predict/${category}/batch-predict`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
 
       return await response.json();
     } catch (error) {
-      console.error('Error en predicción batch:', error);
+      console.error('❌ Error en predicción batch:', error);
       throw error;
     }
   }
 
   async getAvailableModels() {
     try {
-      const response = await fetch(`${API_BASE_URL}/predict/available`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/predict/available`);
       return await response.json();
     } catch (error) {
-      console.error('Error obteniendo modelos disponibles:', error);
+      console.error('❌ Error obteniendo modelos disponibles:', error);
       return { available_models: [], categories: {}, total: 0 };
     }
   }
 
   async getCategoryModels(category) {
     try {
-      const response = await fetch(`${API_BASE_URL}/predict/${category}/models`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/predict/${category}/models`);
       return await response.json();
     } catch (error) {
-      console.error('Error obteniendo modelos de categoría:', error);
+      console.error('❌ Error obteniendo modelos de categoría:', error);
       return { category, models: [], total: 0, default_model: null };
     }
   }
 
   async getDetailedModelInfo(category, modelName) {
     try {
-      const response = await fetch(`${API_BASE_URL}/predict/${category}/${modelName}/info`);
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/predict/${category}/${modelName}/info`);
       return await response.json();
     } catch (error) {
-      console.error('Error obteniendo información detallada:', error);
+      console.error('❌ Error obteniendo información detallada:', error);
       throw error;
     }
   }
 
   async loadModel(category, modelName) {
     try {
-      const response = await fetch(`${API_BASE_URL}/predict/load-model`, {
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/predict/load-model`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category, model_name: modelName })
       });
 
       return await response.json();
     } catch (error) {
-      console.error('Error cargando modelo:', error);
+      console.error('❌ Error cargando modelo:', error);
       throw error;
     }
   }
@@ -333,20 +369,14 @@ class APIService {
         model_name: options.modelName || null
       };
 
-      const response = await fetch(`${API_BASE_URL}/predict/${category}/practice/check`, {
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/predict/${category}/practice/check`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
       return await response.json();
     } catch (error) {
-      console.error('Error en práctica de predicción:', error);
+      console.error('❌ Error en práctica de predicción:', error);
       throw error;
     }
   }
@@ -357,44 +387,36 @@ class APIService {
     try {
       console.log(`📥 Descargando datos de entrenamiento para: ${category}`);
 
-      const response = await fetch(`${API_BASE_URL}/train/${category}/download-training-data`);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
-
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/train/${category}/download-training-data`);
       const data = await response.json();
 
       console.log(`✅ Datos descargados exitosamente:`, {
         categoria: data.category,
-        muestras: data.statistics.total_samples,
-        etiquetas: data.statistics.total_labels,
+        muestras: data.statistics?.total_samples,
+        etiquetas: data.statistics?.total_labels,
         labels: data.labels
       });
 
       return data;
-
     } catch (error) {
       console.error(`❌ Error descargando datos de ${category}:`, error);
       throw error;
     }
   }
 
-  // ========== 🆕 VERIFICACIÓN DE CONECTIVIDAD ==========
+  // ========== 🆕 VERIFICACIÓN DE CONECTIVIDAD MEJORADA ==========
 
   async checkBackendConnection() {
     try {
       console.log('🔍 Verificando conexión con el backend...');
       
-      const response = await fetch(`${API_BASE_URL}/train/models/available`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(5000) // Timeout de 5 segundos
-      });
+      // 🚨 USAR ENDPOINT DE SALUD EN LUGAR DE MODELOS
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/health`);
       
       if (response.ok) {
-        console.log('✅ Conexión con backend establecida');
-        return { connected: true, status: 'online' };
+        const data = await response.json();
+        console.log('✅ Conexión con backend establecida:', data);
+        return { connected: true, status: 'online', data };
       } else {
         console.warn(`⚠️ Backend respondió con status: ${response.status}`);
         return { connected: false, status: 'error', code: response.status };
@@ -402,8 +424,8 @@ class APIService {
     } catch (error) {
       console.error('❌ Error de conectividad:', error.message);
       
-      if (error.name === 'TimeoutError') {
-        return { connected: false, status: 'timeout', error: 'Timeout de conexión' };
+      if (error.name === 'AbortError') {
+        return { connected: false, status: 'timeout', error: 'Timeout de conexión (Render puede estar durmiendo)' };
       }
       
       return { connected: false, status: 'offline', error: error.message };
@@ -412,27 +434,20 @@ class APIService {
 
   // ========== UTILIDADES ==========
 
-  async pingServer() {
+  async corsTest() {
     try {
-      const response = await fetch(`${API_BASE_URL}/ping`);
-      return await response.json();
+      console.log('🧪 Probando CORS...');
+      
+      const response = await this.fetchWithRetry(`${API_BASE_URL}/cors-test`);
+      const result = await response.json();
+      
+      console.log('✅ CORS funcionando:', result);
+      return result;
     } catch (error) {
-      console.error('Error haciendo ping al servidor:', error);
-      return { status: 'offline' };
-    }
-  }
-
-  async getServerInfo() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/info`);
-      return await response.json();
-    } catch (error) {
-      console.error('Error obteniendo info del servidor:', error);
+      console.error('❌ Error en test CORS:', error);
       throw error;
     }
   }
-
-  // ========== 🆕 MÉTODOS PARA DEBUGGING ==========
 
   getApiUrl() {
     return API_BASE_URL;
@@ -463,4 +478,16 @@ class APIService {
 }
 
 const apiService = new APIService();
+
+// 🆕 TEST INICIAL DE CONECTIVIDAD
+apiService.checkBackendConnection().then(result => {
+  if (result.connected) {
+    console.log('🎉 Backend conectado exitosamente al cargar la aplicación');
+  } else {
+    console.warn('⚠️ Backend no disponible al cargar la aplicación:', result);
+  }
+}).catch(error => {
+  console.warn('⚠️ Error en test inicial de conectividad:', error);
+});
+
 export default apiService;

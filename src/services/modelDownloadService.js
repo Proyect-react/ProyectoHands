@@ -1,12 +1,56 @@
-// src/services/modelDownloadService.js - VERSIÓN COMPLETA
+// src/services/modelDownloadService.js - VERSIÓN COMPLETA Y CORREGIDA PARA RENDER
 import * as tf from '@tensorflow/tfjs';
 
 class ModelDownloadService {
   constructor() {
-    this.API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+    // 🚨 URL CORREGIDA PARA RENDER (NO localhost)
+    this.API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
     this.downloadedModels = new Map();
     this.modelCache = new Map(); // Cache en memoria
     this.downloadPromises = new Map(); // Evitar descargas duplicadas
+    
+    // 🆕 CONFIGURACIÓN PARA RENDER (servidor puede ser lento)
+    this.timeout = 45000; // 45 segundos para Render
+    this.retryAttempts = 3;
+    
+    console.log(`🤖 ModelDownloadService inicializado con URL: ${this.API_BASE_URL}`);
+  }
+
+  // 🆕 MÉTODO PARA HACER PETICIONES CON RETRY Y TIMEOUT
+  async fetchWithRetry(url, options = {}, attempt = 1) {
+    try {
+      console.log(`📡 Descarga ${attempt}/${this.retryAttempts}: ${url}`);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+          ...options.headers,
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response;
+    } catch (error) {
+      console.warn(`⚠️ Intento ${attempt} falló para descarga:`, error.message);
+      
+      if (attempt < this.retryAttempts && error.name !== 'AbortError') {
+        console.log(`🔄 Reintentando descarga en 3 segundos...`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return this.fetchWithRetry(url, options, attempt + 1);
+      }
+      
+      throw error;
+    }
   }
 
   // ========== DESCARGA AUTOMÁTICA DE MODELOS ==========
@@ -70,21 +114,28 @@ class ModelDownloadService {
 
   async getAvailableModels() {
     try {
-      const response = await fetch(`${this.API_BASE_URL}/train/models/available`);
+      // 🚨 USAR fetchWithRetry EN LUGAR DE fetch SIMPLE
+      const response = await this.fetchWithRetry(`${this.API_BASE_URL}/train/models/available`);
       
-      if (!response.ok) {
-        if (response.status === 404) {
-          console.log('ℹ️ Backend no tiene modelos disponibles');
-          return [];
-        }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
       const data = await response.json();
+      console.log(`✅ Respuesta del servidor:`, data);
+      
       return data.models || [];
 
     } catch (error) {
       console.error('❌ Error obteniendo modelos disponibles:', error);
+      
+      // 🆕 MANEJAR CASOS ESPECÍFICOS DE RENDER
+      if (error.message.includes('404')) {
+        console.log('ℹ️ Backend no tiene modelos disponibles (404)');
+        return [];
+      }
+      
+      if (error.name === 'AbortError') {
+        console.log('⏰ Timeout conectando al backend (Render puede estar durmiendo)');
+        throw new Error('Timeout: El backend puede estar iniciándose. Intenta de nuevo en unos segundos.');
+      }
+      
       throw error;
     }
   }
@@ -99,6 +150,7 @@ class ModelDownloadService {
       
       // Si no existe localmente, descargar
       if (!localVersion || !localTimestamp) {
+        console.log(`📥 Modelo ${modelKey} no existe localmente`);
         return true;
       }
 
@@ -163,17 +215,28 @@ class ModelDownloadService {
         throw new Error('URLs de descarga no disponibles');
       }
 
-      // Construir URLs completas
+      // 🚨 CONSTRUIR URLs COMPLETAS PARA RENDER
       const fullModelUrl = `${this.API_BASE_URL}${model_url}`;
       const fullWeightsUrl = `${this.API_BASE_URL}${weights_url}`;
 
       console.log(`📡 Descargando desde: ${fullModelUrl}`);
 
-      // Cargar modelo usando TensorFlow.js
+      // 🆕 DESCARGAR CON RETRY PARA RENDER
+      const modelResponse = await this.fetchWithRetry(fullModelUrl);
+      const weightsResponse = await this.fetchWithRetry(fullWeightsUrl);
+
+      // Verificar que ambas descargas fueron exitosas
+      if (!modelResponse.ok || !weightsResponse.ok) {
+        throw new Error('Error descargando archivos del modelo');
+      }
+
+      // 🆕 CREAR MODELO USANDO TENSORFLOW.JS con URLs de Render
+      console.log(`🧠 Cargando modelo con TensorFlow.js...`);
+      
       const loadedModel = await tf.loadLayersModel(fullModelUrl);
 
       if (!loadedModel) {
-        throw new Error('No se pudo cargar el modelo');
+        throw new Error('No se pudo cargar el modelo con TensorFlow.js');
       }
 
       // Guardar en IndexedDB
@@ -209,6 +272,16 @@ class ModelDownloadService {
 
     } catch (error) {
       console.error(`❌ Error en descarga de ${modelKey}:`, error);
+      
+      // 🆕 ERRORES ESPECÍFICOS DE RENDER
+      if (error.name === 'AbortError') {
+        return { success: false, error: 'Timeout descargando modelo (Render puede estar lento)' };
+      }
+      
+      if (error.message.includes('404')) {
+        return { success: false, error: 'Modelo no encontrado en el servidor' };
+      }
+      
       return { success: false, error: error.message };
     }
   }
@@ -229,6 +302,9 @@ class ModelDownloadService {
 
       // Cargar desde IndexedDB
       const indexedDBKey = `indexeddb://${modelKey}`;
+      
+      console.log(`📁 Intentando cargar desde IndexedDB: ${indexedDBKey}`);
+      
       const loadedModel = await tf.loadLayersModel(indexedDBKey);
 
       if (!loadedModel) {
@@ -288,7 +364,7 @@ class ModelDownloadService {
     }
   }
 
-  // ========== UTILIDADES ==========
+  // ========== UTILIDADES MEJORADAS ==========
 
   async modelExistsInIndexedDB(modelKey) {
     try {
@@ -348,16 +424,295 @@ class ModelDownloadService {
     }
   }
 
+  // 🆕 MÉTODO PARA DIAGNOSTICAR PROBLEMAS CON RENDER
+  async diagnoseConnection() {
+    console.log('🔍 Diagnóstico de conexión con Render...');
+    
+    const results = {
+      apiUrl: this.API_BASE_URL,
+      timestamp: new Date().toISOString(),
+      tests: {}
+    };
+
+    try {
+      // Test 1: Conectividad básica
+      console.log('Test 1: Conectividad básica...');
+      const healthResponse = await this.fetchWithRetry(`${this.API_BASE_URL}/health`);
+      results.tests.health = { 
+        success: true, 
+        data: await healthResponse.json(),
+        responseTime: 'OK'
+      };
+      console.log('✅ Test 1 pasado');
+    } catch (error) {
+      results.tests.health = { success: false, error: error.message };
+      console.log('❌ Test 1 falló:', error.message);
+    }
+
+    try {
+      // Test 2: CORS
+      console.log('Test 2: CORS...');
+      const corsResponse = await this.fetchWithRetry(`${this.API_BASE_URL}/cors-test`);
+      results.tests.cors = { 
+        success: true, 
+        data: await corsResponse.json() 
+      };
+      console.log('✅ Test 2 pasado');
+    } catch (error) {
+      results.tests.cors = { success: false, error: error.message };
+      console.log('❌ Test 2 falló:', error.message);
+    }
+
+    try {
+      // Test 3: Modelos disponibles
+      console.log('Test 3: Modelos disponibles...');
+      const modelsResponse = await this.fetchWithRetry(`${this.API_BASE_URL}/train/models/available`);
+      const modelsData = await modelsResponse.json();
+      results.tests.models = { 
+        success: true, 
+        count: modelsData.total || 0,
+        data: modelsData 
+      };
+      console.log('✅ Test 3 pasado');
+    } catch (error) {
+      results.tests.models = { success: false, error: error.message };
+      console.log('❌ Test 3 falló:', error.message);
+    }
+
+    console.log('📊 Diagnóstico completo:', results);
+    return results;
+  }
+
   getStatus() {
     return {
       downloadedModels: this.downloadedModels.size,
       cachedModels: this.modelCache.size,
       memoryStats: tf.memory(),
-      apiUrl: this.API_BASE_URL
+      apiUrl: this.API_BASE_URL,
+      timeout: this.timeout,
+      retryAttempts: this.retryAttempts
     };
+  }
+
+  // 🆕 MÉTODOS ADICIONALES ÚTILES
+
+  async getDownloadedModelInfo(category, modelName) {
+    try {
+      const modelKey = `${category}_${modelName}`;
+      const infoStr = localStorage.getItem(`${modelKey}_info`);
+      
+      if (!infoStr) {
+        throw new Error(`No se encontró información del modelo ${modelKey}`);
+      }
+      
+      return JSON.parse(infoStr);
+    } catch (error) {
+      console.error('Error obteniendo información del modelo:', error);
+      return null;
+    }
+  }
+
+  async getModelStatus(category, modelName) {
+    const modelKey = `${category}_${modelName}`;
+    
+    try {
+      const status = {
+        modelKey,
+        category,
+        modelName,
+        existsInMemory: this.modelCache.has(modelKey),
+        existsInLocalStorage: !!localStorage.getItem(`${modelKey}_info`),
+        existsInIndexedDB: await this.modelExistsInIndexedDB(modelKey),
+        info: null,
+        error: null
+      };
+
+      // Obtener información si existe
+      if (status.existsInLocalStorage) {
+        try {
+          status.info = JSON.parse(localStorage.getItem(`${modelKey}_info`));
+        } catch (error) {
+          status.error = `Error parseando info: ${error.message}`;
+        }
+      }
+
+      // Estado general
+      status.ready = status.existsInIndexedDB && status.existsInLocalStorage;
+      status.needsDownload = !status.ready;
+
+      return status;
+    } catch (error) {
+      return {
+        modelKey,
+        category, 
+        modelName,
+        error: error.message,
+        ready: false,
+        needsDownload: true
+      };
+    }
+  }
+
+  async clearSpecificModel(category, modelName) {
+    try {
+      const modelKey = `${category}_${modelName}`;
+      
+      console.log(`🧹 Limpiando modelo específico: ${modelKey}`);
+
+      // Limpiar de memoria
+      if (this.modelCache.has(modelKey)) {
+        const cached = this.modelCache.get(modelKey);
+        if (cached.model) {
+          tf.dispose(cached.model);
+        }
+        this.modelCache.delete(modelKey);
+        console.log(`  ✅ Removido de memoria`);
+      }
+
+      // Limpiar de localStorage
+      const keysToRemove = [
+        `${modelKey}_version`,
+        `${modelKey}_timestamp`,
+        `${modelKey}_labels`,
+        `${modelKey}_accuracy`,
+        `${modelKey}_info`
+      ];
+
+      keysToRemove.forEach(key => {
+        if (localStorage.getItem(key)) {
+          localStorage.removeItem(key);
+        }
+      });
+      console.log(`  ✅ Removido de localStorage`);
+
+      // Limpiar de IndexedDB
+      try {
+        const indexedDBKey = `indexeddb://${modelKey}`;
+        await tf.io.removeModel(indexedDBKey);
+        console.log(`  ✅ Removido de IndexedDB`);
+      } catch (error) {
+        console.warn(`  ⚠️ No se pudo remover de IndexedDB: ${error.message}`);
+      }
+
+      // Limpiar de maps internos
+      this.downloadedModels.delete(modelKey);
+      this.downloadPromises.delete(modelKey);
+
+      console.log(`✅ Modelo ${modelKey} limpiado completamente`);
+      
+      return { success: true, modelKey };
+
+    } catch (error) {
+      console.error(`❌ Error limpiando modelo ${category}/${modelName}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async forceDownloadModel(category, modelName) {
+    try {
+      console.log(`🔄 Forzando descarga de ${category}/${modelName}...`);
+      
+      const modelKey = `${category}_${modelName}`;
+      
+      // Limpiar cache existente
+      await this.clearSpecificModel(category, modelName);
+      
+      // Obtener información del modelo desde el backend
+      const modelsInfo = await this.getAvailableModels();
+      const modelInfo = modelsInfo.find(m => m.category === category && m.model_name === modelName);
+      
+      if (!modelInfo) {
+        throw new Error(`Modelo ${category}/${modelName} no encontrado en el backend`);
+      }
+      
+      // Descargar
+      const result = await this.downloadModel(modelInfo);
+      
+      if (result.success) {
+        console.log(`✅ Descarga forzada exitosa para ${modelKey}`);
+      } else {
+        console.log(`❌ Descarga forzada falló para ${modelKey}:`, result.error);
+      }
+      
+      return result;
+      
+    } catch (error) {
+      console.error(`❌ Error en descarga forzada:`, error);
+      return { success: false, error: error.message };
+    }
   }
 }
 
 // Exportar instancia única
 const modelDownloadService = new ModelDownloadService();
+
+// 🆕 TEST INICIAL PARA RENDER - Con mejor manejo de errores
+modelDownloadService.diagnoseConnection()
+  .then(results => {
+    const healthPassed = results.tests.health?.success;
+    const corsPassed = results.tests.cors?.success;
+    const modelsPassed = results.tests.models?.success;
+    
+    if (healthPassed && corsPassed) {
+      console.log('🎉 ModelDownloadService: Conexión con Render exitosa');
+      if (modelsPassed) {
+        console.log(`📦 ${results.tests.models.count} modelos disponibles en backend`);
+      } else {
+        console.log('ℹ️ Backend conectado pero sin modelos disponibles');
+      }
+    } else {
+      console.warn('⚠️ ModelDownloadService: Problemas de conexión con Render:', {
+        health: healthPassed ? '✅' : '❌',
+        cors: corsPassed ? '✅' : '❌', 
+        models: modelsPassed ? '✅' : '❌'
+      });
+      
+      // Sugerencias específicas
+      if (!healthPassed) {
+        console.warn('💡 Sugerencia: Verifica que el backend esté ejecutándose en Render');
+      }
+      if (!corsPassed) {
+        console.warn('💡 Sugerencia: Actualiza la configuración CORS en main.py');
+      }
+    }
+  })
+  .catch(error => {
+    console.warn('⚠️ Error en diagnóstico inicial de ModelDownloadService:', error.message);
+    
+    if (error.message.includes('fetch')) {
+      console.warn('💡 Posible causa: El backend en Render puede estar durmiendo o no disponible');
+    }
+  });
+
+// 🆕 EXPORTAR TAMBIÉN MÉTODOS ÚTILES PARA DEBUGGING
+export const modelDownloadServiceDebug = {
+  async testConnection() {
+    return await modelDownloadService.diagnoseConnection();
+  },
+  
+  async forceDownload(category, modelName) {
+    return await modelDownloadService.forceDownloadModel(category, modelName);
+  },
+  
+  async getStatus() {
+    return modelDownloadService.getStatus();
+  },
+  
+  async clearAll() {
+    return await modelDownloadService.clearCache();
+  },
+  
+  async clearModel(category, modelName) {
+    return await modelDownloadService.clearSpecificModel(category, modelName);
+  },
+
+  async getModelInfo(category, modelName) {
+    return await modelDownloadService.getDownloadedModelInfo(category, modelName);
+  },
+
+  async checkModel(category, modelName) {
+    return await modelDownloadService.getModelStatus(category, modelName);
+  }
+};
+
 export default modelDownloadService;
