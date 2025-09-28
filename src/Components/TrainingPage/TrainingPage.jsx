@@ -1034,19 +1034,6 @@ const TrainingIntegrated = () => {
             </div>
           )}
         </div>
-
-        {/* Descripción del flujo */}
-        <div className="flow-description" style={{
-          marginTop: '10px',
-          padding: '10px',
-          background: '#f0f8ff',
-          borderRadius: '5px',
-          fontSize: '14px',
-          color: '#333'
-        }}>
-          <strong>Flujo Completo:</strong>
-          📦 Buffer (10) → 🌐 Backend → 🧠 Entrena Local → ☁️ Sube Backend → 📥 Descarga Automática → 🎯 Practica
-        </div>
       </div>
 
       <div className="training-content">
@@ -1085,54 +1072,6 @@ const TrainingIntegrated = () => {
           {/* Modo Recolección */}
           {mode === 'collect' && (
             <div className="collect-panel">
-              <h3>📊 Recolección de Datos - {categories[selectedCategory]?.name}</h3>
-
-              {/* INDICADOR DE BUFFER */}
-              <div style={{
-                background: bufferStatus.sending ? '#fff3e0' : bufferStatus.count > 0 ? '#e8f5e8' : '#f0f8ff',
-                padding: '10px',
-                borderRadius: '5px',
-                marginBottom: '10px',
-                fontSize: '14px',
-                border: `2px solid ${bufferStatus.sending ? '#FF9800' : bufferStatus.count > 0 ? '#4CAF50' : '#2196F3'}`
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    📦 <strong>Buffer:</strong> {bufferStatus.count}/10 muestras
-                    {bufferStatus.sending && ' 🚀 Enviando...'}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>
-                    Total: {bufferStatus.totalCollected}
-                  </div>
-                </div>
-
-                <div style={{
-                  background: '#e0e0e0',
-                  height: '4px',
-                  borderRadius: '2px',
-                  marginTop: '5px',
-                  overflow: 'hidden'
-                }}>
-                  <div style={{
-                    width: `${(bufferStatus.count / BUFFER_SIZE) * 100}%`,
-                    height: '100%',
-                    background: bufferStatus.sending ? '#FF9800' : '#4CAF50',
-                    transition: 'width 0.3s ease'
-                  }} />
-                </div>
-
-                <div style={{ fontSize: '11px', color: '#666', marginTop: '3px' }}>
-                  {bufferStatus.sending
-                    ? 'Enviando al backend...'
-                    : bufferStatus.count === 0
-                      ? 'Acumula 10 muestras → envío automático'
-                      : `${10 - bufferStatus.count} muestras más para envío automático`
-                  }
-                  {bufferStatus.lastSent && (
-                    <span> | Último envío: {new Date(bufferStatus.lastSent).toLocaleTimeString()}</span>
-                  )}
-                </div>
-              </div>
 
               <div className="label-selector">
                 <h4>Seleccionar Etiqueta:</h4>
@@ -1269,15 +1208,6 @@ const TrainingIntegrated = () => {
           {/* Modo Entrenamiento */}
           {mode === 'train' && (
             <div className="train-panel">
-              <h3>🧠 Entrenamiento - {categories[selectedCategory]?.name}</h3>
-              <div style={{
-                background: '#e8f5e8',
-                padding: '10px',
-                borderRadius: '5px',
-                marginBottom: '10px'
-              }}>
-                💻 <strong>Entrenamiento local + Subida automática al backend</strong>
-              </div>
 
               <div className="dataset-summary">
                 <h4>Estado del Dataset (Backend):</h4>
@@ -1400,21 +1330,6 @@ const TrainingIntegrated = () => {
           {/* 🆕 Modo Práctica ACTUALIZADO */}
           {mode === 'practice' && (
             <div className="practice-panel">
-              <h3>🎯 Práctica - {categories[selectedCategory]?.name}</h3>
-              
-              {/* 🆕 INDICADOR DE MODELOS DISPONIBLES */}
-              <div style={{
-                background: availableModels.length > 0 ? '#e8f5e8' : '#fff3e0',
-                padding: '10px',
-                borderRadius: '5px',
-                marginBottom: '10px'
-              }}>
-                <strong>🤖 Modelos disponibles:</strong> {availableModels.length}
-                <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
-                  {availableModels.filter(m => m.source === 'downloaded').length} descargados del backend | 
-                  {availableModels.filter(m => m.source === 'local').length} entrenados localmente
-                </div>
-              </div>
 
               {/* Selector de Modelo MEJORADO */}
               <div className="model-selector" style={{ marginBottom: '20px' }}>
