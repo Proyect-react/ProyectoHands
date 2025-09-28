@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './EntrenarVocales.css';
-import DeteccionVocales from '../../Camara/camaradeteccionVocales';
+// Cambiar la importación para usar importación nombrada
+import { DeteccionVocales } from '../../Camara/camaradeteccionVocales';
 
 // 🔥 CLAVES SEPARADAS SOLO PARA PRÁCTICA (no interfieren con TrainingPage)
 const LOCAL_STORAGE_PRACTICE_KEY = 'practice_vocales_stats';
@@ -213,6 +214,43 @@ function EntrenarVocales() {
   const getImagePath = (char) => {
     return process.env.PUBLIC_URL + `/img/Letra ${char}.jpg`;
   };
+
+  // Función para borrar todas las muestras de una categoría
+  const clearCategoryData = async (category) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}`, {
+        method: 'DELETE'
+      });
+      
+      const result = await response.json();
+      console.log('✅ Datos eliminados:', result.message);
+      return result;
+    } catch (error) {
+      console.error('❌ Error eliminando datos:', error);
+    }
+  };
+
+  // Función para borrar muestras de una etiqueta específica
+  const clearLabelData = async (category, label) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/collect/clear/${category}?label=${label}`, {
+        method: 'DELETE'
+      });
+      
+      const result = await response.json();
+      console.log('✅ Etiqueta eliminada:', result.message);
+      return result;
+    } catch (error) {
+      console.error('❌ Error eliminando etiqueta:', error);
+    }
+  };
+
+  // Ejemplos de uso:
+  // Borrar toda la categoría vocales
+  // clearCategoryData('vocales');
+
+  // Borrar solo las muestras de la letra "A"
+  // clearLabelData('vocales', 'A');
 
   return (
     <div className="training-container">
