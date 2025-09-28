@@ -1,209 +1,363 @@
-// src/services/modelDownloadService.js - VERSIÓN CORREGIDA
+// src/services/modelDownloadService.js - VERSIÓN COMPLETA
 import * as tf from '@tensorflow/tfjs';
 
 class ModelDownloadService {
   constructor() {
-    this.BACKEND_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
-    this.MODEL_CACHE_KEY = 'latest-model';
+    this.API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
+    this.downloadedModels = new Map();
+    this.modelCache = new Map(); // Cache en memoria
+    this.downloadPromises = new Map(); // Evitar descargas duplicadas
   }
 
-  async loadLatestModel() {
-    try {
-      console.log("🔄 Intentando cargar modelo desde cache local...");
-      
-      // Intentar cargar desde IndexedDB primero
-      let model = await tf.loadLayersModel(`indexeddb://${this.MODEL_CACHE_KEY}`);
-      console.log("✅ Modelo cargado desde cache local");
-      
-      // Verificar que el modelo es válido
-      if (model && model.inputs && model.outputs) {
-        return {
-          model: model,
-          source: 'cache',
-          message: 'Modelo cargado desde cache local'
-        };
-      } else {
-        throw new Error('Modelo en cache no es válido');
-      }
-      
-    } catch (error) {
-      console.log("⚠️ No había modelo en cache, descargando del backend...", error.message);
-      
-      try {
-        // Descargar del backend
-        const modelUrl = `${this.BACKEND_URL}/train/model/latest/model.json`;
-        console.log(`📥 Descargando modelo desde: ${modelUrl}`);
-        
-        model = await tf.loadLayersModel(modelUrl);
-        
-        // Verificar que el modelo descargado es válido
-        if (!model || !model.inputs || !model.outputs) {
-          throw new Error('Modelo descargado no es válido');
-        }
+  // ========== DESCARGA AUTOMÁTICA DE MODELOS ==========
 
-        // Guardar en IndexedDB para uso futuro
-        console.log("💾 Guardando modelo en cache local...");
-        await model.save(`indexeddb://${this.MODEL_CACHE_KEY}`);
-        
-        console.log("✅ Modelo descargado y guardado localmente");
-        
-        return {
-          model: model,
-          source: 'backend',
-          message: 'Modelo descargado del backend y guardado en cache'
-        };
-        
-      } catch (downloadError) {
-        console.error("❌ Error descargando modelo:", downloadError);
-        
-        // Verificar si es un error de red o de modelo no encontrado
-        if (downloadError.message.includes('404') || downloadError.message.includes('Failed to fetch')) {
-          throw new Error('No se pudo conectar al backend o el modelo no está disponible');
-        } else {
-          throw new Error(`Error descargando modelo: ${downloadError.message}`);
+  async checkAndDownloadModels(category = null) {
+    try {
+      console.log('🔍 Verificando modelos disponibles en el backend...');
+      
+      // Obtener lista de modelos disponibles
+      const availableModels = await this.getAvailableModels();
+      
+      if (availableModels.length === 0) {
+        console.log('ℹ️ No hay modelos disponibles en el backend');
+        return { downloaded: [], skipped: [], errors: [] };
+      }
+
+      // Filtrar por categoría si se especifica
+      const modelsToCheck = category 
+        ? availableModels.filter(model => model.category === category)
+        : availableModels;
+
+      console.log(`📋 Encontrados ${modelsToCheck.length} modelos para verificar`);
+
+      const results = {
+        downloaded: [],
+        skipped: [],
+        errors: []
+      };
+
+      // Verificar y descargar cada modelo
+      for (const modelInfo of modelsToCheck) {
+        try {
+          const shouldDownload = await this.shouldDownloadModel(modelInfo);
+          
+          if (shouldDownload) {
+            console.log(`⬇️ Descargando modelo: ${modelInfo.category}/${modelInfo.model_name}`);
+            const downloaded = await this.downloadModel(modelInfo);
+            if (downloaded.success) {
+              results.downloaded.push(modelInfo);
+            } else {
+              results.errors.push({ model: modelInfo, error: downloaded.error });
+            }
+          } else {
+            console.log(`✅ Modelo ya actualizado: ${modelInfo.category}/${modelInfo.model_name}`);
+            results.skipped.push(modelInfo);
+          }
+        } catch (error) {
+          console.error(`❌ Error procesando modelo ${modelInfo.category}/${modelInfo.model_name}:`, error);
+          results.errors.push({ model: modelInfo, error: error.message });
         }
       }
+
+      console.log('📊 Resumen de descarga:', results);
+      return results;
+
+    } catch (error) {
+      console.error('❌ Error en verificación automática:', error);
+      throw error;
     }
   }
 
-  async checkForUpdates() {
+  async getAvailableModels() {
     try {
-      console.log("🔍 Verificando actualizaciones del modelo...");
-      
-      // Verificar si hay nueva versión en el backend
-      const response = await fetch(`${this.BACKEND_URL}/train/model/latest/info`);
+      const response = await fetch(`${this.API_BASE_URL}/train/models/available`);
       
       if (!response.ok) {
-        throw new Error(`Backend responded with status: ${response.status}`);
+        if (response.status === 404) {
+          console.log('ℹ️ Backend no tiene modelos disponibles');
+          return [];
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
-      const backendInfo = await response.json();
-      
-      // Comparar con versión local (guardar metadata en localStorage)
-      const localVersion = localStorage.getItem('model_version');
-      const localTimestamp = localStorage.getItem('model_timestamp');
-      
-      console.log(`📊 Versión local: ${localVersion}, Backend: ${backendInfo.version}`);
-      
-      if (!localVersion || localVersion !== backendInfo.version) {
-        console.log("🔄 Nueva versión disponible, actualizando...");
-        
-        // Descargar nuevo modelo
-        const result = await this.loadLatestModel();
-        
-        // Actualizar metadata local
-        localStorage.setItem('model_version', backendInfo.version);
-        localStorage.setItem('model_timestamp', new Date().toISOString());
-        localStorage.setItem('model_source', result.source);
-        
-        return {
-          updated: true,
-          version: backendInfo.version,
-          source: result.source,
-          message: 'Modelo actualizado exitosamente'
-        };
-      } else {
-        console.log("✅ Modelo está actualizado");
-        return {
-          updated: false,
-          version: localVersion,
-          message: 'El modelo ya está actualizado'
-        };
-      }
-      
+
+      const data = await response.json();
+      return data.models || [];
+
     } catch (error) {
-      console.warn("⚠️ No se pudo verificar actualizaciones:", error.message);
-      
-      return {
-        updated: false,
-        error: error.message,
-        message: 'No se pudo verificar actualizaciones'
-      };
+      console.error('❌ Error obteniendo modelos disponibles:', error);
+      throw error;
     }
   }
 
-  async getModelInfo() {
+  async shouldDownloadModel(modelInfo) {
     try {
-      const version = localStorage.getItem('model_version');
-      const timestamp = localStorage.getItem('model_timestamp');
-      const source = localStorage.getItem('model_source');
+      const modelKey = `${modelInfo.category}_${modelInfo.model_name}`;
       
-      return {
-        version: version || 'Desconocida',
-        timestamp: timestamp || 'No disponible',
-        source: source || 'No disponible',
-        cacheKey: this.MODEL_CACHE_KEY,
-        backendUrl: this.BACKEND_URL
-      };
+      // Verificar cache local
+      const localVersion = localStorage.getItem(`${modelKey}_version`);
+      const localTimestamp = localStorage.getItem(`${modelKey}_timestamp`);
+      
+      // Si no existe localmente, descargar
+      if (!localVersion || !localTimestamp) {
+        return true;
+      }
+
+      // Comparar fechas de entrenamiento
+      const backendDate = new Date(modelInfo.training_date);
+      const localDate = new Date(localTimestamp);
+      
+      // Si el modelo del backend es más reciente, descargar
+      if (backendDate > localDate) {
+        console.log(`🔄 Nueva versión disponible para ${modelKey}`);
+        return true;
+      }
+
+      // Verificar que los archivos realmente existan en IndexedDB
+      const exists = await this.modelExistsInIndexedDB(modelKey);
+      if (!exists) {
+        console.log(`📁 Modelo ${modelKey} no existe en IndexedDB, descargando`);
+        return true;
+      }
+
+      return false;
+
     } catch (error) {
-      console.error('Error obteniendo información del modelo:', error);
-      return {
-        version: 'Error',
-        timestamp: 'Error',
-        source: 'Error',
-        error: error.message
-      };
+      console.warn(`⚠️ Error verificando modelo, descargando por seguridad:`, error);
+      return true;
     }
   }
 
-  async clearCache() {
+  async downloadModel(modelInfo) {
     try {
-      console.log("🧹 Limpiando cache del modelo...");
+      const modelKey = `${modelInfo.category}_${modelInfo.model_name}`;
       
-      // Intentar eliminar de IndexedDB
+      // Evitar descargas duplicadas
+      if (this.downloadPromises.has(modelKey)) {
+        console.log(`⏳ Descarga ya en progreso para ${modelKey}`);
+        return await this.downloadPromises.get(modelKey);
+      }
+
+      const downloadPromise = this._performDownload(modelInfo, modelKey);
+      this.downloadPromises.set(modelKey, downloadPromise);
+
       try {
-        // TensorFlow.js no tiene un método directo para eliminar, pero podemos intentar sobreescribir
-        await tf.io.removeModel(`indexeddb://${this.MODEL_CACHE_KEY}`);
-      } catch (e) {
-        console.log("No se pudo eliminar modelo de IndexedDB, puede que no exista");
+        const result = await downloadPromise;
+        return result;
+      } finally {
+        this.downloadPromises.delete(modelKey);
       }
-      
-      // Limpiar localStorage
-      localStorage.removeItem('model_version');
-      localStorage.removeItem('model_timestamp');
-      localStorage.removeItem('model_source');
-      
-      console.log("✅ Cache limpiado exitosamente");
-      
-      return {
-        success: true,
-        message: 'Cache del modelo limpiado exitosamente'
-      };
-      
+
     } catch (error) {
-      console.error('Error limpiando cache:', error);
-      return {
-        success: false,
-        error: error.message
-      };
+      console.error(`❌ Error descargando modelo:`, error);
+      return { success: false, error: error.message };
     }
   }
 
-  // Método para verificar si hay un modelo disponible localmente
-  async hasLocalModel() {
+  async _performDownload(modelInfo, modelKey) {
     try {
-      await tf.loadLayersModel(`indexeddb://${this.MODEL_CACHE_KEY}`);
+      console.log(`📥 Iniciando descarga de ${modelKey}...`);
+
+      const { model_url, weights_url } = modelInfo.download_info;
+      
+      if (!model_url || !weights_url) {
+        throw new Error('URLs de descarga no disponibles');
+      }
+
+      // Construir URLs completas
+      const fullModelUrl = `${this.API_BASE_URL}${model_url}`;
+      const fullWeightsUrl = `${this.API_BASE_URL}${weights_url}`;
+
+      console.log(`📡 Descargando desde: ${fullModelUrl}`);
+
+      // Cargar modelo usando TensorFlow.js
+      const loadedModel = await tf.loadLayersModel(fullModelUrl);
+
+      if (!loadedModel) {
+        throw new Error('No se pudo cargar el modelo');
+      }
+
+      // Guardar en IndexedDB
+      const indexedDBKey = `indexeddb://${modelKey}`;
+      await loadedModel.save(indexedDBKey);
+
+      console.log(`💾 Modelo guardado en IndexedDB: ${indexedDBKey}`);
+
+      // Guardar metadata en localStorage
+      localStorage.setItem(`${modelKey}_version`, modelInfo.training_date);
+      localStorage.setItem(`${modelKey}_timestamp`, new Date().toISOString());
+      localStorage.setItem(`${modelKey}_labels`, JSON.stringify(modelInfo.labels));
+      localStorage.setItem(`${modelKey}_accuracy`, modelInfo.accuracy.toString());
+      localStorage.setItem(`${modelKey}_info`, JSON.stringify(modelInfo));
+
+      // Cachear en memoria
+      this.modelCache.set(modelKey, {
+        model: loadedModel,
+        labels: modelInfo.labels,
+        info: modelInfo
+      });
+
+      this.downloadedModels.set(modelKey, modelInfo);
+
+      console.log(`✅ Modelo ${modelKey} descargado y guardado exitosamente`);
+
+      return { 
+        success: true, 
+        modelKey,
+        model: loadedModel,
+        info: modelInfo
+      };
+
+    } catch (error) {
+      console.error(`❌ Error en descarga de ${modelKey}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ========== CARGA DE MODELOS ==========
+
+  async loadModel(category, modelName) {
+    try {
+      const modelKey = `${category}_${modelName}`;
+      
+      console.log(`🔄 Cargando modelo: ${modelKey}`);
+
+      // Verificar cache en memoria primero
+      if (this.modelCache.has(modelKey)) {
+        console.log(`⚡ Modelo encontrado en cache de memoria`);
+        return this.modelCache.get(modelKey);
+      }
+
+      // Cargar desde IndexedDB
+      const indexedDBKey = `indexeddb://${modelKey}`;
+      const loadedModel = await tf.loadLayersModel(indexedDBKey);
+
+      if (!loadedModel) {
+        throw new Error(`No se pudo cargar el modelo ${modelKey} desde IndexedDB`);
+      }
+
+      // Obtener metadata
+      const labelsStr = localStorage.getItem(`${modelKey}_labels`);
+      const infoStr = localStorage.getItem(`${modelKey}_info`);
+      
+      const labels = labelsStr ? JSON.parse(labelsStr) : [];
+      const info = infoStr ? JSON.parse(infoStr) : {};
+
+      // Cachear en memoria
+      const cachedData = {
+        model: loadedModel,
+        labels: labels,
+        info: info
+      };
+
+      this.modelCache.set(modelKey, cachedData);
+
+      console.log(`✅ Modelo ${modelKey} cargado exitosamente`);
+
+      return cachedData;
+
+    } catch (error) {
+      console.error(`❌ Error cargando modelo ${category}/${modelName}:`, error);
+      throw error;
+    }
+  }
+
+  async predict(category, modelName, landmarks) {
+    try {
+      const { model } = await this.loadModel(category, modelName);
+      
+      // Validar landmarks
+      if (!landmarks || landmarks.length !== 126) {
+        throw new Error(`Landmarks inválidos: esperados 126, recibidos ${landmarks?.length || 0}`);
+      }
+
+      // Convertir a tensor
+      const inputTensor = tf.tensor2d([landmarks], [1, 126], 'float32');
+      
+      // Hacer predicción
+      const prediction = model.predict(inputTensor);
+      const predictionArray = await prediction.data();
+      
+      // Limpiar tensores
+      tf.dispose([inputTensor, prediction]);
+      
+      return Array.from(predictionArray);
+
+    } catch (error) {
+      console.error(`❌ Error en predicción:`, error);
+      throw error;
+    }
+  }
+
+  // ========== UTILIDADES ==========
+
+  async modelExistsInIndexedDB(modelKey) {
+    try {
+      const indexedDBKey = `indexeddb://${modelKey}`;
+      await tf.loadLayersModel(indexedDBKey);
       return true;
     } catch (error) {
       return false;
     }
   }
 
-  // Método para obtener el estado del servicio
-  getStatus() {
-    const version = localStorage.getItem('model_version');
-    const timestamp = localStorage.getItem('model_timestamp');
+  getDownloadedModels(category = null) {
+    if (!category) {
+      return Array.from(this.downloadedModels.values());
+    }
     
+    return Array.from(this.downloadedModels.values())
+      .filter(model => model.category === category);
+  }
+
+  async clearCache() {
+    try {
+      console.log('🧹 Limpiando cache de modelos...');
+      
+      // Limpiar cache en memoria
+      this.modelCache.forEach(({ model }) => {
+        try {
+          tf.dispose(model);
+        } catch (error) {
+          console.warn('Error limpiando modelo de memoria:', error);
+        }
+      });
+      
+      this.modelCache.clear();
+      this.downloadedModels.clear();
+
+      // Limpiar localStorage
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('_version') || key.includes('_timestamp') || 
+                   key.includes('_labels') || key.includes('_accuracy') || 
+                   key.includes('_info'))) {
+          keysToRemove.push(key);
+        }
+      }
+      
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+
+      console.log(`✅ Cache limpiado: ${keysToRemove.length} entradas removidas`);
+      
+      return { success: true, removedEntries: keysToRemove.length };
+
+    } catch (error) {
+      console.error('❌ Error limpiando cache:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  getStatus() {
     return {
-      hasLocalModel: !!version,
-      version: version,
-      lastUpdate: timestamp,
-      backendUrl: this.BACKEND_URL,
-      cacheKey: this.MODEL_CACHE_KEY
+      downloadedModels: this.downloadedModels.size,
+      cachedModels: this.modelCache.size,
+      memoryStats: tf.memory(),
+      apiUrl: this.API_BASE_URL
     };
   }
 }
 
-// Exportar una instancia única (singleton)
+// Exportar instancia única
 const modelDownloadService = new ModelDownloadService();
 export default modelDownloadService;

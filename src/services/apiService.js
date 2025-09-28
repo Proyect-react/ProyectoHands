@@ -1,4 +1,4 @@
-// src/services/apiService.js
+// src/services/apiService.js - VERSIÓN ACTUALIZADA CON DESCARGA DE MODELOS
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 
 class APIService {
@@ -158,6 +158,76 @@ class APIService {
     }
   }
 
+  // ========== 🆕 DESCARGA DE MODELOS ==========
+
+  async getAvailableModelsForDownload() {
+    try {
+      console.log('🔍 Obteniendo modelos disponibles para descarga...');
+      
+      const response = await fetch(`${API_BASE_URL}/train/models/available`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('ℹ️ No hay modelos disponibles en el backend');
+          return { models: [], total: 0 };
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      console.log(`✅ Encontrados ${data.total} modelos disponibles para descarga`);
+      
+      return data;
+    } catch (error) {
+      console.error('❌ Error obteniendo modelos disponibles:', error);
+      throw error;
+    }
+  }
+
+  async getModelDownloadInfo(category, modelName) {
+    try {
+      console.log(`📋 Obteniendo información de descarga para: ${category}/${modelName}`);
+      
+      const response = await fetch(`${API_BASE_URL}/train/download/model/${category}/${modelName}/info`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const info = await response.json();
+      
+      console.log(`✅ Información de descarga obtenida para ${category}/${modelName}`);
+      
+      return info;
+    } catch (error) {
+      console.error(`❌ Error obteniendo información de descarga:`, error);
+      throw error;
+    }
+  }
+
+  async downloadModelFile(category, modelName, fileType) {
+    try {
+      console.log(`⬇️ Descargando ${fileType} para: ${category}/${modelName}`);
+      
+      const endpoint = fileType === 'model' ? 'model.json' : 'weights.bin';
+      const url = `${API_BASE_URL}/train/download/model/${category}/${modelName}/${endpoint}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      console.log(`✅ ${fileType} descargado exitosamente`);
+      
+      return response;
+    } catch (error) {
+      console.error(`❌ Error descargando ${fileType}:`, error);
+      throw error;
+    }
+  }
+
   // ========== PREDICCIÓN ==========
 
   async predict(category, landmarks, options = {}) {
@@ -255,33 +325,12 @@ class APIService {
     }
   }
 
-  // ========== UTILIDADES ==========
-
-  async pingServer() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/ping`);
-      return await response.json();
-    } catch (error) {
-      console.error('Error haciendo ping al servidor:', error);
-      return { status: 'offline' };
-    }
-  }
-
-  async getServerInfo() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/info`);
-      return await response.json();
-    } catch (error) {
-      console.error('Error obteniendo info del servidor:', error);
-      throw error;
-    }
-  }
   async practicePredict(category, landmarks, options = {}) {
     try {
       const requestBody = {
         landmarks,
         confidence_threshold: options.threshold || 0.7,
-        model_name: options.modelName || null  // <-- pasar modelName
+        model_name: options.modelName || null
       };
 
       const response = await fetch(`${API_BASE_URL}/predict/${category}/practice/check`, {
@@ -301,6 +350,7 @@ class APIService {
       throw error;
     }
   }
+
   // ========== DESCARGA DE DATOS PARA ENTRENAMIENTO ==========
 
   async downloadTrainingData(category) {
@@ -328,6 +378,86 @@ class APIService {
     } catch (error) {
       console.error(`❌ Error descargando datos de ${category}:`, error);
       throw error;
+    }
+  }
+
+  // ========== 🆕 VERIFICACIÓN DE CONECTIVIDAD ==========
+
+  async checkBackendConnection() {
+    try {
+      console.log('🔍 Verificando conexión con el backend...');
+      
+      const response = await fetch(`${API_BASE_URL}/train/models/available`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000) // Timeout de 5 segundos
+      });
+      
+      if (response.ok) {
+        console.log('✅ Conexión con backend establecida');
+        return { connected: true, status: 'online' };
+      } else {
+        console.warn(`⚠️ Backend respondió con status: ${response.status}`);
+        return { connected: false, status: 'error', code: response.status };
+      }
+    } catch (error) {
+      console.error('❌ Error de conectividad:', error.message);
+      
+      if (error.name === 'TimeoutError') {
+        return { connected: false, status: 'timeout', error: 'Timeout de conexión' };
+      }
+      
+      return { connected: false, status: 'offline', error: error.message };
+    }
+  }
+
+  // ========== UTILIDADES ==========
+
+  async pingServer() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/ping`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error haciendo ping al servidor:', error);
+      return { status: 'offline' };
+    }
+  }
+
+  async getServerInfo() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/info`);
+      return await response.json();
+    } catch (error) {
+      console.error('Error obteniendo info del servidor:', error);
+      throw error;
+    }
+  }
+
+  // ========== 🆕 MÉTODOS PARA DEBUGGING ==========
+
+  getApiUrl() {
+    return API_BASE_URL;
+  }
+
+  async testConnection() {
+    try {
+      const start = Date.now();
+      const connection = await this.checkBackendConnection();
+      const end = Date.now();
+      
+      return {
+        ...connection,
+        responseTime: end - start,
+        apiUrl: API_BASE_URL,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        connected: false,
+        status: 'error',
+        error: error.message,
+        apiUrl: API_BASE_URL,
+        timestamp: new Date().toISOString()
+      };
     }
   }
 }

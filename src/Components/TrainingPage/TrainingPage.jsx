@@ -1,4 +1,4 @@
-// src/Components/TrainingPage/TrainingPage.jsx - VERSIÓN CORREGIDA
+// src/Components/TrainingPage/TrainingPage.jsx - VERSIÓN CON DESCARGA AUTOMÁTICA
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
@@ -6,7 +6,9 @@ import * as tf from '@tensorflow/tfjs';
 import apiService from '../../services/apiService';
 import './TrainingPage.css';
 
-// Servicios locales (solo para entrenamiento y práctica)
+// 🆕 NUEVO SERVICIO DE DESCARGA
+import modelDownloadService from '../../services/modelDownloadService';
+// Servicios locales (solo para entrenamiento)
 import localDataManager from '../../services/localDataManager';
 import tfjsTrainer from '../../services/tfjsTrainer';
 
@@ -34,7 +36,17 @@ const TrainingIntegrated = () => {
   const [predictionResult, setPredictionResult] = useState(null);
   const [availableModels, setAvailableModels] = useState([]);
 
-  // 🆕 ESTADOS PARA BUFFER
+  // 🆕 ESTADOS PARA DESCARGA AUTOMÁTICA
+  const [downloadStatus, setDownloadStatus] = useState({
+    checking: false,
+    downloading: false,
+    progress: 0,
+    message: '',
+    downloadedModels: [],
+    errors: []
+  });
+
+  // Estados para buffer (mantener funcionalidad existente)
   const [bufferStatus, setBufferStatus] = useState({
     count: 0,
     totalCollected: 0,
@@ -72,7 +84,7 @@ const TrainingIntegrated = () => {
   const lastCollectionTime = useRef(0);
   const processingRef = useRef(false);
 
-  // 🆕 BUFFER PARA MUESTRAS
+  // Buffer para muestras (mantener funcionalidad existente)
   const sampleBufferRef = useRef([]);
   const BUFFER_SIZE = 10;
   const bufferStatusRef = useRef({
@@ -87,125 +99,251 @@ const TrainingIntegrated = () => {
   const lastRenderTime = useRef(0);
   const MIN_HAND_SIZE = 0.17;
 
-  // ========== FUNCIONES PARA SUBIR MODELO AL BACKEND ==========
+  // ========== 🆕 FUNCIONES DE DESCARGA AUTOMÁTICA ==========
+
+  const checkAndDownloadModels = useCallback(async (category = null) => {
+    try {
+      setDownloadStatus(prev => ({
+        ...prev,
+        checking: true,
+        message: 'Verificando modelos disponibles...'
+      }));
+
+      console.log('🔍 Iniciando verificación automática de modelos...');
+
+      const result = await modelDownloadService.checkAndDownloadModels(category);
+
+      setDownloadStatus(prev => ({
+        ...prev,
+        checking: false,
+        downloading: false,
+        downloadedModels: result.downloaded,
+        errors: result.errors,
+        message: result.downloaded.length > 0 
+          ? `✅ ${result.downloaded.length} modelos descargados`
+          : result.errors.length > 0
+            ? `⚠️ ${result.errors.length} errores en descarga`
+            : '✅ Todos los modelos están actualizados'
+      }));
+
+      // Actualizar lista de modelos disponibles para práctica
+      await loadDownloadedModels();
+
+      console.log('📊 Resultado de verificación:', result);
+
+      return result;
+
+    } catch (error) {
+      console.error('❌ Error en verificación automática:', error);
+      setDownloadStatus(prev => ({
+        ...prev,
+        checking: false,
+        downloading: false,
+        message: `❌ Error: ${error.message}`,
+        errors: [{ error: error.message }]
+      }));
+    }
+  }, []);
+
+  const loadDownloadedModels = useCallback(async () => {
+    try {
+      // Obtener modelos descargados para la categoría actual
+      const downloadedModels = modelDownloadService.getDownloadedModels(selectedCategory);
+      
+      console.log(`📋 Modelos descargados para ${selectedCategory}:`, downloadedModels);
+
+      // Convertir al formato esperado por el componente
+      const formattedModels = downloadedModels.map(model => ({
+        model_name: model.model_name,
+        accuracy: model.accuracy,
+        samples_used: model.samples_used,
+        category: model.category,
+        training_date: model.training_date,
+        labels: model.labels || [],
+        ready_for_prediction: true, // Siempre true para modelos descargados
+        source: 'downloaded' // 🆕 Indicar que es un modelo descargado
+      }));
+
+      // 🆕 COMBINAR con modelos locales si existen
+      const localModels = await tfjsTrainer.getLocalModels(selectedCategory);
+      const localModelsFormatted = localModels.map(model => ({
+        ...model,
+        source: 'local' // Indicar que es un modelo local
+      }));
+
+      const allModels = [...formattedModels, ...localModelsFormatted];
+      
+      setAvailableModels(allModels);
+
+      // Auto-seleccionar el primer modelo descargado si no hay uno seleccionado
+      if (!selectedModel && formattedModels.length > 0) {
+        setSelectedModel(formattedModels[0].model_name);
+      }
+
+    } catch (error) {
+      console.error('❌ Error cargando modelos descargados:', error);
+      setAvailableModels([]);
+    }
+  }, [selectedCategory, selectedModel]);
+
+  // 🆕 Predicción usando modelos descargados
+  const predictWithDownloadedModel = async (landmarks) => {
+    try {
+      if (!selectedModel) {
+        throw new Error('No hay modelo seleccionado');
+      }
+
+      // Verificar si es un modelo descargado o local
+      const selectedModelInfo = availableModels.find(m => m.model_name === selectedModel);
+      
+      if (!selectedModelInfo) {
+        throw new Error('Información del modelo no encontrada');
+      }
+
+      let predictions;
+      let labels;
+
+      if (selectedModelInfo.source === 'downloaded') {
+        // 🆕 Usar servicio de descarga para modelos del backend
+        predictions = await modelDownloadService.predict(selectedCategory, selectedModel, landmarks);
+        const modelData = await modelDownloadService.loadModel(selectedCategory, selectedModel);
+        labels = modelData.labels;
+      } else {
+        // Usar entrenador local para modelos entrenados localmente
+        if (!tfjsTrainer.hasModel(selectedCategory, selectedModel)) {
+          throw new Error('Modelo local no cargado en memoria');
+        }
+        predictions = await tfjsTrainer.predict(selectedCategory, selectedModel, landmarks);
+        labels = await tfjsTrainer.getModelLabels(selectedCategory, selectedModel);
+      }
+
+      // Encontrar la predicción con mayor confianza
+      const maxConfidence = Math.max(...predictions);
+      const predictedIndex = predictions.indexOf(maxConfidence);
+      const predictedLabel = labels[predictedIndex];
+
+      // Crear ranking top 3
+      const ranking = predictions.map((confidence, index) => ({
+        label: labels[index],
+        confidence: confidence,
+        percentage: (confidence * 100).toFixed(1)
+      })).sort((a, b) => b.confidence - a.confidence).slice(0, 3);
+
+      return {
+        prediction: predictedLabel,
+        confidence: maxConfidence,
+        percentage: (maxConfidence * 100).toFixed(1),
+        high_confidence: maxConfidence > 0.7,
+        top_3: ranking,
+        model_source: selectedModelInfo.source // 🆕 Indicar fuente del modelo
+      };
+
+    } catch (error) {
+      console.error('❌ Error en predicción:', error);
+      return null;
+    }
+  };
+
+  // ========== FUNCIONES PARA SUBIR MODELO AL BACKEND (mantener) ==========
 
   const uploadModelToBackend = async (model, category, modelName) => {
-  try {
-    console.log("🚀 Subiendo modelo al backend...");
-    
-    // ✅ MÉTODO DIRECTO: Convertir modelo a JSON + weights
-    const modelArtifacts = await model.save(tf.io.withSaveHandler(async (artifacts) => {
+    try {
+      console.log("🚀 Subiendo modelo al backend...");
       
-      // Crear FormData para envio multipart
-      const formData = new FormData();
-      
-      // ✅ Agregar model.json como archivo
-      const modelJSONBlob = new Blob([JSON.stringify(artifacts.modelTopology)], { 
-        type: 'application/json' 
-      });
-      formData.append('model_file', modelJSONBlob, 'model.json');
-      
-      // ✅ Agregar weights.bin como archivo
-      if (artifacts.weightData) {
-        const weightsBlob = new Blob([artifacts.weightData], { 
-          type: 'application/octet-stream' 
+      const modelArtifacts = await model.save(tf.io.withSaveHandler(async (artifacts) => {
+        const formData = new FormData();
+        
+        // Agregar model.json como archivo
+        const modelJSONBlob = new Blob([JSON.stringify(artifacts.modelTopology)], { 
+          type: 'application/json' 
         });
-        formData.append('weights_file', weightsBlob, 'weights.bin');
-      }
+        formData.append('model_file', modelJSONBlob, 'model.json');
+        
+        // Agregar weights.bin como archivo
+        if (artifacts.weightData) {
+          const weightsBlob = new Blob([artifacts.weightData], { 
+            type: 'application/octet-stream' 
+          });
+          formData.append('weights_file', weightsBlob, 'weights.bin');
+        }
+        
+        // Agregar metadata
+        formData.append('category', category);
+        formData.append('model_name', modelName);
+        formData.append('upload_timestamp', new Date().toISOString());
+        formData.append('labels', JSON.stringify([]));
+        
+        console.log("📤 Enviando modelo al backend...");
+        
+        const response = await fetch(`${API_BASE_URL}/train/upload-model`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("❌ Error del servidor:", errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+
+        const result = await response.json();
+        console.log("✅ Modelo subido exitosamente:", result);
+        
+        return result;
+      }));
+
+      return {
+        success: true,
+        message: `Modelo ${modelName} subido exitosamente al backend`,
+        modelInfo: modelArtifacts
+      };
+
+    } catch (error) {
+      console.error("❌ Error subiendo modelo:", error);
+      return await uploadModelAlternativeSimple(model, category, modelName);
+    }
+  };
+
+  const uploadModelAlternativeSimple = async (model, category, modelName) => {
+    try {
+      console.log("🔄 Usando método alternativo simple...");
       
-      // ✅ Agregar metadata como campos separados
-      formData.append('category', category);
-      formData.append('model_name', modelName);
-      formData.append('upload_timestamp', new Date().toISOString());
-      formData.append('labels', JSON.stringify([])); // Las etiquetas las enviamos aparte
-      
-      console.log("📤 Enviando modelo al backend...");
-      
-      // Enviar al backend
       const response = await fetch(`${API_BASE_URL}/train/upload-model`, {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          category: category,
+          model_name: modelName,
+          upload_type: 'metadata_only',
+          timestamp: new Date().toISOString(),
+          message: 'Modelo entrenado en frontend'
+        })
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("❌ Error del servidor:", errorText);
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
       const result = await response.json();
-      console.log("✅ Modelo subido exitosamente:", result);
+      console.log("✅ Metadata enviada al backend:", result);
       
-      return result;
-    }));
-
-    return {
-      success: true,
-      message: `Modelo ${modelName} subido exitosamente al backend`,
-      modelInfo: modelArtifacts
-    };
-
-  } catch (error) {
-    console.error("❌ Error subiendo modelo:", error);
-    
-    // ✅ MÉTODO ALTERNATIVO MÁS SIMPLE
-    console.log("🔄 Intentando método alternativo simple...");
-    try {
-      return await uploadModelAlternativeSimple(model, category, modelName);
-    } catch (altError) {
-      console.warn("⚠️ Modelo no se pudo subir, pero está guardado localmente");
-      return { 
-        success: false, 
-        message: "Modelo guardado localmente pero no en backend",
-        error: error.message 
+      return {
+        success: true,
+        message: 'Modelo registrado en backend (solo metadata)',
+        result: result
       };
+      
+    } catch (error) {
+      console.error("❌ Error en método alternativo simple:", error);
+      throw error;
     }
-  }
-};
+  };
 
-// ✅ MÉTODO ALTERNATIVO CORREGIDO
-const uploadModelAlternativeSimple = async (model, category, modelName) => {
-  try {
-    console.log("🔄 Usando método alternativo simple...");
-    
-    // Solo enviar metadata básica al backend
-    const response = await fetch(`${API_BASE_URL}/train/upload-model`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        category: category,
-        model_name: modelName,
-        upload_type: 'metadata_only',
-        timestamp: new Date().toISOString(),
-        message: 'Modelo entrenado en frontend'
-      })
-    });
+  // ========== FUNCIONES PARA BACKEND (RECOLECCIÓN) - mantener ==========
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log("✅ Metadata enviada al backend:", result);
-    
-    return {
-      success: true,
-      message: 'Modelo registrado en backend (solo metadata)',
-      result: result
-    };
-    
-  } catch (error) {
-    console.error("❌ Error en método alternativo simple:", error);
-    throw error;
-  }
-};
-
-  // ========== FUNCIONES PARA BACKEND (RECOLECCIÓN) ==========
-
-  // Cargar estado del dataset desde el backend
   const loadBackendDatasetStatus = useCallback(async () => {
     try {
       const status = await apiService.getDatasetStatus(selectedCategory);
@@ -216,7 +354,7 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     }
   }, [selectedCategory]);
 
-  // ========== FUNCIONES DE BUFFER ==========
+  // ========== FUNCIONES DE BUFFER - mantener ==========
 
   const sendBufferToBackend = useCallback(async () => {
     if (sampleBufferRef.current.length === 0 || bufferStatusRef.current.sending) {
@@ -225,22 +363,16 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
 
     console.log(`🚀 Enviando ${sampleBufferRef.current.length} muestras al backend...`);
 
-    // Marcar como enviando
     setBufferStatus(prev => ({ ...prev, sending: true }));
     bufferStatusRef.current.sending = true;
 
     try {
       const samplesToSend = [...sampleBufferRef.current];
-
-      // Enviar en lote
       const batchResult = await apiService.collectBatchSamples(selectedCategory, samplesToSend);
 
       console.log(`✅ Lote enviado exitosamente:`, batchResult);
 
-      // Limpiar buffer después del envío exitoso
       sampleBufferRef.current = [];
-
-      // Actualizar estado
       setBufferStatus(prev => ({
         ...prev,
         count: 0,
@@ -251,7 +383,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
       bufferStatusRef.current.count = 0;
       bufferStatusRef.current.sending = false;
 
-      // Actualizar estado del dataset
       await loadBackendDatasetStatus();
 
     } catch (error) {
@@ -262,13 +393,11 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
   }, [selectedCategory, loadBackendDatasetStatus]);
 
   const addToBuffer = useCallback((landmarks, label) => {
-    // VERIFICAR SILENCIOSAMENTE SI YA LLEGÓ AL LÍMITE
     const currentSamples = getLabelSamples(label);
     if (currentSamples >= 30) {
-      // Detener sin mostrar mensajes
       setIsCollecting(false);
       collectingRef.current = false;
-      return; // No agregar más muestras
+      return;
     }
 
     const sample = {
@@ -283,7 +412,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     const newCount = sampleBufferRef.current.length;
     const newTotal = bufferStatusRef.current.totalCollected + 1;
 
-    // Actualizar estado del buffer
     setBufferStatus(prev => ({
       ...prev,
       count: newCount,
@@ -295,7 +423,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
 
     console.log(`📦 Buffer: ${newCount}/10 | ${label}: ${currentSamples}/30`);
 
-    // Enviar si se alcanza el límite
     if (newCount >= BUFFER_SIZE) {
       sendBufferToBackend();
     }
@@ -324,32 +451,17 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     console.log('🧹 Buffer limpiado');
   }, []);
 
-  // ========== FUNCIONES PARA ENTRENAMIENTO LOCAL ==========
+  // ========== FUNCIONES PARA ENTRENAMIENTO LOCAL - mantener ==========
 
-  // Cargar modelos locales
-  const loadLocalModels = useCallback(async () => {
-    try {
-      const localModels = await tfjsTrainer.getLocalModels(selectedCategory);
-      setAvailableModels(localModels);
-    } catch (error) {
-      console.error('Error cargando modelos locales:', error);
-      setAvailableModels([]);
-    }
-  }, [selectedCategory]);
-
-  // Entrenamiento LOCAL con datos del backend
   const handleLocalTraining = async () => {
     try {
       setTrainingProgress({ status: 'training', progress: 0, message: 'Validando datos...' });
 
-      // Verificar que hay datos suficientes en el backend
       const backendStatus = await apiService.getDatasetStatus(selectedCategory);
       console.log('📊 Estado del dataset en backend:', backendStatus);
 
-      // Descargar datos del backend y preparar para entrenamiento local
       setTrainingProgress({ status: 'training', progress: 10, message: 'Descargando datos del backend...' });
 
-      // DESCARGAR DATOS REALES DEL BACKEND
       const backendData = await apiService.downloadTrainingData(selectedCategory);
 
       console.log('📥 Datos descargados del backend:', {
@@ -364,20 +476,10 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
         throw new Error(`No hay muestras disponibles en el backend para la categoría '${selectedCategory}'`);
       }
 
-      if (!backendData.y || backendData.y.length === 0) {
-        throw new Error(`No hay etiquetas válidas en el backend para la categoría '${selectedCategory}'`);
-      }
-
-      if (!backendData.labels || backendData.labels.length === 0) {
-        throw new Error(`No se encontraron definiciones de etiquetas en el backend para '${selectedCategory}'`);
-      }
-
-      // Extraer datos para entrenamiento
       const X = backendData.X;
       const y = backendData.y;
       const labels = backendData.labels;
 
-      // Entrenar con TensorFlow.js LOCAL
       setTrainingProgress({ status: 'training', progress: 20, message: 'Iniciando entrenamiento local...' });
 
       console.log('🧠 Iniciando entrenamiento local con TensorFlow.js...');
@@ -391,7 +493,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
 
       console.log('🎯 Resultado del entrenamiento:', result);
 
-      // Verificar que el modelo existe
       if (!result || !result.model) {
         throw new Error('El entrenamiento no devolvió un modelo válido');
       }
@@ -401,7 +502,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
         result.labels = labels;
       }
 
-      // Guardar modelo localmente
       setTrainingProgress({ status: 'training', progress: 90, message: 'Guardando modelo local...' });
 
       console.log('💾 Guardando modelo local...');
@@ -414,7 +514,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
 
       console.log('✅ Modelo guardado localmente:', modelInfo);
 
-      // 🆕 SUBIR MODELO AL BACKEND
       setTrainingProgress({ status: 'training', progress: 95, message: 'Subiendo modelo al backend...' });
 
       try {
@@ -422,10 +521,8 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
         console.log('🎉 ¡Modelo subido exitosamente al backend!');
       } catch (uploadError) {
         console.warn('⚠️ Modelo no se pudo subir al backend, pero está guardado localmente:', uploadError);
-        // No lanzamos error aquí para no interrumpir el flujo
       }
 
-      // Completar
       setTrainingProgress({
         status: 'completed',
         progress: 100,
@@ -436,8 +533,8 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
         }
       });
 
-      // Recargar modelos disponibles
-      await loadLocalModels();
+      // 🆕 Después del entrenamiento, verificar nuevos modelos automáticamente
+      await checkAndDownloadModels(selectedCategory);
 
       console.log('🎉 ¡Entrenamiento local completado exitosamente!');
 
@@ -453,42 +550,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
       setTimeout(() => {
         alert(`Error en entrenamiento:\n${error.message}\n\nRevisa la consola para más detalles.`);
       }, 500);
-    }
-  };
-
-  // Predicción LOCAL
-  const predictLocally = async (landmarks) => {
-    try {
-      if (!tfjsTrainer.hasModel(selectedCategory, selectedModel)) {
-        throw new Error('Modelo local no cargado');
-      }
-
-      const predictions = await tfjsTrainer.predict(selectedCategory, selectedModel, landmarks);
-      const labels = await tfjsTrainer.getModelLabels(selectedCategory, selectedModel);
-
-      // Encontrar la predicción con mayor confianza
-      const maxConfidence = Math.max(...predictions);
-      const predictedIndex = predictions.indexOf(maxConfidence);
-      const predictedLabel = labels[predictedIndex];
-
-      // Crear ranking top 3
-      const ranking = predictions.map((confidence, index) => ({
-        label: labels[index],
-        confidence: confidence,
-        percentage: (confidence * 100).toFixed(1)
-      })).sort((a, b) => b.confidence - a.confidence).slice(0, 3);
-
-      return {
-        prediction: predictedLabel,
-        confidence: maxConfidence,
-        percentage: (maxConfidence * 100).toFixed(1),
-        high_confidence: maxConfidence > 0.7,
-        top_3: ranking
-      };
-
-    } catch (error) {
-      console.error('Error en predicción local:', error);
-      return null;
     }
   };
 
@@ -536,23 +597,31 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     selectedLabelRef.current = selectedLabel;
   }, [selectedLabel]);
 
-  // Sincronizar buffer status
   useEffect(() => {
     bufferStatusRef.current = bufferStatus;
   }, [bufferStatus]);
 
-  // Cargar estado del dataset del BACKEND al inicio
+  // 🆕 EFECTO PRINCIPAL - Verificación automática al cargar
   useEffect(() => {
-    loadBackendDatasetStatus();
-    loadLocalModels();
-  }, [selectedCategory, loadBackendDatasetStatus, loadLocalModels]);
+    const initializeModels = async () => {
+      console.log('🚀 Inicializando verificación automática de modelos...');
+      
+      // Cargar estado del dataset del backend
+      await loadBackendDatasetStatus();
+      
+      // 🆕 Verificar y descargar modelos automáticamente
+      await checkAndDownloadModels(selectedCategory);
+    };
+
+    initializeModels();
+  }, [selectedCategory, loadBackendDatasetStatus, checkAndDownloadModels]);
 
   // Limpiar buffer al cambiar de categoría o etiqueta
   useEffect(() => {
     clearBuffer();
   }, [selectedCategory, selectedLabel, clearBuffer]);
 
-  // Callback principal de MediaPipe - 🆕 CON BUFFER
+  // Callback principal de MediaPipe
   const onResults = useCallback(async (results) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -575,13 +644,10 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
       }
 
       if (landmarks) {
-        // --- MODO RECOLECCIÓN (BUFFER LOCAL → BACKEND) ---
+        // MODO RECOLECCIÓN (BUFFER LOCAL → BACKEND)
         if (mode === 'collect' && collectingRef.current && selectedLabelRef.current && !processingRef.current) {
-
-          // VERIFICAR LÍMITE SILENCIOSAMENTE
           const currentSamples = getLabelSamples(selectedLabelRef.current);
           if (currentSamples >= 30) {
-            // Detener sin logs visibles
             setIsCollecting(false);
             collectingRef.current = false;
             processingRef.current = false;
@@ -594,11 +660,8 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
             processingRef.current = true;
 
             try {
-              // AGREGAR AL BUFFER
               addToBuffer(landmarks, selectedLabelRef.current);
-
               lastCollectionTime.current = now;
-
             } catch (error) {
               console.error('Error agregando al buffer:', error);
             } finally {
@@ -607,15 +670,15 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
           }
         }
 
-        // --- MODO PRÁCTICA (LOCAL) ---
+        // 🆕 MODO PRÁCTICA (LOCAL Y DESCARGADO)
         else if (mode === 'practice' && !processingRef.current && selectedModel) {
           const handSize = calcularTamanioMano(results.multiHandLandmarks[0]);
 
           if (handSize >= MIN_HAND_SIZE) {
             if (now - lastCollectionTime.current > 500) {
               try {
-                // PREDICCIÓN LOCAL
-                const prediction = await predictLocally(landmarks);
+                // 🆕 USAR NUEVA FUNCIÓN DE PREDICCIÓN
+                const prediction = await predictWithDownloadedModel(landmarks);
 
                 if (prediction) {
                   setPredictionResult(prediction);
@@ -639,7 +702,7 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     } else if (mode === 'practice') {
       setPredictionResult(null);
     }
-  }, [mode, selectedCategory, selectedModel, addToBuffer, extractLandmarksArray, calcularTamanioMano, predictLocally]);
+  }, [mode, selectedCategory, selectedModel, addToBuffer, predictWithDownloadedModel]);
 
   const drawHand = (ctx, landmarks, canvas) => {
     const connections = [
@@ -741,7 +804,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
   // ========== HANDLERS ==========
 
   const handleStartTraining = async () => {
-    // SIEMPRE entrenamiento local
     await handleLocalTraining();
   };
 
@@ -755,7 +817,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     if (wasCollecting) {
       setIsCollecting(false);
       collectingRef.current = false;
-      // Enviar buffer antes de limpiar
       await flushBuffer();
     }
 
@@ -779,7 +840,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     }
 
     try {
-      // LIMPIAR DATOS DEL BACKEND
       if (type === 'current') {
         await apiService.clearLabelData(selectedCategory, selectedLabel);
         alert(`Datos de "${selectedLabel}" eliminados del backend`);
@@ -788,7 +848,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
         alert(`Todas las muestras de "${selectedCategory}" eliminadas del backend`);
       }
 
-      // Recargar estado del backend
       await loadBackendDatasetStatus();
 
     } catch (error) {
@@ -815,14 +874,13 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     return categories[selectedCategory]?.labels || [];
   };
 
-  // Handlers básicos - 🆕 CON FLUSH DE BUFFER
+  // Handlers básicos
   const handleStartCamera = () => setIsCameraActive(true);
   const handleStopCamera = async () => {
     setIsCameraActive(false);
     setIsCollecting(false);
     collectingRef.current = false;
     processingRef.current = false;
-    // Enviar muestras pendientes al detener
     await flushBuffer();
   };
 
@@ -832,10 +890,8 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
       return;
     }
 
-    // 🆕 VERIFICAR SILENCIOSAMENTE
     const currentSamples = getLabelSamples(selectedLabel);
     if (currentSamples >= 30) {
-      // Simplemente no iniciar y mantener desactivado
       setIsCollecting(false);
       collectingRef.current = false;
       return;
@@ -850,7 +906,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
       lastCollectionTime.current = 0;
       processingRef.current = false;
     } else {
-      // Enviar buffer al detener recolección
       flushBuffer();
     }
   };
@@ -861,7 +916,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     collectingRef.current = false;
     processingRef.current = false;
 
-    // Enviar buffer antes de cambiar de modo
     if (mode === 'collect') {
       await flushBuffer();
     }
@@ -885,8 +939,10 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     setSelectedModel('');
     setPredictionResult(null);
     clearBuffer();
-    loadBackendDatasetStatus();
-    loadLocalModels();
+    
+    // 🆕 Recargar modelos para nueva categoría
+    await checkAndDownloadModels(newCategory);
+    await loadBackendDatasetStatus();
   };
 
   const handleLabelChange = async (label) => {
@@ -900,7 +956,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
     selectedLabelRef.current = label;
     clearBuffer();
 
-    // 🆕 NO REINICIAR COLECCIÓN SI YA TIENE 30 MUESTRAS
     const currentSamples = getLabelSamples(label);
     if (wasCollecting && currentSamples < 30) {
       setTimeout(() => {
@@ -915,7 +970,7 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
 
   return (
     <div className="training-integrated">
-      {/* Header SIN toggle local/backend */}
+      {/* Header */}
       <div className="training-header">
         <h1>Sistema de Entrenamiento IA</h1>
         <div className="mode-selector">
@@ -939,6 +994,47 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
           </button>
         </div>
 
+        {/* 🆕 INDICADOR DE DESCARGA AUTOMÁTICA */}
+        <div className="download-status" style={{
+          marginTop: '10px',
+          padding: '10px',
+          background: downloadStatus.checking || downloadStatus.downloading ? '#fff3e0' : 
+                     downloadStatus.downloadedModels.length > 0 ? '#e8f5e8' : '#f0f8ff',
+          borderRadius: '5px',
+          fontSize: '14px',
+          color: '#333'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <strong>🤖 Modelos:</strong> {downloadStatus.message}
+            </div>
+            <button
+              onClick={() => checkAndDownloadModels(selectedCategory)}
+              disabled={downloadStatus.checking || downloadStatus.downloading}
+              style={{
+                background: '#2196F3',
+                color: 'white',
+                border: 'none',
+                padding: '5px 10px',
+                borderRadius: '3px',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              {downloadStatus.checking ? '🔍 Verificando...' : 
+               downloadStatus.downloading ? '⬇️ Descargando...' : 
+               '🔄 Verificar'}
+            </button>
+          </div>
+          
+          {(downloadStatus.downloadedModels.length > 0 || downloadStatus.errors.length > 0) && (
+            <div style={{ fontSize: '12px', marginTop: '5px', color: '#666' }}>
+              ✅ Descargados: {downloadStatus.downloadedModels.length} | 
+              ❌ Errores: {downloadStatus.errors.length}
+            </div>
+          )}
+        </div>
+
         {/* Descripción del flujo */}
         <div className="flow-description" style={{
           marginTop: '10px',
@@ -948,8 +1044,8 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
           fontSize: '14px',
           color: '#333'
         }}>
-          <strong>Flujo:</strong>
-          📦 Buffer (10) → 🌐 Backend → 🧠 Entrena Local → ☁️ Sube al Backend → 🎯 Practica Local
+          <strong>Flujo Completo:</strong>
+          📦 Buffer (10) → 🌐 Backend → 🧠 Entrena Local → ☁️ Sube Backend → 📥 Descarga Automática → 🎯 Practica
         </div>
       </div>
 
@@ -991,7 +1087,7 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
             <div className="collect-panel">
               <h3>📊 Recolección de Datos - {categories[selectedCategory]?.name}</h3>
 
-              {/* 🆕 INDICADOR DE BUFFER */}
+              {/* INDICADOR DE BUFFER */}
               <div style={{
                 background: bufferStatus.sending ? '#fff3e0' : bufferStatus.count > 0 ? '#e8f5e8' : '#f0f8ff',
                 padding: '10px',
@@ -1010,7 +1106,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
                   </div>
                 </div>
 
-                {/* Barra de progreso del buffer */}
                 <div style={{
                   background: '#e0e0e0',
                   height: '4px',
@@ -1070,7 +1165,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
                 </div>
               </div>
 
-              {/* Indicador de etiqueta activa */}
               {selectedLabel && (
                 <div className="active-label-indicator" style={{
                   background: isCollecting ? '#4CAF50' : '#f0f0f0',
@@ -1129,7 +1223,6 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
                   </div>
                 )}
 
-                {/* Botones de borrado */}
                 <div className="clear-controls" style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => handleClearData('current')}
@@ -1304,20 +1397,26 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
             </div>
           )}
 
-          {/* Modo Práctica */}
+          {/* 🆕 Modo Práctica ACTUALIZADO */}
           {mode === 'practice' && (
             <div className="practice-panel">
               <h3>🎯 Práctica - {categories[selectedCategory]?.name}</h3>
+              
+              {/* 🆕 INDICADOR DE MODELOS DISPONIBLES */}
               <div style={{
-                background: '#e8f5e8',
+                background: availableModels.length > 0 ? '#e8f5e8' : '#fff3e0',
                 padding: '10px',
                 borderRadius: '5px',
                 marginBottom: '10px'
               }}>
-                💻 <strong>Predicción local</strong> - 100% offline con modelo guardado
+                <strong>🤖 Modelos disponibles:</strong> {availableModels.length}
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                  {availableModels.filter(m => m.source === 'downloaded').length} descargados del backend | 
+                  {availableModels.filter(m => m.source === 'local').length} entrenados localmente
+                </div>
               </div>
 
-              {/* Selector de Modelo */}
+              {/* Selector de Modelo MEJORADO */}
               <div className="model-selector" style={{ marginBottom: '20px' }}>
                 <h4>Seleccionar Modelo:</h4>
                 {availableModels.length === 0 ? (
@@ -1327,10 +1426,25 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
                     borderRadius: '8px',
                     textAlign: 'center'
                   }}>
-                    <p>No hay modelos locales para "{categories[selectedCategory]?.name}"</p>
+                    <p>No hay modelos disponibles para "{categories[selectedCategory]?.name}"</p>
                     <p style={{ fontSize: '14px', color: '#666' }}>
-                      Ve a "Entrenar" para crear un modelo local con los datos del backend
+                      Los modelos se descargan automáticamente del backend o puedes crear uno en "Entrenar"
                     </p>
+                    {/* 🆕 Botón de recarga manual */}
+                    <button
+                      onClick={() => checkAndDownloadModels(selectedCategory)}
+                      style={{
+                        background: '#2196F3',
+                        color: 'white',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        marginTop: '10px'
+                      }}
+                    >
+                      🔄 Verificar Modelos
+                    </button>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1348,10 +1462,11 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
                         }}
                       >
                         <div style={{ fontWeight: 'bold' }}>
-                          {model.model_name || 'Modelo Default'} 💾
+                          {model.model_name || 'Modelo Default'} {model.source === 'downloaded' ? '📥' : '💾'}
                         </div>
                         <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                          Precisión: {model.accuracy}% | Muestras: {model.samples_used}
+                          Precisión: {model.accuracy}% | Muestras: {model.samples_used} | 
+                          Fuente: {model.source === 'downloaded' ? 'Backend' : 'Local'}
                         </div>
                         <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>
                           Etiquetas: {model.labels?.join(', ') || 'N/A'}
@@ -1362,7 +1477,7 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
                 )}
               </div>
 
-              {/* Resultado de predicción */}
+              {/* Resultado de predicción ACTUALIZADO */}
               {selectedModel && (
                 <>
                   {predictionResult ? (
@@ -1382,6 +1497,14 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
                           ? "La mano está demasiado lejos o no es visible"
                           : `Confianza: ${predictionResult.percentage}%`}
                       </p>
+                      
+                      {/* 🆕 INDICADOR DE FUENTE DEL MODELO */}
+                      {predictionResult.model_source && predictionResult.prediction !== "Acerca tu mano a la cámara" && (
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
+                          Modelo: {predictionResult.model_source === 'downloaded' ? '📥 Descargado del backend' : '💾 Entrenado localmente'}
+                        </div>
+                      )}
+
                       {predictionResult.prediction !== "Acerca tu mano a la cámara" && (
                         <div className="confidence-bar" style={{
                           background: '#e0e0e0',
@@ -1432,7 +1555,7 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
                     }}>
                       <p>Muestra tu mano para obtener una predicción</p>
                       <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-                        Modelo activo: {selectedModel} 💾
+                        Modelo activo: {selectedModel} {availableModels.find(m => m.model_name === selectedModel)?.source === 'downloaded' ? '📥' : '💾'}
                       </p>
                     </div>
                   )}
@@ -1492,7 +1615,7 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
             />
           </div>
 
-          {/* Indicadores de estado - 🆕 CON BUFFER */}
+          {/* Indicadores de estado ACTUALIZADOS */}
           <div className="status-indicators" style={{
             display: 'flex',
             gap: '10px',
@@ -1548,15 +1671,28 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
             )}
 
             {mode === 'practice' && selectedModel && (
-              <div className="indicator" style={{
-                padding: '5px 10px',
-                borderRadius: '15px',
-                fontSize: '12px',
-                background: categories[selectedCategory].color,
-                color: 'white'
-              }}>
-                🤖 {selectedModel} 💾
-              </div>
+              <>
+                <div className="indicator" style={{
+                  padding: '5px 10px',
+                  borderRadius: '15px',
+                  fontSize: '12px',
+                  background: categories[selectedCategory].color,
+                  color: 'white'
+                }}>
+                  🤖 {selectedModel}
+                </div>
+
+                {/* 🆕 INDICADOR DE FUENTE DEL MODELO */}
+                <div className="indicator" style={{
+                  padding: '5px 10px',
+                  borderRadius: '15px',
+                  fontSize: '12px',
+                  background: availableModels.find(m => m.model_name === selectedModel)?.source === 'downloaded' ? '#2196F3' : '#9C27B0',
+                  color: 'white'
+                }}>
+                  {availableModels.find(m => m.model_name === selectedModel)?.source === 'downloaded' ? '📥 Backend' : '💾 Local'}
+                </div>
+              </>
             )}
 
             <div className="indicator" style={{
@@ -1569,6 +1705,21 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
               📂 {categories[selectedCategory].name}
             </div>
 
+            {/* 🆕 INDICADOR DE ESTADO DE DESCARGA */}
+            {(downloadStatus.checking || downloadStatus.downloading || downloadStatus.downloadedModels.length > 0) && (
+              <div className="indicator" style={{
+                padding: '5px 10px',
+                borderRadius: '15px',
+                fontSize: '12px',
+                background: downloadStatus.checking || downloadStatus.downloading ? '#FF9800' : '#4CAF50',
+                color: 'white'
+              }}>
+                {downloadStatus.checking ? '🔍 Verificando...' : 
+                 downloadStatus.downloading ? '⬇️ Descargando...' : 
+                 `📥 ${downloadStatus.downloadedModels.length} modelos`}
+              </div>
+            )}
+
             {/* Indicador del flujo actualizado */}
             <div className="indicator" style={{
               padding: '5px 10px',
@@ -1578,8 +1729,8 @@ const uploadModelAlternativeSimple = async (model, category, modelName) => {
               color: 'white'
             }}>
               {mode === 'collect' && '📦→🌐 Buffer→Backend'}
-              {mode === 'train' && '🌐→💻→☁️ Backend→Local→Cloud'}
-              {mode === 'practice' && '💾 Local'}
+              {mode === 'train' && '🌐→💻→☁️→📥 Backend→Local→Cloud→Auto'}
+              {mode === 'practice' && '📥🤖 Auto-Download+Local'}
             </div>
           </div>
         </div>
