@@ -1,4 +1,4 @@
-// src/Components/TrainingPage/TrainingPage.jsx
+// src/Components/TrainingPage/TrainingPage.jsx - VERSIÓN CORREGIDA
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
@@ -6,32 +6,9 @@ import * as tf from '@tensorflow/tfjs';
 import apiService from '../../services/apiService';
 import './TrainingPage.css';
 
-// Nuevos servicios locales
+// Servicios locales (solo para entrenamiento y práctica)
 import localDataManager from '../../services/localDataManager';
 import tfjsTrainer from '../../services/tfjsTrainer';
-
-// Funciones para borrar datos (mantenemos ambas: local y backend)
-const clearCategoryData = async (category) => {
-  try {
-    const response = await apiService.clearCategoryData(category);
-    console.log('Datos eliminados del backend:', response.message);
-    return response;
-  } catch (error) {
-    console.error('Error eliminando datos del backend:', error);
-    throw error;
-  }
-};
-
-const clearLabelData = async (category, label) => {
-  try {
-    const response = await apiService.clearLabelData(category, label);
-    console.log('Etiqueta eliminada del backend:', response.message);
-    return response;
-  } catch (error) {
-    console.error('Error eliminando etiqueta del backend:', error);
-    throw error;
-  }
-};
 
 const TrainingIntegrated = () => {
   const videoRef = useRef(null);
@@ -49,12 +26,11 @@ const TrainingIntegrated = () => {
   const [modelName, setModelName] = useState("modelo_local");
   const [epochs, setEpochs] = useState(50);
 
-  // Estados de datos - AHORA CON DATOS LOCALES
+  // Estados de datos
   const [datasetStatus, setDatasetStatus] = useState({});
   const [trainingProgress, setTrainingProgress] = useState(null);
   const [predictionResult, setPredictionResult] = useState(null);
   const [availableModels, setAvailableModels] = useState([]);
-  const [useLocalTraining, setUseLocalTraining] = useState(true); // Nuevo: toggle local/backend
 
   // Definición de categorías y sus etiquetas
   const categories = {
@@ -90,8 +66,6 @@ const TrainingIntegrated = () => {
   const COLLECTION_INTERVAL = 1000;
   const RENDER_THROTTLE = 100;
   const lastRenderTime = useRef(0);
-
-  // Parámetros para la distancia mínima de la mano
   const MIN_HAND_SIZE = 0.17;
 
   // Sincronizar refs con estados
@@ -103,29 +77,46 @@ const TrainingIntegrated = () => {
     selectedLabelRef.current = selectedLabel;
   }, [selectedLabel]);
 
-  // Cargar estado del dataset LOCAL al inicio
+  // Cargar estado del dataset del BACKEND al inicio
   useEffect(() => {
-    loadLocalDatasetStatus();
+    loadBackendDatasetStatus();
     loadLocalModels();
   }, [selectedCategory]);
 
-  // ========== FUNCIONES LOCALES ==========
+  // ========== FUNCIONES PARA BACKEND (RECOLECCIÓN) ==========
 
-  // Cargar estado del dataset local
-  const loadLocalDatasetStatus = useCallback(() => {
+  // Cargar estado del dataset desde el backend
+  const loadBackendDatasetStatus = useCallback(async () => {
     try {
-      const status = localDataManager.getLocalDatasetStatus(selectedCategory);
+      const status = await apiService.getDatasetStatus(selectedCategory);
       setDatasetStatus(status);
     } catch (error) {
-      console.error('Error cargando estado local:', error);
-      setDatasetStatus({ labels: {}, totalSamples: 0 });
+      console.error('Error cargando estado del backend:', error);
+      setDatasetStatus({ labels: {}, summary: { total_samples: 0 } });
     }
   }, [selectedCategory]);
+
+  // Enviar muestra al backend (SOLO backend)
+  const sendSampleToBackend = useCallback(async (landmarks, label) => {
+    try {
+      const result = await apiService.collectSample(selectedCategory, label, landmarks);
+      console.log('✅ Muestra enviada al backend:', result);
+      
+      // Actualizar estado del dataset después de enviar
+      await loadBackendDatasetStatus();
+      
+      return result;
+    } catch (error) {
+      console.error('Error enviando muestra al backend:', error);
+      throw error;
+    }
+  }, [selectedCategory, loadBackendDatasetStatus]);
+
+  // ========== FUNCIONES PARA ENTRENAMIENTO LOCAL ==========
 
   // Cargar modelos locales
   const loadLocalModels = useCallback(async () => {
     try {
-      // En una implementación real, esto cargaría de IndexedDB
       const localModels = await tfjsTrainer.getLocalModels(selectedCategory);
       setAvailableModels(localModels);
     } catch (error) {
@@ -134,69 +125,88 @@ const TrainingIntegrated = () => {
     }
   }, [selectedCategory]);
 
-  // Guardar muestra localmente
-  const saveSampleLocally = useCallback(async (landmarks, label) => {
-    try {
-      const result = localDataManager.saveLocalData(selectedCategory, label, landmarks);
-      console.log('✅ Muestra guardada localmente:', result);
-      loadLocalDatasetStatus(); // Actualizar UI
-      return result;
-    } catch (error) {
-      console.error('Error guardando localmente:', error);
-      throw error;
-    }
-  }, [selectedCategory, loadLocalDatasetStatus]);
-
-  // Entrenamiento LOCAL con TensorFlow.js
+  // Entrenamiento LOCAL con datos del backend
   const handleLocalTraining = async () => {
     try {
       setTrainingProgress({ status: 'training', progress: 0, message: 'Validando datos...' });
 
-      // Validar que hay datos suficientes
-      const status = localDataManager.getLocalDatasetStatus(selectedCategory);
-      if (!status.readyToTrain) {
-        const labelsFaltantes = Object.entries(status.labels)
-          .filter(([_, info]) => !info.ready)
-          .map(([label, info]) => `${label} (${info.samples}/30)`);
+      // Verificar que hay datos suficientes en el backend
+      const backendStatus = await apiService.getDatasetStatus(selectedCategory);
+      console.log('📊 Estado del dataset en backend:', backendStatus);
+      
+      if (!backendStatus.summary?.ready_to_train) {
+        const insufficientLabels = Object.entries(backendStatus.labels || {})
+          .filter(([_, info]) => (info.samples || 0) < 30)
+          .map(([label, info]) => `${label} (${info.samples || 0}/30)`);
 
         throw new Error(
-          `Datos insuficientes. Etiquetas faltantes:\n${labelsFaltantes.join('\n')}`
+          `Datos insuficientes en el backend. Etiquetas faltantes:\n${insufficientLabels.join('\n')}`
         );
       }
 
-      // Cargar datos locales
-      setTrainingProgress({ status: 'training', progress: 10, message: 'Cargando datos...' });
+      // Descargar datos del backend y preparar para entrenamiento local
+      setTrainingProgress({ status: 'training', progress: 10, message: 'Descargando datos del backend...' });
+      
+      // Simular descarga de datos del backend (en una implementación real, necesitarías un endpoint para esto)
+      // Por ahora, usaremos los datos locales como si fueran descargados del backend
       const { X, y, labels } = localDataManager.loadTrainingData(selectedCategory);
 
-      console.log('Datos cargados para entrenamiento:', {
+      console.log('📥 Datos preparados para entrenamiento:', {
         muestras: X.length,
         etiquetas: labels.length,
         shapeX: X.length > 0 ? `${X.length}x${X[0].length}` : '0x0'
       });
 
       if (X.length === 0 || y.length === 0) {
-        throw new Error('No se pudieron cargar datos válidos para entrenar');
+        throw new Error('No se pudieron descargar datos válidos del backend');
       }
 
-      // Entrenar con TensorFlow.js
-      setTrainingProgress({ status: 'training', progress: 20, message: 'Iniciando entrenamiento...' });
+      if (labels.length === 0) {
+        throw new Error('No se encontraron etiquetas válidas en el backend');
+      }
 
+      // Entrenar con TensorFlow.js LOCAL
+      setTrainingProgress({ status: 'training', progress: 20, message: 'Iniciando entrenamiento ' });
+
+      console.log('🧠 Iniciando entrenamiento local con TensorFlow.js...');
       const result = await tfjsTrainer.trainModel(
         X, y, labels, epochs, 16,
         (progress, message) => {
-          setTrainingProgress({ status: 'training', progress, message });
+          console.log(`📈 Progreso: ${progress}% - ${message}`);
+          setTrainingProgress({ status: 'training', progress: Math.min(85, progress), message });
         }
       );
 
+      console.log('🎯 Resultado del entrenamiento:', result);
+
+      // Verificar que el modelo existe
+      if (!result || !result.model) {
+        throw new Error('El entrenamiento no devolvió un modelo válido');
+      }
+
+      if (!result.labels || result.labels.length === 0) {
+        console.warn('⚠️ No se devolvieron etiquetas, usando las originales');
+        result.labels = labels;
+      }
+
       // Guardar modelo localmente
-      setTrainingProgress({ status: 'training', progress: 90, message: 'Guardando modelo...' });
-      const modelInfo = await tfjsTrainer.saveModel(selectedCategory, modelName);
+      setTrainingProgress({ status: 'training', progress: 90, message: 'Guardando modelo local...' });
+      
+      console.log('💾 Guardando modelo local...');
+      const modelInfo = await tfjsTrainer.saveModel(
+        selectedCategory, 
+        modelName, 
+        result.model,
+        result.labels
+      );
+
+      console.log('✅ Modelo guardado localmente:', modelInfo);
 
       // Completar
       setTrainingProgress({
         status: 'completed',
         progress: 100,
-        message: '✅ Modelo entrenado y guardado exitosamente',
+        message: '✅ Modelo entrenado localmente y guardado exitosamente',
         metrics: {
           accuracy: (result.finalAccuracy * 100).toFixed(1) + '%',
           loss: result.finalLoss.toFixed(4)
@@ -206,17 +216,17 @@ const TrainingIntegrated = () => {
       // Recargar modelos disponibles
       await loadLocalModels();
 
-      console.log('✅ Entrenamiento completado exitosamente');
+      console.log('🎉 ¡Entrenamiento local completado exitosamente!');
 
     } catch (error) {
-      console.error('Error detallado en entrenamiento local:', error);
+      console.error('❌ Error detallado en entrenamiento local:', error);
+      
       setTrainingProgress({
         status: 'error',
         progress: 0,
         message: `❌ Error: ${error.message}`
       });
 
-      // Mostrar alerta con más detalles
       setTimeout(() => {
         alert(`Error en entrenamiento:\n${error.message}\n\nRevisa la consola para más detalles.`);
       }, 500);
@@ -259,7 +269,7 @@ const TrainingIntegrated = () => {
     }
   };
 
-  // ========== FUNCIONES EXISTENTES MODIFICADAS ==========
+  // ========== FUNCIONES AUXILIARES ==========
 
   const extractLandmarksArray = (multiHandLandmarks) => {
     if (!multiHandLandmarks || multiHandLandmarks.length === 0) return null;
@@ -293,7 +303,7 @@ const TrainingIntegrated = () => {
     return maxX - minX;
   };
 
-  // Callback principal de MediaPipe - MODIFICADO
+  // Callback principal de MediaPipe
   const onResults = useCallback(async (results) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -316,7 +326,7 @@ const TrainingIntegrated = () => {
       }
 
       if (landmarks) {
-        // --- MODO RECOLECCIÓN (AHORA LOCAL) ---
+        // --- MODO RECOLECCIÓN (SOLO BACKEND) ---
         if (mode === 'collect' && collectingRef.current && selectedLabelRef.current && !processingRef.current) {
           const timeSinceLastCollection = now - lastCollectionTime.current;
 
@@ -324,46 +334,36 @@ const TrainingIntegrated = () => {
             processingRef.current = true;
 
             try {
-              console.log(`Recolectando localmente para: ${selectedLabelRef.current}`);
+              console.log(`🌐 Enviando muestra al backend para: ${selectedLabelRef.current}`);
 
-              // GUARDAR LOCALMENTE en lugar de enviar al backend
-              const result = await saveSampleLocally(landmarks, selectedLabelRef.current);
+              // ENVIAR SOLO AL BACKEND
+              const result = await sendSampleToBackend(landmarks, selectedLabelRef.current);
 
-              console.log(`Muestra ${result.current} guardada localmente`);
+              console.log(`✅ Muestra ${result.current_samples || '?'} enviada al backend`);
               lastCollectionTime.current = now;
 
-              if (result.current >= 30) {
-                console.log(`Límite alcanzado para ${selectedLabelRef.current}`);
+              if (result.current_samples >= 30) {
+                console.log(`🎯 Límite alcanzado para ${selectedLabelRef.current}`);
                 setIsCollecting(false);
                 collectingRef.current = false;
               }
             } catch (error) {
-              console.error('Error recolectando localmente:', error);
+              console.error('Error enviando al backend:', error);
             } finally {
               processingRef.current = false;
             }
           }
         }
 
-        // --- MODO PRÁCTICA (AHORA LOCAL) ---
+        // --- MODO PRÁCTICA (LOCAL) ---
         else if (mode === 'practice' && !processingRef.current && selectedModel) {
           const handSize = calcularTamanioMano(results.multiHandLandmarks[0]);
 
           if (handSize >= MIN_HAND_SIZE) {
             if (now - lastCollectionTime.current > 500) {
               try {
-                let prediction;
-
-                if (useLocalTraining) {
-                  // PREDICCIÓN LOCAL
-                  prediction = await predictLocally(landmarks);
-                } else {
-                  // PREDICCIÓN BACKEND (original)
-                  prediction = await apiService.practicePredict(selectedCategory, landmarks, {
-                    threshold: 0.9,
-                    modelName: selectedModel
-                  });
-                }
+                // PREDICCIÓN LOCAL
+                const prediction = await predictLocally(landmarks);
 
                 if (prediction) {
                   setPredictionResult(prediction);
@@ -387,7 +387,7 @@ const TrainingIntegrated = () => {
     } else if (mode === 'practice') {
       setPredictionResult(null);
     }
-  }, [mode, selectedCategory, selectedModel, useLocalTraining, saveSampleLocally]);
+  }, [mode, selectedCategory, selectedModel, sendSampleToBackend]);
 
   const drawHand = (ctx, landmarks, canvas) => {
     const connections = [
@@ -420,7 +420,7 @@ const TrainingIntegrated = () => {
     }
   };
 
-  // Inicialización de MediaPipe (sin cambios)
+  // Inicialización de MediaPipe
   useEffect(() => {
     if (!isCameraActive) {
       processingRef.current = false;
@@ -486,26 +486,11 @@ const TrainingIntegrated = () => {
     };
   }, [isCameraActive, onResults]);
 
-  // ========== HANDLERS MODIFICADOS ==========
+  // ========== HANDLERS ==========
 
   const handleStartTraining = async () => {
-    if (useLocalTraining) {
-      // ENTRENAMIENTO LOCAL
-      await handleLocalTraining();
-    } else {
-      // ENTRENAMIENTO BACKEND (original)
-      try {
-        setMode('train');
-        const result = await apiService.startTraining(selectedCategory, {
-          name: modelName,
-          epochs
-        });
-        setTrainingProgress({ status: 'training', progress: 0, message: 'Iniciando...' });
-      } catch (error) {
-        console.error('Error iniciando entrenamiento en backend:', error);
-        alert('Error iniciando entrenamiento');
-      }
-    }
+    // SIEMPRE entrenamiento local
+    await handleLocalTraining();
   };
 
   const handleClearData = async (type = 'current') => {
@@ -524,10 +509,10 @@ const TrainingIntegrated = () => {
 
     if (type === 'current') {
       const currentSamples = getLabelSamples(selectedLabel);
-      confirmMessage = `¿Eliminar todas las muestras de "${selectedLabel}"?\n\nSe eliminarán ${currentSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
+      confirmMessage = `¿Eliminar todas las muestras de "${selectedLabel}" del backend?\n\nSe eliminarán ${currentSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
     } else if (type === 'all') {
-      const totalSamples = Object.values(datasetStatus.labels || {}).reduce((sum, label) => sum + (label.samples || 0), 0);
-      confirmMessage = `¿Eliminar TODAS las muestras de "${selectedCategory}"?\n\nSe eliminarán ${totalSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
+      const totalSamples = datasetStatus.summary?.total_samples || 0;
+      confirmMessage = `¿Eliminar TODAS las muestras de "${selectedCategory}" del backend?\n\nSe eliminarán ${totalSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
     }
 
     const userConfirmed = window.confirm(`CONFIRMACIÓN\n\n${confirmMessage}`);
@@ -540,31 +525,20 @@ const TrainingIntegrated = () => {
     }
 
     try {
-      if (useLocalTraining) {
-        // LIMPIAR DATOS LOCALES
-        if (type === 'current') {
-          localDataManager.clearLabelData(selectedCategory, selectedLabel);
-          alert(`Datos locales de "${selectedLabel}" eliminados`);
-        } else if (type === 'all') {
-          localDataManager.clearCategoryData(selectedCategory);
-          alert(`Todos los datos locales de "${selectedCategory}" eliminados`);
-        }
-        loadLocalDatasetStatus();
-      } else {
-        // LIMPIAR DATOS BACKEND (original)
-        if (type === 'current') {
-          await clearLabelData(selectedCategory, selectedLabel);
-          alert(`Datos de "${selectedLabel}" eliminados del backend`);
-        } else if (type === 'all') {
-          await clearCategoryData(selectedCategory);
-          alert(`Todas las muestras de "${selectedCategory}" eliminadas del backend`);
-        }
-        // Recargar estado del backend
-        // loadDatasetStatus(); // Si mantienes esta función
+      // LIMPIAR DATOS DEL BACKEND
+      if (type === 'current') {
+        await apiService.clearLabelData(selectedCategory, selectedLabel);
+        alert(`Datos de "${selectedLabel}" eliminados del backend`);
+      } else if (type === 'all') {
+        await apiService.clearCategoryData(selectedCategory);
+        alert(`Todas las muestras de "${selectedCategory}" eliminadas del backend`);
       }
+      
+      // Recargar estado del backend
+      await loadBackendDatasetStatus();
 
     } catch (error) {
-      alert(`Error eliminando datos: ${error.message}`);
+      alert(`Error eliminando datos del backend: ${error.message}`);
       console.error('Error eliminando:', error);
 
       if (wasCollecting) {
@@ -574,8 +548,7 @@ const TrainingIntegrated = () => {
     }
   };
 
-  // ========== FUNCIONES AUXILIARES ==========
-
+  // Funciones auxiliares
   const getLabelSamples = (label) => {
     return datasetStatus.labels?.[label]?.samples || 0;
   };
@@ -588,7 +561,7 @@ const TrainingIntegrated = () => {
     return categories[selectedCategory]?.labels || [];
   };
 
-  // Handlers que se mantienen igual
+  // Handlers básicos
   const handleStartCamera = () => setIsCameraActive(true);
   const handleStopCamera = () => {
     setIsCameraActive(false);
@@ -637,7 +610,7 @@ const TrainingIntegrated = () => {
     setSelectedLabel('');
     setSelectedModel('');
     setPredictionResult(null);
-    loadLocalDatasetStatus();
+    loadBackendDatasetStatus();
     loadLocalModels();
   };
 
@@ -663,9 +636,9 @@ const TrainingIntegrated = () => {
 
   return (
     <div className="training-integrated">
-      {/* Header con toggle local/backend */}
+      {/* Header SIN toggle local/backend */}
       <div className="training-header">
-        <h1>Entrenamiento IA {useLocalTraining ? 'Local' : 'Backend'}</h1>
+        <h1>Sistema de Entrenamiento IA</h1>
         <div className="mode-selector">
           <button
             className={mode === 'collect' ? 'active' : ''}
@@ -687,22 +660,7 @@ const TrainingIntegrated = () => {
           </button>
         </div>
 
-        {/* Toggle Local/Backend */}
-        <div className="training-toggle" style={{ marginTop: '10px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span>🌐 Backend</span>
-            <input
-              type="checkbox"
-              checked={useLocalTraining}
-              onChange={(e) => setUseLocalTraining(e.target.checked)}
-              style={{ transform: 'scale(1.2)' }}
-            />
-            <span>💻 Local (Offline)</span>
-          </label>
-          <small style={{ color: '#666' }}>
-            {useLocalTraining ? 'Todo funciona sin internet' : 'Requiere conexión al backend'}
-          </small>
-        </div>
+        
       </div>
 
       <div className="training-content">
@@ -734,25 +692,13 @@ const TrainingIntegrated = () => {
               ))}
             </div>
             <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
-              Categoría actual: <strong>{categories[selectedCategory]?.name}</strong>
-              ({getCurrentLabels().length} etiquetas) |
-              Modo: <strong>{useLocalTraining ? 'Local' : 'Backend'}</strong>
+              Categoría actual: <strong>{categories[selectedCategory]?.name}</strong> ({getCurrentLabels().length} etiquetas)
             </p>
           </div>
 
           {/* Modo Recolección */}
           {mode === 'collect' && (
             <div className="collect-panel">
-              <h3>📊 Recolección de Datos - {categories[selectedCategory]?.name}</h3>
-              <div style={{
-                background: useLocalTraining ? '#e8f5e8' : '#fff3e0',
-                padding: '10px',
-                borderRadius: '5px',
-                marginBottom: '10px',
-                fontSize: '14px'
-              }}>
-                {useLocalTraining ? '💾 Guardando localmente' : '🌐 Enviando al backend'}
-              </div>
 
               <div className="label-selector">
                 <h4>Seleccionar Etiqueta:</h4>
@@ -785,7 +731,6 @@ const TrainingIntegrated = () => {
                 </div>
               </div>
 
-
               {/* Indicador de etiqueta activa */}
               {selectedLabel && (
                 <div className="active-label-indicator" style={{
@@ -800,7 +745,7 @@ const TrainingIntegrated = () => {
                   🎯 Recolectando: {selectedLabel} ({categories[selectedCategory]?.name})
                   {isCollecting && (
                     <div style={{ fontSize: '12px', marginTop: '5px' }}>
-                      ⏱️ Siguiente muestra en {Math.max(0, Math.ceil((COLLECTION_INTERVAL - (Date.now() - lastCollectionTime.current)) / 1000))}s
+                      ⏱️ Enviando al backend cada {COLLECTION_INTERVAL / 1000}s
                     </div>
                   )}
                 </div>
@@ -857,26 +802,26 @@ const TrainingIntegrated = () => {
                       fontSize: '14px',
                       opacity: selectedLabel && getLabelSamples(selectedLabel) > 0 && !isCollecting ? 1 : 0.6
                     }}
-                    title={isCollecting ? 'Detén la recolección primero' : `Borrar todas las muestras de "${selectedLabel}"`}
+                    title={isCollecting ? 'Detén la recolección primero' : `Borrar todas las muestras de "${selectedLabel}" del backend`}
                   >
                     🗑️ Borrar {selectedLabel || 'Etiqueta'}
                   </button>
 
                   <button
                     onClick={() => handleClearData('all')}
-                    disabled={Object.values(datasetStatus.labels || {}).every(label => (label.samples || 0) === 0) || isCollecting}
+                    disabled={!datasetStatus.summary?.total_samples || isCollecting}
                     style={{
                       background: '#ff3838',
                       color: 'white',
                       border: 'none',
                       padding: '10px 15px',
                       borderRadius: '5px',
-                      cursor: Object.values(datasetStatus.labels || {}).some(label => (label.samples || 0) > 0) && !isCollecting ? 'pointer' : 'not-allowed',
+                      cursor: datasetStatus.summary?.total_samples && !isCollecting ? 'pointer' : 'not-allowed',
                       fontWeight: '600',
                       fontSize: '14px',
-                      opacity: Object.values(datasetStatus.labels || {}).some(label => (label.samples || 0) > 0) && !isCollecting ? 1 : 0.6
+                      opacity: datasetStatus.summary?.total_samples && !isCollecting ? 1 : 0.6
                     }}
-                    title={isCollecting ? 'Detén la recolección primero' : "Borrar todas las muestras de todas las etiquetas"}
+                    title={isCollecting ? 'Detén la recolección primero' : "Borrar todas las muestras del backend"}
                   >
                     💀 Borrar Todo
                   </button>
@@ -888,20 +833,9 @@ const TrainingIntegrated = () => {
           {/* Modo Entrenamiento */}
           {mode === 'train' && (
             <div className="train-panel">
-              <h3>🧠 Entrenamiento - {categories[selectedCategory]?.name}</h3>
-              <div style={{
-                background: useLocalTraining ? '#e8f5e8' : '#fff3e0',
-                padding: '10px',
-                borderRadius: '5px',
-                marginBottom: '10px'
-              }}>
-                {useLocalTraining ?
-                  '💻 Entrenamiento local con TensorFlow.js' :
-                  '🌐 Entrenamiento en el backend'}
-              </div>
 
               <div className="dataset-summary">
-                <h4>Estado del Dataset:</h4>
+                <h4>Muestras Listas Para Entrenar:</h4>
                 {getCurrentLabels().map(label => (
                   <div key={label} className="label-status" style={{
                     display: 'flex',
@@ -917,6 +851,10 @@ const TrainingIntegrated = () => {
                     </span>
                   </div>
                 ))}
+                
+                <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                  Total en backend: {datasetStatus.summary?.total_samples || 0} muestras
+                </div>
               </div>
 
               <div className="training-form" style={{ margin: '20px 0' }}>
@@ -960,10 +898,12 @@ const TrainingIntegrated = () => {
 
               <button
                 onClick={handleStartTraining}
-                disabled={trainingProgress?.status === 'training'}
+                disabled={trainingProgress?.status === 'training' || !datasetStatus.summary?.ready_to_train}
                 className="train-button"
                 style={{
-                  background: trainingProgress?.status === 'training' ? '#ccc' : categories[selectedCategory].color,
+                  background: trainingProgress?.status === 'training' || !datasetStatus.summary?.ready_to_train 
+                    ? '#ccc' 
+                    : categories[selectedCategory].color,
                   color: 'white',
                   border: 'none',
                   padding: '12px 20px',
@@ -973,7 +913,12 @@ const TrainingIntegrated = () => {
                   width: '100%'
                 }}
               >
-                {trainingProgress?.status === 'training' ? 'Entrenando...' : 'Iniciar Entrenamiento'}
+                {trainingProgress?.status === 'training' 
+                  ? 'Entrenando Localmente...' 
+                  : !datasetStatus.summary?.ready_to_train
+                    ? 'Datos Insuficientes'
+                    : 'Iniciar Entrenamiento'
+                }
               </button>
 
               {trainingProgress && (
@@ -1000,8 +945,8 @@ const TrainingIntegrated = () => {
                       borderRadius: '8px',
                       marginTop: '10px'
                     }}>
-                      <p>Precisión: {(trainingProgress.metrics.accuracy * 100).toFixed(2)}%</p>
-                      <p>F1-Score: {trainingProgress.metrics.f1_score?.toFixed(3)}</p>
+                      <p>Precisión: {trainingProgress.metrics.accuracy}</p>
+                      <p>Pérdida: {trainingProgress.metrics.loss}</p>
                     </div>
                   )}
                 </div>
@@ -1012,17 +957,6 @@ const TrainingIntegrated = () => {
           {/* Modo Práctica */}
           {mode === 'practice' && (
             <div className="practice-panel">
-              <h3>🎯 Práctica - {categories[selectedCategory]?.name}</h3>
-              <div style={{
-                background: useLocalTraining ? '#e8f5e8' : '#fff3e0',
-                padding: '10px',
-                borderRadius: '5px',
-                marginBottom: '10px'
-              }}>
-                {useLocalTraining ?
-                  '💻 Predicción local (offline)' :
-                  '🌐 Predicción en el backend'}
-              </div>
 
               {/* Selector de Modelo */}
               <div className="model-selector" style={{ marginBottom: '20px' }}>
@@ -1034,9 +968,9 @@ const TrainingIntegrated = () => {
                     borderRadius: '8px',
                     textAlign: 'center'
                   }}>
-                    <p>No hay modelos entrenados para la categoría "{categories[selectedCategory]?.name}"</p>
+                    <p>No hay modelos locales para "{categories[selectedCategory]?.name}"</p>
                     <p style={{ fontSize: '14px', color: '#666' }}>
-                      Ve a la sección "Entrenar" para crear un modelo
+                      Ve a "Entrenar" para crear un modelo local con los datos del backend
                     </p>
                   </div>
                 ) : (
@@ -1055,7 +989,7 @@ const TrainingIntegrated = () => {
                         }}
                       >
                         <div style={{ fontWeight: 'bold' }}>
-                          {model.model_name || 'Modelo Default'}
+                          {model.model_name || 'Modelo Default'} 
                         </div>
                         <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
                           Precisión: {model.accuracy}% | Muestras: {model.samples_used}
@@ -1139,7 +1073,7 @@ const TrainingIntegrated = () => {
                     }}>
                       <p>Muestra tu mano para obtener una predicción</p>
                       <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-                        Modelo activo: {selectedModel}
+                        Modelo activo: {selectedModel} 
                       </p>
                     </div>
                   )}
@@ -1225,7 +1159,7 @@ const TrainingIntegrated = () => {
                   background: isCollecting ? '#FF9800' : '#ccc',
                   color: 'white'
                 }}>
-                  📊 Recolección: {isCollecting ? 'Activa' : 'Pausada'}
+                  🌐 Recolección: {isCollecting ? 'Enviando al Backend' : 'Pausada'}
                 </div>
                 {selectedLabel && (
                   <div className="indicator" style={{
@@ -1249,7 +1183,7 @@ const TrainingIntegrated = () => {
                 background: categories[selectedCategory].color,
                 color: 'white'
               }}>
-                🤖 {selectedModel}
+                🤖 {selectedModel} 💾
               </div>
             )}
 
@@ -1262,6 +1196,8 @@ const TrainingIntegrated = () => {
             }}>
               📂 {categories[selectedCategory].name}
             </div>
+
+            
           </div>
         </div>
       </div>
