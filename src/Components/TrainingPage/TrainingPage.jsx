@@ -119,7 +119,7 @@ const TrainingIntegrated = () => {
         downloading: false,
         downloadedModels: result.downloaded,
         errors: result.errors,
-        message: result.downloaded.length > 0 
+        message: result.downloaded.length > 0
           ? `✅ ${result.downloaded.length} modelos descargados`
           : result.errors.length > 0
             ? `⚠️ ${result.errors.length} errores en descarga`
@@ -149,7 +149,7 @@ const TrainingIntegrated = () => {
     try {
       // Obtener modelos descargados para la categoría actual
       const downloadedModels = modelDownloadService.getDownloadedModels(selectedCategory);
-      
+
       console.log(`📋 Modelos descargados para ${selectedCategory}:`, downloadedModels);
 
       // Convertir al formato esperado por el componente
@@ -172,7 +172,7 @@ const TrainingIntegrated = () => {
       }));
 
       const allModels = [...formattedModels, ...localModelsFormatted];
-      
+
       setAvailableModels(allModels);
 
       // Auto-seleccionar el primer modelo descargado si no hay uno seleccionado
@@ -195,7 +195,7 @@ const TrainingIntegrated = () => {
 
       // Verificar si es un modelo descargado o local
       const selectedModelInfo = availableModels.find(m => m.model_name === selectedModel);
-      
+
       if (!selectedModelInfo) {
         throw new Error('Información del modelo no encontrada');
       }
@@ -247,145 +247,138 @@ const TrainingIntegrated = () => {
   // ========== FUNCIONES PARA SUBIR MODELO AL BACKEND (mantener) ==========
 
   const uploadModelToBackend = async (model, category, modelName, labels) => {
-  try {
-    console.log("🚀 UPLOAD CORREGIDO - Subiendo modelo...");
-    
-    // 🔥 SANITIZAR EL NOMBRE DEL MODELO
-    const sanitizedModelName = modelName
-      .replace(/\s+/g, '_')           
-      .replace(/[^a-zA-Z0-9_-]/g, '') 
-      .toLowerCase();                 
-    
-    console.log(`📝 Nombre original: "${modelName}" -> Sanitizado: "${sanitizedModelName}"`);
-    
-    const modelArtifacts = await model.save(tf.io.withSaveHandler(async (artifacts) => {
-      console.log("📦 Artifacts capturados:");
-      console.log("  - modelTopology:", !!artifacts.modelTopology);
-      console.log("  - weightData:", artifacts.weightData?.byteLength, "bytes");
-      console.log("  - weightSpecs:", artifacts.weightSpecs?.length, "pesos");
+    try {
+      console.log("🚀 UPLOAD CORREGIDO - Subiendo modelo...");
 
-      // 🔥 FIX CRÍTICO: NOMBRES CONSISTENTES
-      const weightsFileName = `weights.bin`; // Mantener consistencia
-      
-      // ✅ CONSTRUIR model.json CORRECTO CON TRAINING CONFIG VÁLIDO
-      const modelJsonCorrect = {
-        modelTopology: artifacts.modelTopology,
-        
-        // 🔥 WEIGHTS MANIFEST CON NOMBRE CORRECTO
-        weightsManifest: [
-          {
-            paths: [weightsFileName], // MISMO nombre que se guardará
-            weights: artifacts.weightSpecs
-          }
-        ],
-        
-        format: "layers-model",
-        generatedBy: "TensorFlow.js tfjs-layers v4.0.0",
-        convertedBy: "HandSignAI Frontend Training System v1.0",
-        
-        // 🔥 FIX CRÍTICO: TRAINING CONFIG VÁLIDO (no null)
-        trainingConfig: {
-          loss: "sparseCategoricalCrossentropy",
-          optimizer: {
-            className: "Adam",
-            config: {
-              learningRate: 0.001,
-              beta1: 0.9,
-              beta2: 0.999,
-              epsilon: 1e-07
+      // 🔥 SANITIZAR EL NOMBRE DEL MODELO
+      const sanitizedModelName = modelName
+        .replace(/\s+/g, '_')
+        .replace(/[^a-zA-Z0-9_-]/g, '')
+        .toLowerCase();
+
+      console.log(`📝 Nombre original: "${modelName}" -> Sanitizado: "${sanitizedModelName}"`);
+
+      const modelArtifacts = await model.save(tf.io.withSaveHandler(async (artifacts) => {
+        console.log("📦 Artifacts capturados:");
+        console.log("  - modelTopology:", !!artifacts.modelTopology);
+        console.log("  - weightData:", artifacts.weightData?.byteLength, "bytes");
+        console.log("  - weightSpecs:", artifacts.weightSpecs?.length, "pesos");
+
+        // 🔥 FIX CRÍTICO: NOMBRES CONSISTENTES
+        const weightsFileName = `weights.bin`; // Mantener consistencia
+
+        // ✅ CONSTRUIR model.json CORRECTO CON TRAINING CONFIG VÁLIDO
+        const modelJsonCorrect = {
+          modelTopology: artifacts.modelTopology,
+
+          // 🔥 WEIGHTS MANIFEST CON NOMBRE CORRECTO
+          weightsManifest: [
+            {
+              paths: [weightsFileName], // MISMO nombre que se guardará
+              weights: artifacts.weightSpecs
             }
-          },
-          metrics: ["accuracy"],
-          // Metadatos adicionales
-          metadata: {
-            category: category,
-            modelName: sanitizedModelName,
-            labels: labels,
-            uploadDate: new Date().toISOString()
+          ],
+
+          format: "layers-model",
+          generatedBy: "TensorFlow.js tfjs-layers v4.0.0",
+          convertedBy: "HandSignAI Frontend Training System v1.0",
+
+          // 🔥 FIX CRÍTICO: TRAINING CONFIG VÁLIDO (no null)
+          trainingConfig: {
+            loss: "sparseCategoricalCrossentropy",
+            optimizer: {
+              className: "Adam",
+              config: {
+                learningRate: 0.001,
+                beta1: 0.9,
+                beta2: 0.999,
+                epsilon: 1e-07
+              }
+            },
           }
+
+        };
+
+        console.log("✅ model.json construido:");
+        console.log("  - modelTopology:", !!modelJsonCorrect.modelTopology);
+        console.log("  - weightsManifest:", !!modelJsonCorrect.weightsManifest);
+        console.log("  - weightsManifest[0].paths:", modelJsonCorrect.weightsManifest[0].paths);
+        console.log("  - trainingConfig:", !!modelJsonCorrect.trainingConfig);
+
+        // ✅ CREAR FormData con nombres CONSISTENTES
+        const formData = new FormData();
+
+        // Agregar model.json
+        const modelJsonBlob = new Blob(
+          [JSON.stringify(modelJsonCorrect, null, 2)],
+          { type: 'application/json' }
+        );
+        formData.append('model_json', modelJsonBlob, `${sanitizedModelName}_model.json`);
+
+        // Agregar weights.bin CON EL MISMO NOMBRE que está en weightsManifest
+        const weightsBlob = new Blob([artifacts.weightData], {
+          type: 'application/octet-stream'
+        });
+        formData.append('weights_bin', weightsBlob, weightsFileName); // CONSISTENTE
+
+        // Metadata
+        formData.append('category', category);
+        formData.append('model_name', sanitizedModelName);
+        formData.append('upload_timestamp', new Date().toISOString());
+        formData.append('labels', JSON.stringify(labels));
+
+        console.log("📤 Archivos preparados:");
+        console.log(`  - model.json: ${modelJsonBlob.size} bytes`);
+        console.log(`  - weights.bin: ${weightsBlob.size} bytes (como ${weightsFileName})`);
+
+        // ✅ SUBIR AL BACKEND
+        const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
+        const uploadUrl = `${API_BASE_URL}/train/upload-tfjs-model`;
+
+        console.log(`🌐 Subiendo a: ${uploadUrl}`);
+
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("❌ Error del servidor:", response.status, errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
         }
+
+        const result = await response.json();
+        console.log("✅ Respuesta del servidor:", result);
+
+        return result;
+      }));
+
+      console.log("🎉 UPLOAD COMPLETO - Modelo subido exitosamente!");
+
+      return {
+        success: true,
+        message: `Modelo ${sanitizedModelName} subido correctamente`,
+        sanitizedName: sanitizedModelName,
+        originalName: modelName,
+        artifacts: modelArtifacts
       };
 
-      console.log("✅ model.json construido:");
-      console.log("  - modelTopology:", !!modelJsonCorrect.modelTopology);
-      console.log("  - weightsManifest:", !!modelJsonCorrect.weightsManifest);
-      console.log("  - weightsManifest[0].paths:", modelJsonCorrect.weightsManifest[0].paths);
-      console.log("  - trainingConfig:", !!modelJsonCorrect.trainingConfig);
+    } catch (error) {
+      console.error("❌ Error en upload:", error);
 
-      // ✅ CREAR FormData con nombres CONSISTENTES
-      const formData = new FormData();
-      
-      // Agregar model.json
-      const modelJsonBlob = new Blob(
-        [JSON.stringify(modelJsonCorrect, null, 2)], 
-        { type: 'application/json' }
-      );
-      formData.append('model_json', modelJsonBlob, `${sanitizedModelName}_model.json`);
-      
-      // Agregar weights.bin CON EL MISMO NOMBRE que está en weightsManifest
-      const weightsBlob = new Blob([artifacts.weightData], { 
-        type: 'application/octet-stream' 
-      });
-      formData.append('weights_bin', weightsBlob, weightsFileName); // CONSISTENTE
-      
-      // Metadata
-      formData.append('category', category);
-      formData.append('model_name', sanitizedModelName);
-      formData.append('upload_timestamp', new Date().toISOString());
-      formData.append('labels', JSON.stringify(labels));
-      
-      console.log("📤 Archivos preparados:");
-      console.log(`  - model.json: ${modelJsonBlob.size} bytes`);
-      console.log(`  - weights.bin: ${weightsBlob.size} bytes (como ${weightsFileName})`);
-      
-      // ✅ SUBIR AL BACKEND
-      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
-      const uploadUrl = `${API_BASE_URL}/train/upload-tfjs-model`;
-      
-      console.log(`🌐 Subiendo a: ${uploadUrl}`);
-      
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("❌ Error del servidor:", response.status, errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log("✅ Respuesta del servidor:", result);
-      
-      return result;
-    }));
-
-    console.log("🎉 UPLOAD COMPLETO - Modelo subido exitosamente!");
-
-    return {
-      success: true,
-      message: `Modelo ${sanitizedModelName} subido correctamente`,
-      sanitizedName: sanitizedModelName,
-      originalName: modelName,
-      artifacts: modelArtifacts
-    };
-
-  } catch (error) {
-    console.error("❌ Error en upload:", error);
-    
-    return {
-      success: false,
-      message: `Error: ${error.message}`,
-      error: error
-    };
-  }
-};
+      return {
+        success: false,
+        message: `Error: ${error.message}`,
+        error: error
+      };
+    }
+  };
 
   const uploadModelAlternativeSimple = async (model, category, modelName) => {
     try {
       console.log("🔄 Usando método alternativo simple...");
-      
+
       const response = await fetch(`${API_BASE_URL}/train/upload-model`, {
         method: 'POST',
         headers: {
@@ -407,13 +400,13 @@ const TrainingIntegrated = () => {
 
       const result = await response.json();
       console.log("✅ Metadata enviada al backend:", result);
-      
+
       return {
         success: true,
         message: 'Modelo registrado en backend (solo metadata)',
         result: result
       };
-      
+
     } catch (error) {
       console.error("❌ Error en método alternativo simple:", error);
       throw error;
@@ -683,10 +676,10 @@ const TrainingIntegrated = () => {
   useEffect(() => {
     const initializeModels = async () => {
       console.log('🚀 Inicializando verificación automática de modelos...');
-      
+
       // Cargar estado del dataset del backend
       await loadBackendDatasetStatus();
-      
+
       // 🆕 Verificar y descargar modelos automáticamente
       await checkAndDownloadModels(selectedCategory);
     };
@@ -1017,7 +1010,7 @@ const TrainingIntegrated = () => {
     setSelectedModel('');
     setPredictionResult(null);
     clearBuffer();
-    
+
     // 🆕 Recargar modelos para nueva categoría
     await checkAndDownloadModels(newCategory);
     await loadBackendDatasetStatus();
@@ -1076,8 +1069,8 @@ const TrainingIntegrated = () => {
         <div className="download-status" style={{
           marginTop: '10px',
           padding: '10px',
-          background: downloadStatus.checking || downloadStatus.downloading ? '#fff3e0' : 
-                     downloadStatus.downloadedModels.length > 0 ? '#e8f5e8' : '#f0f8ff',
+          background: downloadStatus.checking || downloadStatus.downloading ? '#fff3e0' :
+            downloadStatus.downloadedModels.length > 0 ? '#e8f5e8' : '#f0f8ff',
           borderRadius: '5px',
           fontSize: '14px',
           color: '#333'
@@ -1099,15 +1092,15 @@ const TrainingIntegrated = () => {
                 fontSize: '12px'
               }}
             >
-              {downloadStatus.checking ? '🔍 Verificando...' : 
-               downloadStatus.downloading ? '⬇️ Descargando...' : 
-               '🔄 Verificar'}
+              {downloadStatus.checking ? '🔍 Verificando...' :
+                downloadStatus.downloading ? '⬇️ Descargando...' :
+                  '🔄 Verificar'}
             </button>
           </div>
-          
+
           {(downloadStatus.downloadedModels.length > 0 || downloadStatus.errors.length > 0) && (
             <div style={{ fontSize: '12px', marginTop: '5px', color: '#666' }}>
-              ✅ Descargados: {downloadStatus.downloadedModels.length} | 
+              ✅ Descargados: {downloadStatus.downloadedModels.length} |
               ❌ Errores: {downloadStatus.errors.length}
             </div>
           )}
@@ -1458,7 +1451,7 @@ const TrainingIntegrated = () => {
                           {model.model_name || 'Modelo Default'} {model.source === 'downloaded' ? '📥' : '💾'}
                         </div>
                         <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                          Precisión: {model.accuracy}% | Muestras: {model.samples_used} | 
+                          Precisión: {model.accuracy}% | Muestras: {model.samples_used} |
                           Fuente: {model.source === 'downloaded' ? 'Backend' : 'Local'}
                         </div>
                         <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>
@@ -1490,7 +1483,7 @@ const TrainingIntegrated = () => {
                           ? "La mano está demasiado lejos o no es visible"
                           : `Confianza: ${predictionResult.percentage}%`}
                       </p>
-                      
+
                       {/* 🆕 INDICADOR DE FUENTE DEL MODELO */}
                       {predictionResult.model_source && predictionResult.prediction !== "Acerca tu mano a la cámara" && (
                         <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
@@ -1707,9 +1700,9 @@ const TrainingIntegrated = () => {
                 background: downloadStatus.checking || downloadStatus.downloading ? '#FF9800' : '#4CAF50',
                 color: 'white'
               }}>
-                {downloadStatus.checking ? '🔍 Verificando...' : 
-                 downloadStatus.downloading ? '⬇️ Descargando...' : 
-                 `📥 ${downloadStatus.downloadedModels.length} modelos`}
+                {downloadStatus.checking ? '🔍 Verificando...' :
+                  downloadStatus.downloading ? '⬇️ Descargando...' :
+                    `📥 ${downloadStatus.downloadedModels.length} modelos`}
               </div>
             )}
 
