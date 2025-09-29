@@ -283,20 +283,6 @@ const TrainingIntegrated = () => {
           generatedBy: "TensorFlow.js tfjs-layers v4.0.0",
           convertedBy: "HandSignAI Frontend Training System v1.0",
 
-          // 🔥 FIX CRÍTICO: TRAINING CONFIG VÁLIDO (no null)
-          trainingConfig: {
-            loss: "sparseCategoricalCrossentropy",
-            optimizer: {
-              className: "Adam",
-              config: {
-                learningRate: 0.001,
-                beta1: 0.9,
-                beta2: 0.999,
-                epsilon: 1e-07
-              }
-            },
-          }
-
         };
 
         console.log("✅ model.json construido:");
