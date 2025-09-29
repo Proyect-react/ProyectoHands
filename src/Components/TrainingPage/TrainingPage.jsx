@@ -266,7 +266,7 @@ const TrainingIntegrated = () => {
       console.log("  - weightSpecs:", artifacts.weightSpecs?.length, "pesos");
 
       // 🔥 NOMBRES DE ARCHIVOS CORRECTOS (SIN category_ al principio)
-      const weightsFileName = `${sanitizedModelName}_weights.bin`;
+      const weightsFileName = `weights.bin`;
       
       // ✅ CONSTRUIR model.json CORRECTO
       const modelJsonCorrect = {
@@ -275,7 +275,7 @@ const TrainingIntegrated = () => {
         // 🔥 ESTO ES CRÍTICO: weightsManifest con el nombre correcto
         weightsManifest: [
           {
-            paths: [weightsFileName],  // Solo el nombre del archivo, NO la ruta completa
+            paths: [weights.bin],  // Solo el nombre del archivo, NO la ruta completa
             weights: artifacts.weightSpecs
           }
         ],
