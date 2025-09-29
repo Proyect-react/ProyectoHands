@@ -1,7 +1,5 @@
-// src/Components/TrainingPage/TrainingPage.jsx - VERSIÓN CON DESCARGA AUTOMÁTICA
+// src/Components/TrainingPage/TrainingPage.jsx - VERSIÓN CON MEDIAPIPECAMERA
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Hands } from "@mediapipe/hands";
-import { Camera } from "@mediapipe/camera_utils";
 import * as tf from '@tensorflow/tfjs';
 import apiService from '../../services/apiService';
 import './TrainingPage.css';
@@ -12,9 +10,13 @@ import modelDownloadService from '../../services/modelDownloadService';
 import localDataManager from '../../services/localDataManager';
 import tfjsTrainer from '../../services/tfjsTrainer';
 
+// 🆕 IMPORTAR MEDIAPIPECAMERA
+import MediaPipeCamera from '../Camara/MediaPipeCamera';
+
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000';
 
 const TrainingIntegrated = () => {
+  // 🆕 ELIMINAR referencias de cámara locales
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const handsRef = useRef(null);
@@ -146,12 +148,16 @@ const TrainingIntegrated = () => {
   }, []);
 
   const loadDownloadedModels = useCallback(async () => {
-    try {
-      // Obtener modelos descargados para la categoría actual
-      const downloadedModels = modelDownloadService.getDownloadedModels(selectedCategory);
+  try {
+    // 🆕 CARGAR MODELOS PERSISTIDOS PRIMERO
+    await modelDownloadService.loadPersistedModels();
+    
+    // Obtener modelos descargados para la categoría actual
+    const downloadedModels = modelDownloadService.getDownloadedModels(selectedCategory);
 
-      console.log(`📋 Modelos descargados para ${selectedCategory}:`, downloadedModels);
+    console.log(`📋 Modelos descargados para ${selectedCategory}:`, downloadedModels);
 
+    // Resto del código igual...
       // Convertir al formato esperado por el componente
       const formattedModels = downloadedModels.map(model => ({
         model_name: model.model_name,
@@ -358,44 +364,6 @@ const TrainingIntegrated = () => {
         message: `Error: ${error.message}`,
         error: error
       };
-    }
-  };
-
-  const uploadModelAlternativeSimple = async (model, category, modelName) => {
-    try {
-      console.log("🔄 Usando método alternativo simple...");
-
-      const response = await fetch(`${API_BASE_URL}/train/upload-model`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          category: category,
-          model_name: modelName,
-          upload_type: 'metadata_only',
-          timestamp: new Date().toISOString(),
-          message: 'Modelo entrenado en frontend'
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
-      const result = await response.json();
-      console.log("✅ Metadata enviada al backend:", result);
-
-      return {
-        success: true,
-        message: 'Modelo registrado en backend (solo metadata)',
-        result: result
-      };
-
-    } catch (error) {
-      console.error("❌ Error en método alternativo simple:", error);
-      throw error;
     }
   };
 
@@ -678,185 +646,54 @@ const TrainingIntegrated = () => {
     clearBuffer();
   }, [selectedCategory, selectedLabel, clearBuffer]);
 
-  // Callback principal de MediaPipe
-  const onResults = useCallback(async (results) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  // ========== 🆕 HANDLER PARA MEDIAPIPECAMERA ==========
+
+  const handleHandDetected = useCallback((landmarksArray, rawLandmarks) => {
+    if (!landmarksArray) return;
 
     const now = Date.now();
-    const shouldRender = now - lastRenderTime.current > RENDER_THROTTLE;
 
-    if (shouldRender) {
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-      lastRenderTime.current = now;
-    }
-
-    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-      const landmarks = extractLandmarksArray(results.multiHandLandmarks);
-
-      if (shouldRender) {
-        drawHand(canvas.getContext("2d"), results.multiHandLandmarks[0], canvas);
+    // MODO RECOLECCIÓN
+    if (mode === 'collect' && collectingRef.current && selectedLabelRef.current) {
+      const currentSamples = getLabelSamples(selectedLabelRef.current);
+      if (currentSamples >= 30) {
+        setIsCollecting(false);
+        return;
       }
 
-      if (landmarks) {
-        // MODO RECOLECCIÓN (BUFFER LOCAL → BACKEND)
-        if (mode === 'collect' && collectingRef.current && selectedLabelRef.current && !processingRef.current) {
-          const currentSamples = getLabelSamples(selectedLabelRef.current);
-          if (currentSamples >= 30) {
-            setIsCollecting(false);
-            collectingRef.current = false;
-            processingRef.current = false;
-            return;
-          }
+      const timeSinceLastCollection = now - lastCollectionTime.current;
 
-          const timeSinceLastCollection = now - lastCollectionTime.current;
-
-          if (timeSinceLastCollection > COLLECTION_INTERVAL) {
-            processingRef.current = true;
-
-            try {
-              addToBuffer(landmarks, selectedLabelRef.current);
-              lastCollectionTime.current = now;
-            } catch (error) {
-              console.error('Error agregando al buffer:', error);
-            } finally {
-              processingRef.current = false;
-            }
-          }
-        }
-
-        // 🆕 MODO PRÁCTICA (LOCAL Y DESCARGADO)
-        else if (mode === 'practice' && !processingRef.current && selectedModel) {
-          const handSize = calcularTamanioMano(results.multiHandLandmarks[0]);
-
-          if (handSize >= MIN_HAND_SIZE) {
-            if (now - lastCollectionTime.current > 500) {
-              try {
-                // 🆕 USAR NUEVA FUNCIÓN DE PREDICCIÓN
-                const prediction = await predictWithDownloadedModel(landmarks);
-
-                if (prediction) {
-                  setPredictionResult(prediction);
-                  lastCollectionTime.current = now;
-                }
-              } catch (error) {
-                console.error('Error en predicción:', error);
-                setPredictionResult(null);
-              }
-            }
-          } else {
-            setPredictionResult({
-              prediction: "Acerca tu mano a la cámara",
-              percentage: 0,
-              high_confidence: false,
-              top_3: []
-            });
-          }
-        }
+      if (timeSinceLastCollection > COLLECTION_INTERVAL && !processingRef.current) {
+        processingRef.current = true;
+        addToBuffer(landmarksArray, selectedLabelRef.current);
+        lastCollectionTime.current = now;
+        processingRef.current = false;
       }
-    } else if (mode === 'practice') {
-      setPredictionResult(null);
-    }
-  }, [mode, selectedCategory, selectedModel, addToBuffer, predictWithDownloadedModel]);
-
-  const drawHand = (ctx, landmarks, canvas) => {
-    const connections = [
-      [0, 1], [1, 2], [2, 3], [3, 4],
-      [0, 5], [5, 6], [6, 7], [7, 8],
-      [5, 9], [9, 10], [10, 11], [11, 12],
-      [9, 13], [13, 14], [14, 15], [15, 16],
-      [13, 17], [17, 18], [18, 19], [19, 20],
-      [0, 17]
-    ];
-
-    ctx.strokeStyle = "rgba(0,255,0,0.6)";
-    ctx.lineWidth = 2;
-
-    for (const [start, end] of connections) {
-      const startPoint = landmarks[start];
-      const endPoint = landmarks[end];
-
-      ctx.beginPath();
-      ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
-      ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
-      ctx.stroke();
     }
 
-    ctx.fillStyle = "red";
-    for (const landmark of landmarks) {
-      ctx.beginPath();
-      ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 5, 0, 2 * Math.PI);
-      ctx.fill();
-    }
-  };
+    // MODO PRÁCTICA
+    else if (mode === 'practice' && selectedModel) {
+      const handSize = calcularTamanioMano(rawLandmarks);
 
-  // Inicialización de MediaPipe
-  useEffect(() => {
-    if (!isCameraActive) {
-      processingRef.current = false;
-      lastCollectionTime.current = 0;
-      lastRenderTime.current = 0;
-      return;
-    }
-
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
-
-    hands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.8,
-      minTrackingConfidence: 0.8
-    });
-
-    hands.onResults(onResults);
-    handsRef.current = hands;
-
-    const videoElement = videoRef.current;
-    if (videoElement) {
-      const camera = new Camera(videoElement, {
-        onFrame: async () => {
-          if (videoElement && hands) {
-            try {
-              await hands.send({ image: videoElement });
-            } catch (error) {
-              console.error('Error enviando frame:', error);
-            }
-          }
-        },
-        width: 640,
-        height: 480
-      });
-
-      cameraRef.current = camera;
-      camera.start();
-    }
-
-    return () => {
-      if (cameraRef.current) {
-        try {
-          cameraRef.current.stop?.();
-        } catch (error) {
-          console.warn('Error deteniendo cámara:', error);
-        }
-      }
-      if (videoElement && videoElement.srcObject) {
-        videoElement.srcObject.getTracks().forEach(track => {
-          try {
-            track.stop();
-          } catch (error) {
-            console.warn('Error deteniendo track:', error);
-          }
+      if (handSize >= MIN_HAND_SIZE && now - lastCollectionTime.current > 500) {
+        predictWithDownloadedModel(landmarksArray)
+          .then(result => {
+            if (result) setPredictionResult(result);
+            lastCollectionTime.current = now;
+          })
+          .catch(error => {
+            console.error('Error en predicción:', error);
+          });
+      } else if (handSize < MIN_HAND_SIZE) {
+        setPredictionResult({
+          prediction: "Acerca tu mano a la cámara",
+          percentage: 0,
+          high_confidence: false,
+          top_3: []
         });
       }
-      if (handsRef.current) {
-        handsRef.current.onResults(() => { });
-      }
-    };
-  }, [isCameraActive, onResults]);
+    }
+  }, [mode, selectedModel, addToBuffer, predictWithDownloadedModel]);
 
   // ========== HANDLERS ==========
 
@@ -932,7 +769,28 @@ const TrainingIntegrated = () => {
   };
 
   // Handlers básicos
-  const handleStartCamera = () => setIsCameraActive(true);
+  const handleStartCamera = async () => {
+    try {
+      // Verificar permisos primero
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          width: 640, 
+          height: 480,
+          facingMode: 'user'
+        } 
+      });
+      
+      // Detener el stream de prueba
+      stream.getTracks().forEach(track => track.stop());
+      
+      // Ahora sí, activar la cámara
+      setIsCameraActive(true);
+    } catch (error) {
+      console.error('Error solicitando permisos:', error);
+      alert(`No se pudo acceder a la cámara:\n${error.message}\n\nVerifica los permisos en tu navegador.`);
+    }
+  };
+
   const handleStopCamera = async () => {
     setIsCameraActive(false);
     setIsCollecting(false);
@@ -1136,127 +994,182 @@ const TrainingIntegrated = () => {
                   {getCurrentLabels().map(label => (
                     <button
                       key={label}
-                      className={`label-btn ${selectedLabel === label ? 'selected' : ''} ${isLabelReady(label) ? 'complete' : ''}`}
+                      className={`label-btn ${selectedLabel === label ? 'selected' : ''} ${isLabelReady(label) ? 'ready' : ''}`}
                       onClick={() => handleLabelChange(label)}
-                      disabled={isCollecting || bufferStatus.sending}
                       style={{
-                        background: selectedLabel === label
-                          ? categories[selectedCategory].color
-                          : isLabelReady(label)
-                            ? '#4CAF50'
-                            : '#f0f0f0',
+                        background: selectedLabel === label ? categories[selectedCategory].color :
+                          isLabelReady(label) ? '#4CAF50' : '#f0f0f0',
                         color: selectedLabel === label || isLabelReady(label) ? 'white' : '#333',
                         border: 'none',
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        fontWeight: '600',
-                        cursor: !isCollecting && !bufferStatus.sending ? 'pointer' : 'not-allowed',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
                         fontSize: '14px',
-                        opacity: isCollecting || bufferStatus.sending ? 0.6 : 1
+                        fontWeight: '600',
+                        position: 'relative'
                       }}
                     >
-                      {label} ({getLabelSamples(label)}/30)
+                      {label}
+                      {isLabelReady(label) && (
+                        <span style={{
+                          position: 'absolute',
+                          top: '-5px',
+                          right: '-5px',
+                          background: '#4CAF50',
+                          color: 'white',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          fontSize: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          ✓
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {selectedLabel && (
-                <div className="active-label-indicator" style={{
-                  background: isCollecting ? '#4CAF50' : '#f0f0f0',
-                  color: isCollecting ? 'white' : '#333',
-                  padding: '10px',
-                  borderRadius: '8px',
-                  margin: '10px 0',
-                  textAlign: 'center',
-                  fontWeight: 'bold'
-                }}>
-                  🎯 Recolectando: {selectedLabel} ({categories[selectedCategory]?.name})
-                  {isCollecting && (
-                    <div style={{ fontSize: '12px', marginTop: '5px' }}>
-                      📦 Acumula en buffer → Envío cada 10 muestras
-                    </div>
-                  )}
+              {/* Estado del Dataset */}
+              <div className="dataset-status" style={{ marginTop: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '10px' }}>
+                <h4>Estado del Dataset (Backend):</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
+                  {getCurrentLabels().map(label => {
+                    const samples = getLabelSamples(label);
+                    const isReady = samples >= 30;
+                    return (
+                      <div key={label} style={{
+                        padding: '8px',
+                        background: isReady ? '#e8f5e8' : '#fff3e0',
+                        borderRadius: '5px',
+                        textAlign: 'center',
+                        fontSize: '14px'
+                      }}>
+                        <div style={{ fontWeight: '600' }}>{label}</div>
+                        <div style={{
+                          color: isReady ? '#4CAF50' : '#FF9800',
+                          fontSize: '12px'
+                        }}>
+                          {isReady ? '✅' : '⏳'} {samples}/30
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+                <div style={{ marginTop: '10px', padding: '10px', background: '#e3f2fd', borderRadius: '5px', fontSize: '14px' }}>
+                  <strong>Total en backend:</strong> {datasetStatus.summary?.total_samples || 0} muestras
+                </div>
+              </div>
 
-              <div className="collection-controls">
-                <button
-                  onClick={handleToggleCollection}
-                  disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel) || bufferStatus.sending}
-                  className={isCollecting ? 'stop' : 'start'}
-                  style={{
-                    background: isCollecting ? '#ff4757' : bufferStatus.sending ? '#ccc' : '#2ecc71',
-                    color: 'white',
-                    border: 'none',
-                    padding: '12px 20px',
-                    borderRadius: '8px',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {bufferStatus.sending
-                    ? '⏳ ENVIANDO...'
-                    : isCollecting
-                      ? '⏹️ DETENER'
-                      : '▶️ INICIAR'} Recolección
-                </button>
+              {/* Controles de Recolección */}
+              <div className="collection-controls" style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px' }}>
+                <h4>Controles de Recolección:</h4>
 
-                {selectedLabel && (
-                  <div className="progress-info">
-                    <p>Progreso para '{selectedLabel}': {getLabelSamples(selectedLabel)}/30</p>
-                    <div className="progress-bar" style={{ background: '#e0e0e0', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div
-                        className="progress-fill"
-                        style={{
-                          width: `${(getLabelSamples(selectedLabel) / 30) * 100}%`,
-                          height: '100%',
-                          background: categories[selectedCategory].color,
-                          transition: 'width 0.3s ease'
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="clear-controls" style={{ marginTop: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
                   <button
-                    onClick={() => handleClearData('current')}
-                    disabled={!selectedLabel || getLabelSamples(selectedLabel) === 0 || isCollecting || bufferStatus.sending}
+                    onClick={handleStartCamera}
+                    disabled={isCameraActive}
                     style={{
-                      background: '#ff4757',
+                      background: isCameraActive ? '#ccc' : '#4CAF50',
                       color: 'white',
                       border: 'none',
                       padding: '10px 15px',
                       borderRadius: '5px',
-                      cursor: selectedLabel && getLabelSamples(selectedLabel) > 0 && !isCollecting && !bufferStatus.sending ? 'pointer' : 'not-allowed',
-                      fontWeight: '600',
-                      fontSize: '14px',
-                      opacity: selectedLabel && getLabelSamples(selectedLabel) > 0 && !isCollecting && !bufferStatus.sending ? 1 : 0.6
+                      cursor: isCameraActive ? 'not-allowed' : 'pointer',
+                      flex: 1
                     }}
-                    title={isCollecting || bufferStatus.sending ? 'Detén la recolección primero' : `Borrar todas las muestras de "${selectedLabel}" del backend`}
                   >
-                    🗑️ Borrar {selectedLabel || 'Etiqueta'}
+                    {isCameraActive ? '📹 Cámara Activa' : '🎥 Iniciar Cámara'}
+                  </button>
+
+                  <button
+                    onClick={handleStopCamera}
+                    disabled={!isCameraActive}
+                    style={{
+                      background: !isCameraActive ? '#ccc' : '#f44336',
+                      color: 'white',
+                      border: 'none',
+                      padding: '10px 15px',
+                      borderRadius: '5px',
+                      cursor: !isCameraActive ? 'not-allowed' : 'pointer',
+                      flex: 1
+                    }}
+                  >
+                    🛑 Detener Cámara
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                  <button
+                    onClick={handleToggleCollection}
+                    disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)}
+                    style={{
+                      background: !isCameraActive || !selectedLabel || isLabelReady(selectedLabel) ? '#ccc' :
+                        isCollecting ? '#ff9800' : '#2196F3',
+                      color: 'white',
+                      border: 'none',
+                      padding: '12px 15px',
+                      borderRadius: '5px',
+                      cursor: (!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)) ? 'not-allowed' : 'pointer',
+                      flex: 1,
+                      fontWeight: '600',
+                      fontSize: '16px'
+                    }}
+                  >
+                    {isCollecting ? '⏸️ Pausar Recolección' : '▶️ Iniciar Recolección'}
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    onClick={() => handleClearData('current')}
+                    disabled={!selectedLabel || getLabelSamples(selectedLabel) === 0}
+                    style={{
+                      background: !selectedLabel || getLabelSamples(selectedLabel) === 0 ? '#ccc' : '#ff9800',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 12px',
+                      borderRadius: '5px',
+                      cursor: (!selectedLabel || getLabelSamples(selectedLabel) === 0) ? 'not-allowed' : 'pointer',
+                      flex: 1
+                    }}
+                  >
+                    🗑️ Limpiar {selectedLabel || 'Etiqueta'}
                   </button>
 
                   <button
                     onClick={() => handleClearData('all')}
-                    disabled={!datasetStatus.summary?.total_samples || isCollecting || bufferStatus.sending}
+                    disabled={!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0}
                     style={{
-                      background: '#ff3838',
+                      background: (!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0) ? '#ccc' : '#f44336',
                       color: 'white',
                       border: 'none',
-                      padding: '10px 15px',
+                      padding: '8px 12px',
                       borderRadius: '5px',
-                      cursor: datasetStatus.summary?.total_samples && !isCollecting && !bufferStatus.sending ? 'pointer' : 'not-allowed',
-                      fontWeight: '600',
-                      fontSize: '14px',
-                      opacity: datasetStatus.summary?.total_samples && !isCollecting && !bufferStatus.sending ? 1 : 0.6
+                      cursor: (!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0) ? 'not-allowed' : 'pointer',
+                      flex: 1
                     }}
-                    title={isCollecting || bufferStatus.sending ? 'Detén la recolección primero' : "Borrar todas las muestras del backend"}
                   >
-                    💀 Borrar Todo
+                    🗑️ Limpiar Todo
                   </button>
+                </div>
+
+                {/* Estado del Buffer */}
+                <div style={{ marginTop: '15px', padding: '10px', background: bufferStatus.sending ? '#fff3e0' : '#e8f5e8', borderRadius: '5px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: '600' }}>
+                    📦 Buffer: {bufferStatus.count}/{BUFFER_SIZE} muestras
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    {bufferStatus.sending ? '🔄 Enviando al backend...' :
+                      bufferStatus.count > 0 ? `📤 ${bufferStatus.count} muestras pendientes` :
+                        '✅ Buffer vacío'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    Total recolectado: {bufferStatus.totalCollected} muestras
+                  </div>
                 </div>
               </div>
             </div>
@@ -1264,119 +1177,113 @@ const TrainingIntegrated = () => {
 
           {/* Modo Entrenamiento */}
           {mode === 'train' && (
-            <div className="train-panel">
+            <div className="train-panel" style={{ padding: '15px', background: '#f5f5f5', borderRadius: '10px' }}>
+              <h4>Configuración de Entrenamiento:</h4>
 
-              <div className="dataset-summary">
-                <h4>Estado del Dataset (Backend):</h4>
-                {getCurrentLabels().map(label => (
-                  <div key={label} className="label-status" style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '5px 10px',
-                    background: isLabelReady(label) ? '#e8f5e8' : '#fff3e0',
-                    borderRadius: '4px',
-                    margin: '4px 0'
-                  }}>
-                    <span>{label}: {getLabelSamples(label)}/30</span>
-                    <span className={isLabelReady(label) ? 'ready' : 'pending'}>
-                      {isLabelReady(label) ? '✅' : '⏳'}
-                    </span>
-                  </div>
-                ))}
-
-                <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
-                  Total en backend: {datasetStatus.summary?.total_samples || 0} muestras
-                </div>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                  Nombre del Modelo:
+                </label>
+                <input
+                  type="text"
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  placeholder="modelo_local"
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '5px',
+                    border: '1px solid #ccc',
+                    fontSize: '14px'
+                  }}
+                />
               </div>
 
-              <div className="training-form" style={{ margin: '20px 0' }}>
-                <div className="form-group">
-                  <label htmlFor="modelName">Nombre del Modelo:</label>
-                  <input
-                    type="text"
-                    id="modelName"
-                    value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
-                    placeholder={`modelo_${selectedCategory}`}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #ddd',
-                      marginTop: '5px'
-                    }}
-                  />
-                </div>
-
-                <div className="form-group" style={{ marginTop: '15px' }}>
-                  <label htmlFor="epochs">Número de Épocas:</label>
-                  <input
-                    type="number"
-                    id="epochs"
-                    min="10"
-                    max="200"
-                    value={epochs}
-                    onChange={(e) => setEpochs(parseInt(e.target.value))}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      borderRadius: '4px',
-                      border: '1px solid #ddd',
-                      marginTop: '5px'
-                    }}
-                  />
-                </div>
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                  Número de Épocas:
+                </label>
+                <input
+                  type="number"
+                  value={epochs}
+                  onChange={(e) => setEpochs(parseInt(e.target.value))}
+                  min="1"
+                  max="200"
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '5px',
+                    border: '1px solid #ccc',
+                    fontSize: '14px'
+                  }}
+                />
               </div>
 
               <button
                 onClick={handleStartTraining}
                 disabled={trainingProgress?.status === 'training'}
-                className="train-button"
                 style={{
-                  background: trainingProgress?.status === 'training' || !datasetStatus.summary?.ready_to_train
-                    ? '#ccc'
-                    : categories[selectedCategory].color,
+                  background: trainingProgress?.status === 'training' ? '#ccc' : '#4CAF50',
                   color: 'white',
                   border: 'none',
-                  padding: '12px 20px',
-                  borderRadius: '8px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  width: '100%'
+                  padding: '12px 15px',
+                  borderRadius: '5px',
+                  cursor: trainingProgress?.status === 'training' ? 'not-allowed' : 'pointer',
+                  width: '100%',
+                  fontWeight: '600',
+                  fontSize: '16px'
                 }}
               >
-                {trainingProgress?.status === 'training'
-                  ? 'Entrenando Localmente...'
-                  : 'Iniciar Entrenamiento Local'
-                }
+                {trainingProgress?.status === 'training' ? '🔄 Entrenando...' : '🚀 Iniciar Entrenamiento Local'}
               </button>
 
+              {/* Progreso del Entrenamiento */}
               {trainingProgress && (
-                <div className="training-progress" style={{ marginTop: '20px' }}>
-                  <h4>Progreso: {trainingProgress.status}</h4>
-                  <p>{trainingProgress.message}</p>
-                  <div className="progress-bar" style={{ background: '#e0e0e0', height: '20px', borderRadius: '10px', overflow: 'hidden' }}>
-                    <div
-                      className="progress-fill"
-                      style={{
-                        width: `${trainingProgress.progress}%`,
-                        height: '100%',
-                        background: categories[selectedCategory].color,
-                        transition: 'width 0.3s ease'
-                      }}
-                    />
+                <div style={{
+                  marginTop: '15px',
+                  padding: '15px',
+                  background: trainingProgress.status === 'error' ? '#ffebee' :
+                    trainingProgress.status === 'completed' ? '#e8f5e8' : '#e3f2fd',
+                  borderRadius: '5px'
+                }}>
+                  <div style={{ fontWeight: '600', marginBottom: '10px' }}>
+                    {trainingProgress.status === 'training' ? '🔄 Entrenando...' :
+                      trainingProgress.status === 'completed' ? '✅ Entrenamiento Completado' :
+                        '❌ Error en Entrenamiento'}
                   </div>
-                  <p>{trainingProgress.progress}%</p>
 
-                  {trainingProgress.metrics && (
-                    <div className="metrics" style={{
-                      background: '#f5f5f5',
-                      padding: '10px',
-                      borderRadius: '8px',
-                      marginTop: '10px'
-                    }}>
-                      <p>Precisión: {trainingProgress.metrics.accuracy}</p>
-                      <p>Pérdida: {trainingProgress.metrics.loss}</p>
+                  {trainingProgress.status === 'training' && (
+                    <div style={{ marginBottom: '10px' }}>
+                      <div style={{
+                        width: '100%',
+                        height: '20px',
+                        background: '#f0f0f0',
+                        borderRadius: '10px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${trainingProgress.progress}%`,
+                          height: '100%',
+                          background: '#4CAF50',
+                          transition: 'width 0.3s ease'
+                        }}></div>
+                      </div>
+                      <div style={{ textAlign: 'center', fontSize: '12px', marginTop: '5px' }}>
+                        {trainingProgress.progress}% - {trainingProgress.message}
+                      </div>
+                    </div>
+                  )}
+
+                  {trainingProgress.status === 'completed' && trainingProgress.metrics && (
+                    <div style={{ fontSize: '14px' }}>
+                      <div><strong>Precisión:</strong> {trainingProgress.metrics.accuracy}</div>
+                      <div><strong>Pérdida:</strong> {trainingProgress.metrics.loss}</div>
+                    </div>
+                  )}
+
+                  {trainingProgress.status === 'error' && (
+                    <div style={{ fontSize: '14px', color: '#d32f2f' }}>
+                      {trainingProgress.message}
                     </div>
                   )}
                 </div>
@@ -1384,154 +1291,143 @@ const TrainingIntegrated = () => {
             </div>
           )}
 
-          {/* 🆕 Modo Práctica ACTUALIZADO */}
+          {/* Modo Práctica */}
           {mode === 'practice' && (
-            <div className="practice-panel">
+            <div className="practice-panel" style={{ padding: '15px', background: '#f5f5f5', borderRadius: '10px' }}>
+              <h4>Configuración de Práctica:</h4>
 
-              {/* Selector de Modelo MEJORADO */}
-              <div className="model-selector" style={{ marginBottom: '20px' }}>
-                <h4>Seleccionar Modelo:</h4>
-                {availableModels.length === 0 ? (
-                  <div style={{
-                    padding: '20px',
-                    background: '#fff3e0',
-                    borderRadius: '8px',
-                    textAlign: 'center'
-                  }}>
-                    <p>No hay modelos disponibles para "{categories[selectedCategory]?.name}"</p>
-                    <p style={{ fontSize: '14px', color: '#666' }}>
-                      Los modelos se descargan automáticamente del backend o puedes crear uno en "Entrenar"
-                    </p>
-                    {/* 🆕 Botón de recarga manual */}
-                    <button
-                      onClick={() => checkAndDownloadModels(selectedCategory)}
-                      style={{
-                        background: '#2196F3',
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 16px',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        marginTop: '10px'
-                      }}
-                    >
-                      🔄 Verificar Modelos
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {availableModels.map((model, index) => (
-                      <div
-                        key={model.model_name || index}
-                        className={`model-option ${selectedModel === (model.model_name || 'default') ? 'selected' : ''}`}
-                        onClick={() => setSelectedModel(model.model_name || 'default')}
-                        style={{
-                          padding: '12px',
-                          border: `2px solid ${selectedModel === (model.model_name || 'default') ? categories[selectedCategory].color : '#e0e0e0'}`,
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          background: selectedModel === (model.model_name || 'default') ? `${categories[selectedCategory].color}20` : '#fff'
-                        }}
-                      >
-                        <div style={{ fontWeight: 'bold' }}>
-                          {model.model_name || 'Modelo Default'} {model.source === 'downloaded' ? '📥' : '💾'}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
-                          Precisión: {model.accuracy}% | Muestras: {model.samples_used} |
-                          Fuente: {model.source === 'downloaded' ? 'Backend' : 'Local'}
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>
-                          Etiquetas: {model.labels?.join(', ') || 'N/A'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              {/* Selector de Modelo */}
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
+                  Seleccionar Modelo:
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '5px',
+                    border: '1px solid #ccc',
+                    fontSize: '14px'
+                  }}
+                >
+                  <option value="">-- Selecciona un modelo --</option>
+                  {availableModels.map(model => (
+                    <option key={model.model_name} value={model.model_name}>
+                      {model.model_name} ({model.source === 'downloaded' ? '🔽' : '💾'}) - {model.accuracy}% - {model.samples_used} muestras
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              {/* Resultado de predicción ACTUALIZADO */}
-              {selectedModel && (
-                <>
-                  {predictionResult ? (
-                    <div className="prediction-result" style={{
-                      padding: '15px',
-                      background: '#f8f9fa',
-                      borderRadius: '10px',
-                      border: `2px solid ${categories[selectedCategory].color}40`
-                    }}>
-                      <h4 style={{ color: categories[selectedCategory].color }}>
-                        {predictionResult.prediction === "Acerca tu mano a la cámara"
-                          ? "Acerca tu mano a la cámara"
-                          : `Predicción: ${predictionResult.prediction}`}
-                      </h4>
-                      <p>
-                        {predictionResult.prediction === "Acerca tu mano a la cámara"
-                          ? "La mano está demasiado lejos o no es visible"
-                          : `Confianza: ${predictionResult.percentage}%`}
-                      </p>
+              {/* Controles de Cámara */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                <button
+                  onClick={handleStartCamera}
+                  disabled={isCameraActive}
+                  style={{
+                    background: isCameraActive ? '#ccc' : '#4CAF50',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 15px',
+                    borderRadius: '5px',
+                    cursor: isCameraActive ? 'not-allowed' : 'pointer',
+                    flex: 1
+                  }}
+                >
+                  {isCameraActive ? '📹 Cámara Activa' : '🎥 Iniciar Cámara'}
+                </button>
 
-                      {/* 🆕 INDICADOR DE FUENTE DEL MODELO */}
-                      {predictionResult.model_source && predictionResult.prediction !== "Acerca tu mano a la cámara" && (
-                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>
-                          Modelo: {predictionResult.model_source === 'downloaded' ? '📥 Descargado del backend' : '💾 Entrenado localmente'}
-                        </div>
-                      )}
+                <button
+                  onClick={handleStopCamera}
+                  disabled={!isCameraActive}
+                  style={{
+                    background: !isCameraActive ? '#ccc' : '#f44336',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 15px',
+                    borderRadius: '5px',
+                    cursor: !isCameraActive ? 'not-allowed' : 'pointer',
+                    flex: 1
+                  }}
+                >
+                  🛑 Detener Cámara
+                </button>
+              </div>
 
-                      {predictionResult.prediction !== "Acerca tu mano a la cámara" && (
-                        <div className="confidence-bar" style={{
-                          background: '#e0e0e0',
-                          height: '10px',
-                          borderRadius: '5px',
-                          overflow: 'hidden'
+              {/* Resultado de Predicción */}
+              {predictionResult && (
+                <div style={{
+                  marginTop: '15px',
+                  padding: '15px',
+                  background: predictionResult.high_confidence ? '#e8f5e8' : '#fff3e0',
+                  borderRadius: '10px',
+                  border: `2px solid ${predictionResult.high_confidence ? '#4CAF50' : '#FF9800'}`
+                }}>
+                  <div style={{
+                    fontSize: '24px',
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    marginBottom: '10px',
+                    color: predictionResult.high_confidence ? '#2E7D32' : '#FF9800'
+                  }}>
+                    {predictionResult.prediction}
+                  </div>
+
+                  <div style={{
+                    fontSize: '16px',
+                    textAlign: 'center',
+                    marginBottom: '15px',
+                    color: '#666'
+                  }}>
+                    Confianza: {predictionResult.percentage}%
+                  </div>
+
+                  {predictionResult.top_3 && predictionResult.top_3.length > 0 && (
+                    <div style={{ fontSize: '14px' }}>
+                      <div style={{ fontWeight: '600', marginBottom: '8px' }}>Top 3:</div>
+                      {predictionResult.top_3.map((item, index) => (
+                        <div key={index} style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          padding: '5px 0',
+                          borderBottom: '1px solid #f0f0f0'
                         }}>
-                          <div
-                            className="confidence-fill"
-                            style={{
-                              width: `${predictionResult.percentage}%`,
-                              height: '100%',
-                              background: predictionResult.high_confidence ? '#4CAF50' : '#FF9800',
-                              transition: 'width 0.3s ease'
-                            }}
-                          />
+                          <span>{item.label}</span>
+                          <span>{item.percentage}%</span>
                         </div>
-                      )}
-
-                      {predictionResult.top_3 && predictionResult.top_3.length > 0 && predictionResult.prediction !== "Acerca tu mano a la cámara" && (
-                        <div className="top-predictions" style={{ marginTop: '15px' }}>
-                          <h5>Top 3 Predicciones:</h5>
-                          {predictionResult.top_3.map((pred, i) => (
-                            <div key={i} className="prediction-item" style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              padding: '5px 0',
-                              borderBottom: i < predictionResult.top_3.length - 1 ? '1px solid #eee' : 'none'
-                            }}>
-                              <span style={{ fontWeight: i === 0 ? 'bold' : 'normal' }}>
-                                {i + 1}. {pred.label}
-                              </span>
-                              <span style={{ color: '#666' }}>
-                                {pred.percentage}%
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{
-                      padding: '40px',
-                      textAlign: 'center',
-                      background: '#f8f9fa',
-                      borderRadius: '10px',
-                      border: '2px dashed #ddd'
-                    }}>
-                      <p>Muestra tu mano para obtener una predicción</p>
-                      <p style={{ fontSize: '12px', color: '#666', marginTop: '10px' }}>
-                        Modelo activo: {selectedModel} {availableModels.find(m => m.model_name === selectedModel)?.source === 'downloaded' ? '📥' : '💾'}
-                      </p>
+                      ))}
                     </div>
                   )}
-                </>
+
+                  <div style={{
+                    fontSize: '12px',
+                    textAlign: 'center',
+                    marginTop: '10px',
+                    color: '#999'
+                  }}>
+                    Modelo: {selectedModel} ({predictionResult.model_source})
+                  </div>
+                </div>
+              )}
+
+              {/* Información del Modelo Seleccionado */}
+              {selectedModel && (
+                <div style={{
+                  marginTop: '15px',
+                  padding: '10px',
+                  background: '#e3f2fd',
+                  borderRadius: '5px',
+                  fontSize: '12px'
+                }}>
+                  <div><strong>Modelo:</strong> {selectedModel}</div>
+                  <div><strong>Categoría:</strong> {selectedCategory}</div>
+                  <div><strong>Fuente:</strong> {
+                    availableModels.find(m => m.model_name === selectedModel)?.source === 'downloaded' ?
+                      '🔽 Descargado del Backend' : '💾 Entrenado Localmente'
+                  }</div>
+                </div>
               )}
             </div>
           )}
@@ -1539,171 +1435,143 @@ const TrainingIntegrated = () => {
 
         {/* Panel derecho - Cámara */}
         <div className="camera-panel">
-          <div className="camera-controls">
-            <button
-              onClick={handleStartCamera}
-              disabled={isCameraActive}
-              style={{
-                background: isCameraActive ? '#ccc' : '#4CAF50',
-                color: 'white',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '5px',
-                cursor: isCameraActive ? 'not-allowed' : 'pointer'
-              }}
-            >
-              📷 Iniciar Cámara
-            </button>
-            <button
-              onClick={handleStopCamera}
-              disabled={!isCameraActive}
-              style={{
-                background: !isCameraActive ? '#ccc' : '#f44336',
-                color: 'white',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '5px',
-                cursor: !isCameraActive ? 'not-allowed' : 'pointer',
-                marginLeft: '10px'
-              }}
-            >
-              ⏹️ Detener Cámara
-            </button>
-          </div>
-
-          <div className="camera-feed">
-            <video ref={videoRef} style={{ display: 'none' }} width="640" height="480" autoPlay playsInline />
-            <canvas
-              ref={canvasRef}
-              width="640"
-              height="480"
-              style={{
-                width: '100%',
-                maxWidth: '600px',
-                height: 'auto',
-                border: `2px solid ${categories[selectedCategory].color}`,
-                borderRadius: '8px'
-              }}
-            />
-          </div>
-
-          {/* Indicadores de estado ACTUALIZADOS */}
-          <div className="status-indicators" style={{
-            display: 'flex',
-            gap: '10px',
-            marginTop: '10px',
-            flexWrap: 'wrap'
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            maxWidth: '640px',
+            margin: '0 auto',
+            background: '#000',
+            borderRadius: '10px',
+            overflow: 'hidden'
           }}>
-            <div className={`indicator ${isCameraActive ? 'active' : ''}`} style={{
-              padding: '5px 10px',
-              borderRadius: '15px',
-              fontSize: '12px',
-              background: isCameraActive ? '#4CAF50' : '#ccc',
-              color: 'white'
+            
+            {/* 🆕 USAR MEDIAPIPECAMERA EN LUGAR DE LA CÁMARA ORIGINAL */}
+            <MediaPipeCamera
+              isActive={isCameraActive}
+              onHandDetected={handleHandDetected}
+              width={640}
+              height={480}
+            />
+
+            {/* Overlay de información */}
+            <div style={{
+              position: 'absolute',
+              top: '10px',
+              left: '10px',
+              right: '10px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start'
             }}>
-              📷 Cámara: {isCameraActive ? 'Activa' : 'Inactiva'}
-            </div>
-
-            {mode === 'collect' && (
-              <>
-                <div className={`indicator ${isCollecting ? 'active' : ''}`} style={{
-                  padding: '5px 10px',
-                  borderRadius: '15px',
-                  fontSize: '12px',
-                  background: isCollecting ? '#FF9800' : '#ccc',
-                  color: 'white'
-                }}>
-                  📦 Buffer: {isCollecting ? `${bufferStatus.count}/10` : 'Pausado'}
-                </div>
-
-                {bufferStatus.sending && (
-                  <div className="indicator" style={{
-                    padding: '5px 10px',
-                    borderRadius: '15px',
-                    fontSize: '12px',
-                    background: '#FF5722',
-                    color: 'white'
-                  }}>
-                    🚀 Enviando al Backend
-                  </div>
-                )}
-
-                {selectedLabel && (
-                  <div className="indicator" style={{
-                    padding: '5px 10px',
-                    borderRadius: '15px',
-                    fontSize: '12px',
-                    background: categories[selectedCategory].color,
-                    color: 'white'
-                  }}>
-                    🏷️ {selectedLabel}
-                  </div>
-                )}
-              </>
-            )}
-
-            {mode === 'practice' && selectedModel && (
-              <>
-                <div className="indicator" style={{
-                  padding: '5px 10px',
-                  borderRadius: '15px',
-                  fontSize: '12px',
-                  background: categories[selectedCategory].color,
-                  color: 'white'
-                }}>
-                  🤖 {selectedModel}
-                </div>
-
-                {/* 🆕 INDICADOR DE FUENTE DEL MODELO */}
-                <div className="indicator" style={{
-                  padding: '5px 10px',
-                  borderRadius: '15px',
-                  fontSize: '12px',
-                  background: availableModels.find(m => m.model_name === selectedModel)?.source === 'downloaded' ? '#2196F3' : '#9C27B0',
-                  color: 'white'
-                }}>
-                  {availableModels.find(m => m.model_name === selectedModel)?.source === 'downloaded' ? '📥 Backend' : '💾 Local'}
-                </div>
-              </>
-            )}
-
-            <div className="indicator" style={{
-              padding: '5px 10px',
-              borderRadius: '15px',
-              fontSize: '12px',
-              background: categories[selectedCategory].color,
-              color: 'white'
-            }}>
-              📂 {categories[selectedCategory].name}
-            </div>
-
-            {/* 🆕 INDICADOR DE ESTADO DE DESCARGA */}
-            {(downloadStatus.checking || downloadStatus.downloading || downloadStatus.downloadedModels.length > 0) && (
-              <div className="indicator" style={{
+              {/* Indicador de Modo */}
+              <div style={{
+                background: 'rgba(0,0,0,0.7)',
+                color: 'white',
                 padding: '5px 10px',
-                borderRadius: '15px',
+                borderRadius: '5px',
                 fontSize: '12px',
-                background: downloadStatus.checking || downloadStatus.downloading ? '#FF9800' : '#4CAF50',
-                color: 'white'
+                fontWeight: '600'
               }}>
-                {downloadStatus.checking ? '🔍 Verificando...' :
-                  downloadStatus.downloading ? '⬇️ Descargando...' :
-                    `📥 ${downloadStatus.downloadedModels.length} modelos`}
+                {mode === 'collect' ? '📊 RECOLECCIÓN' :
+                  mode === 'train' ? '🧠 ENTRENAMIENTO' :
+                    '🎯 PRÁCTICA'}
+              </div>
+
+              {/* Información específica del modo */}
+              {mode === 'collect' && (
+                <div style={{
+                  background: 'rgba(0,0,0,0.7)',
+                  color: isCollecting ? '#4CAF50' : 'white',
+                  padding: '5px 10px',
+                  borderRadius: '5px',
+                  fontSize: '12px',
+                  fontWeight: '600'
+                }}>
+                  {isCollecting ? `🟢 COLECTANDO: ${selectedLabel}` : '⏸️ PAUSADO'}
+                </div>
+              )}
+
+              {mode === 'practice' && selectedModel && (
+                <div style={{
+                  background: 'rgba(0,0,0,0.7)',
+                  color: 'white',
+                  padding: '5px 10px',
+                  borderRadius: '5px',
+                  fontSize: '12px'
+                }}>
+                  MODELO: {selectedModel}
+                </div>
+              )}
+            </div>
+
+            {/* Instrucciones */}
+            <div style={{
+              position: 'absolute',
+              bottom: '10px',
+              left: '10px',
+              right: '10px',
+              background: 'rgba(0,0,0,0.7)',
+              color: 'white',
+              padding: '8px',
+              borderRadius: '5px',
+              fontSize: '12px',
+              textAlign: 'center'
+            }}>
+              {mode === 'collect' && (
+                isCollecting ?
+                  `🟢 Recolectando muestras para "${selectedLabel}" - Mantén tu mano estable` :
+                  '⏸️ Selecciona una etiqueta e inicia la recolección'
+              )}
+              {mode === 'practice' && (
+                selectedModel ?
+                  '🎯 Realiza la seña frente a la cámara' :
+                  '⏸️ Selecciona un modelo para comenzar'
+              )}
+              {mode === 'train' && (
+                '🧠 Configura y ejecuta el entrenamiento'
+              )}
+            </div>
+          </div>
+
+          {/* Información adicional debajo de la cámara */}
+          <div style={{ marginTop: '15px', textAlign: 'center' }}>
+            {mode === 'collect' && selectedLabel && (
+              <div style={{
+                padding: '10px',
+                background: isLabelReady(selectedLabel) ? '#e8f5e8' : '#fff3e0',
+                borderRadius: '5px',
+                fontSize: '14px'
+              }}>
+                {isLabelReady(selectedLabel) ? (
+                  <span style={{ color: '#4CAF50', fontWeight: '600' }}>
+                    ✅ {selectedLabel} completado (30/30 muestras)
+                  </span>
+                ) : (
+                  <span style={{ color: '#FF9800' }}>
+                    ⏳ {selectedLabel}: {getLabelSamples(selectedLabel)}/30 muestras
+                  </span>
+                )}
               </div>
             )}
 
-            {/* Indicador del flujo actualizado */}
-            <div className="indicator" style={{
-              padding: '5px 10px',
-              borderRadius: '15px',
-              fontSize: '12px',
-              background: '#6c5ce7',
-              color: 'white'
-            }}>
-              {mode === 'collect' && '📦→🌐 Buffer→Backend'}
-              {mode === 'train' && '🌐→💻→☁️→📥 Backend→Local→Cloud→Auto'}
-              {mode === 'practice' && '📥🤖 Auto-Download+Local'}
-            </div>
+            {mode === 'practice' && predictionResult && (
+              <div style={{
+                padding: '10px',
+                background: predictionResult.high_confidence ? '#e8f5e8' : '#fff3e0',
+                borderRadius: '5px',
+                fontSize: '14px'
+              }}>
+                {predictionResult.high_confidence ? (
+                  <span style={{ color: '#4CAF50', fontWeight: '600' }}>
+                    ✅ Alta confianza: {predictionResult.prediction} ({predictionResult.percentage}%)
+                  </span>
+                ) : (
+                  <span style={{ color: '#FF9800' }}>
+                    ⚠️ Baja confianza: {predictionResult.prediction} ({predictionResult.percentage}%)
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

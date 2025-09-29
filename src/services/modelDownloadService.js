@@ -641,6 +641,36 @@ class ModelDownloadService {
       return { success: false, error: error.message };
     }
   }
+  async loadPersistedModels() {
+  console.log('🔄 Cargando modelos persistidos...');
+  
+  const persistedModels = [];
+  
+  // Buscar en localStorage
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.endsWith('_info')) {
+      try {
+        const modelKey = key.replace('_info', '');
+        const infoStr = localStorage.getItem(key);
+        const info = JSON.parse(infoStr);
+        
+        // Verificar que el modelo existe en IndexedDB
+        const exists = await this.modelExistsInIndexedDB(modelKey);
+        if (exists) {
+          this.downloadedModels.set(modelKey, info);
+          persistedModels.push(info);
+          console.log(`✅ Modelo recuperado: ${modelKey}`);
+        }
+      } catch (error) {
+        console.warn(`⚠️ Error recuperando modelo ${key}:`, error);
+      }
+    }
+  }
+  
+  console.log(`📦 ${persistedModels.length} modelos persistidos recuperados`);
+  return persistedModels;
+}
 }
 
 // Exportar instancia única
@@ -713,6 +743,7 @@ export const modelDownloadServiceDebug = {
   async checkModel(category, modelName) {
     return await modelDownloadService.getModelStatus(category, modelName);
   }
+  
 };
 
 export default modelDownloadService;

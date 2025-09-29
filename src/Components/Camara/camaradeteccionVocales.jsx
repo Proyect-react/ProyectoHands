@@ -156,7 +156,7 @@ function DeteccionVocales({ character = "A", onPrecisionUpdate, mode = "practice
     if (!videoRef.current) return;
 
     handsRef.current = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.min.js`
     });
 
     handsRef.current.setOptions({
