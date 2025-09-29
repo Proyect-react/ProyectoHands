@@ -246,63 +246,121 @@ const TrainingIntegrated = () => {
 
   // ========== FUNCIONES PARA SUBIR MODELO AL BACKEND (mantener) ==========
 
-  const uploadModelToBackend = async (model, category, modelName) => {
-    try {
-      console.log("🚀 Subiendo modelo al backend...");
+  const uploadModelToBackend = async (model, category, modelName, labels) => {
+  try {
+    console.log("🚀 Subiendo modelo con formato TensorFlow.js CORRECTO...");
+    
+    // ✅ PASO 1: Guardar el modelo y capturar los artifacts
+    const modelArtifacts = await model.save(tf.io.withSaveHandler(async (artifacts) => {
+      console.log("📦 Artifacts capturados:");
+      console.log("  - modelTopology:", !!artifacts.modelTopology);
+      console.log("  - weightData:", artifacts.weightData?.byteLength, "bytes");
+      console.log("  - weightSpecs:", artifacts.weightSpecs?.length, "pesos");
+
+      // ✅ PASO 2: Construir model.json EN FORMATO CORRECTO
+      const weightsFileName = `${category}_${modelName}_weights.bin`;
       
-      const modelArtifacts = await model.save(tf.io.withSaveHandler(async (artifacts) => {
-        const formData = new FormData();
+      const modelJsonCorrect = {
+        // Topología del modelo
+        modelTopology: artifacts.modelTopology,
         
-        // Agregar model.json como archivo
-        const modelJSONBlob = new Blob([JSON.stringify(artifacts.modelTopology)], { 
-          type: 'application/json' 
-        });
-        formData.append('model_file', modelJSONBlob, 'model.json');
+        // 🔥 ESTO ES LO QUE FALTABA: weightsManifest
+        weightsManifest: [
+          {
+            paths: [weightsFileName],  // Nombre del archivo de pesos
+            weights: artifacts.weightSpecs  // Especificaciones de los pesos
+          }
+        ],
         
-        // Agregar weights.bin como archivo
-        if (artifacts.weightData) {
-          const weightsBlob = new Blob([artifacts.weightData], { 
-            type: 'application/octet-stream' 
-          });
-          formData.append('weights_file', weightsBlob, 'weights.bin');
+        // Metadata requerida
+        format: "layers-model",
+        generatedBy: "TensorFlow.js tfjs-layers v4.22.0",
+        convertedBy: "HandSignAI Frontend Training System",
+        
+        // Metadata adicional
+        trainingConfig: {
+          category: category,
+          modelName: modelName,
+          labels: labels,
+          uploadDate: new Date().toISOString(),
+          tensorflowJsVersion: tf.version.tfjs
         }
-        
-        // Agregar metadata
-        formData.append('category', category);
-        formData.append('model_name', modelName);
-        formData.append('upload_timestamp', new Date().toISOString());
-        formData.append('labels', JSON.stringify([]));
-        
-        console.log("📤 Enviando modelo al backend...");
-        
-        const response = await fetch(`${API_BASE_URL}/train/upload-model`, {
-          method: 'POST',
-          body: formData
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("❌ Error del servidor:", errorText);
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
-        }
-
-        const result = await response.json();
-        console.log("✅ Modelo subido exitosamente:", result);
-        
-        return result;
-      }));
-
-      return {
-        success: true,
-        message: `Modelo ${modelName} subido exitosamente al backend`,
-        modelInfo: modelArtifacts
       };
 
-    } catch (error) {
-      console.error("❌ Error subiendo modelo:", error);
-      return await uploadModelAlternativeSimple(model, category, modelName);
-    }
-  };
+      // ✅ VALIDAR que el JSON es correcto
+      console.log("✅ Validando model.json:");
+      console.log("  - Tiene modelTopology:", !!modelJsonCorrect.modelTopology);
+      console.log("  - Tiene weightsManifest:", !!modelJsonCorrect.weightsManifest);
+      console.log("  - weightsManifest[0].paths:", modelJsonCorrect.weightsManifest[0].paths);
+      console.log("  - weightsManifest[0].weights length:", modelJsonCorrect.weightsManifest[0].weights.length);
+
+      // ✅ PASO 3: Crear FormData con archivos correctos
+      const formData = new FormData();
+      
+      // Agregar model.json (AHORA CON weightsManifest)
+      const modelJsonBlob = new Blob(
+        [JSON.stringify(modelJsonCorrect, null, 2)], 
+        { type: 'application/json' }
+      );
+      formData.append('model_json', modelJsonBlob, `${category}_${modelName}_model.json`);
+      
+      // Agregar weights.bin
+      const weightsBlob = new Blob([artifacts.weightData], { 
+        type: 'application/octet-stream' 
+      });
+      formData.append('weights_bin', weightsBlob, weightsFileName);
+      
+      // Agregar metadata
+      formData.append('category', category);
+      formData.append('model_name', modelName);
+      formData.append('upload_timestamp', new Date().toISOString());
+      formData.append('labels', JSON.stringify(labels));
+      
+      console.log("📤 Tamaños de archivos:");
+      console.log(`  - model.json: ${modelJsonBlob.size} bytes`);
+      console.log(`  - weights.bin: ${weightsBlob.size} bytes`);
+      
+      // ✅ PASO 4: Subir al backend
+      const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
+      
+      console.log(`🌐 Subiendo a: ${API_BASE_URL}/train/upload-tfjs-model`);
+      
+      const response = await fetch(`${API_BASE_URL}/train/upload-tfjs-model`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Error del servidor:", errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Respuesta del servidor:", result);
+      
+      return result;
+    }));
+
+    console.log("🎉 Modelo subido exitosamente!");
+
+    return {
+      success: true,
+      message: `Modelo ${modelName} subido correctamente`,
+      artifacts: modelArtifacts
+    };
+
+  } catch (error) {
+    console.error("❌ Error en upload:", error);
+    console.error("Stack:", error.stack);
+    
+    return {
+      success: false,
+      message: `Error: ${error.message}`,
+      error: error
+    };
+  }
+};
 
   const uploadModelAlternativeSimple = async (model, category, modelName) => {
     try {
@@ -517,7 +575,7 @@ const TrainingIntegrated = () => {
       setTrainingProgress({ status: 'training', progress: 95, message: 'Subiendo modelo al backend...' });
 
       try {
-        await uploadModelToBackend(result.model, selectedCategory, modelName);
+        await uploadModelToBackend(result.model, selectedCategory, modelName, result.labels);
         console.log('🎉 ¡Modelo subido exitosamente al backend!');
       } catch (uploadError) {
         console.warn('⚠️ Modelo no se pudo subir al backend, pero está guardado localmente:', uploadError);
