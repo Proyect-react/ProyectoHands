@@ -248,61 +248,66 @@ const TrainingIntegrated = () => {
 
   const uploadModelToBackend = async (model, category, modelName, labels) => {
   try {
-    console.log("🚀 Subiendo modelo con formato TensorFlow.js CORRECTO...");
+    console.log("🚀 UPLOAD CORREGIDO - Subiendo modelo...");
     
-    // ✅ PASO 1: Guardar el modelo y capturar los artifacts
+    // 🔥 SANITIZAR EL NOMBRE DEL MODELO (SIN ESPACIOS NI CARACTERES ESPECIALES)
+    const sanitizedModelName = modelName
+      .replace(/\s+/g, '_')           // Espacios -> guiones bajos
+      .replace(/[^a-zA-Z0-9_-]/g, '') // Solo letras, números, _ y -
+      .toLowerCase();                 // Minúsculas
+    
+    console.log(`📝 Nombre original: "${modelName}" -> Sanitizado: "${sanitizedModelName}"`);
+    
+    // ✅ PASO 1: Guardar el modelo y capturar artifacts correctamente
     const modelArtifacts = await model.save(tf.io.withSaveHandler(async (artifacts) => {
       console.log("📦 Artifacts capturados:");
       console.log("  - modelTopology:", !!artifacts.modelTopology);
       console.log("  - weightData:", artifacts.weightData?.byteLength, "bytes");
       console.log("  - weightSpecs:", artifacts.weightSpecs?.length, "pesos");
 
-      // ✅ PASO 2: Construir model.json EN FORMATO CORRECTO
-      const weightsFileName = `${category}_${modelName}_weights.bin`;
+      // 🔥 NOMBRES DE ARCHIVOS CORRECTOS (SIN category_ al principio)
+      const weightsFileName = `${sanitizedModelName}_weights.bin`;
       
+      // ✅ CONSTRUIR model.json CORRECTO
       const modelJsonCorrect = {
-        // Topología del modelo
         modelTopology: artifacts.modelTopology,
         
-        // 🔥 ESTO ES LO QUE FALTABA: weightsManifest
+        // 🔥 ESTO ES CRÍTICO: weightsManifest con el nombre correcto
         weightsManifest: [
           {
-            paths: [weightsFileName],  // Nombre del archivo de pesos
-            weights: artifacts.weightSpecs  // Especificaciones de los pesos
+            paths: [weightsFileName],  // Solo el nombre del archivo, NO la ruta completa
+            weights: artifacts.weightSpecs
           }
         ],
         
-        // Metadata requerida
         format: "layers-model",
-        generatedBy: "TensorFlow.js tfjs-layers v4.22.0",
+        generatedBy: "TensorFlow.js tfjs-layers",
         convertedBy: "HandSignAI Frontend Training System",
         
-        // Metadata adicional
+        // Metadata adicional limpia
         trainingConfig: {
           category: category,
-          modelName: modelName,
+          modelName: sanitizedModelName,
           labels: labels,
-          uploadDate: new Date().toISOString(),
-          tensorflowJsVersion: tf.version.tfjs
+          uploadDate: new Date().toISOString()
         }
       };
 
-      // ✅ VALIDAR que el JSON es correcto
-      console.log("✅ Validando model.json:");
-      console.log("  - Tiene modelTopology:", !!modelJsonCorrect.modelTopology);
-      console.log("  - Tiene weightsManifest:", !!modelJsonCorrect.weightsManifest);
+      console.log("✅ model.json construido:");
+      console.log("  - modelTopology:", !!modelJsonCorrect.modelTopology);
+      console.log("  - weightsManifest:", !!modelJsonCorrect.weightsManifest);
       console.log("  - weightsManifest[0].paths:", modelJsonCorrect.weightsManifest[0].paths);
       console.log("  - weightsManifest[0].weights length:", modelJsonCorrect.weightsManifest[0].weights.length);
 
-      // ✅ PASO 3: Crear FormData con archivos correctos
+      // ✅ PASO 2: Crear FormData con archivos correctos
       const formData = new FormData();
       
-      // Agregar model.json (AHORA CON weightsManifest)
+      // Agregar model.json
       const modelJsonBlob = new Blob(
         [JSON.stringify(modelJsonCorrect, null, 2)], 
         { type: 'application/json' }
       );
-      formData.append('model_json', modelJsonBlob, `${category}_${modelName}_model.json`);
+      formData.append('model_json', modelJsonBlob, `${sanitizedModelName}_model.json`);
       
       // Agregar weights.bin
       const weightsBlob = new Blob([artifacts.weightData], { 
@@ -310,29 +315,32 @@ const TrainingIntegrated = () => {
       });
       formData.append('weights_bin', weightsBlob, weightsFileName);
       
-      // Agregar metadata
+      // Metadata
       formData.append('category', category);
-      formData.append('model_name', modelName);
+      formData.append('model_name', sanitizedModelName); // Usar nombre sanitizado
       formData.append('upload_timestamp', new Date().toISOString());
       formData.append('labels', JSON.stringify(labels));
       
-      console.log("📤 Tamaños de archivos:");
+      console.log("📤 Archivos preparados:");
       console.log(`  - model.json: ${modelJsonBlob.size} bytes`);
       console.log(`  - weights.bin: ${weightsBlob.size} bytes`);
+      console.log(`  - category: ${category}`);
+      console.log(`  - model_name: ${sanitizedModelName}`);
       
-      // ✅ PASO 4: Subir al backend
+      // ✅ PASO 3: Subir al backend
       const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
+      const uploadUrl = `${API_BASE_URL}/train/upload-tfjs-model`;
       
-      console.log(`🌐 Subiendo a: ${API_BASE_URL}/train/upload-tfjs-model`);
+      console.log(`🌐 Subiendo a: ${uploadUrl}`);
       
-      const response = await fetch(`${API_BASE_URL}/train/upload-tfjs-model`, {
+      const response = await fetch(uploadUrl, {
         method: 'POST',
         body: formData
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("❌ Error del servidor:", errorText);
+        console.error("❌ Error del servidor:", response.status, errorText);
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
@@ -342,16 +350,18 @@ const TrainingIntegrated = () => {
       return result;
     }));
 
-    console.log("🎉 Modelo subido exitosamente!");
+    console.log("🎉 UPLOAD COMPLETO - Modelo subido exitosamente!");
 
     return {
       success: true,
-      message: `Modelo ${modelName} subido correctamente`,
+      message: `Modelo ${sanitizedModelName} subido correctamente`,
+      sanitizedName: sanitizedModelName,
+      originalName: modelName,
       artifacts: modelArtifacts
     };
 
   } catch (error) {
-    console.error("❌ Error en upload:", error);
+    console.error("❌ Error en upload CORREGIDO:", error);
     console.error("Stack:", error.stack);
     
     return {
