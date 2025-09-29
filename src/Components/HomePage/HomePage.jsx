@@ -1,280 +1,250 @@
 // src/components/HomePage.jsx
 import "./HomePage.css";
 import Header from "../Header/Header";
-import { useNavigate } from 'react-router-dom';
-import React, { useState, useEffect } from "react";
+import VoiceAssistant from "../VoiceAssistant/VoiceAssistant";
+import PracticeSection from "../PracticeSection/PracticeSection";
+import { speakAction } from "../VoiceAssistant/VoiceActions";
+import { useState, useEffect } from "react";
 
 function HomePage() {
-  const navigate = useNavigate();
-  const [progressData, setProgressData] = useState({
-    completed: 0,
-    accuracy: 0,
-    sessions: 0,
-    totalTime: 0,
-    generalProgress: 0,
-    masteredVowels: []
-  });
+  const [activeTab, setActiveTab] = useState("inicio");
 
-  const handleTrainingClick = () => {
-    navigate('/training');
-  };
-
-  // Obtener datos del localStorage al cargar el componente
+  // Efecto para mensaje de bienvenida inicial
   useEffect(() => {
-    const loadProgressData = () => {
-      const storedData = localStorage.getItem('practice_vocales_stats');
-      const storedAllSessions = localStorage.getItem('practice_all_sessions_data'); // Todas las sesiones
-      const vowels = ['A', 'E', 'I', 'O', 'U'];
-      
-      if (storedData) {
-        const stats = JSON.parse(storedData);
-        
-        // Calcular vocales completadas (con 20 muestras)
-        const completed = Object.values(stats).filter(count => count >= 20).length;
-        
-        // Calcular precisión promedio (simulada basada en progreso)
-        const totalSamples = Object.values(stats).reduce((sum, count) => sum + count, 0);
-        const maxPossibleSamples = vowels.length * 20;
-        const accuracy = maxPossibleSamples > 0 ? Math.min(100, Math.round((totalSamples / maxPossibleSamples) * 100 * 0.8 + 20)) : 0;
-        
-        // Calcular sesiones (basado en TODAS las sesiones guardadas)
-        let sessions = 0;
-        let totalTimeMinutes = 0;
-        
-        if (storedAllSessions) {
-          const allSessionData = JSON.parse(storedAllSessions);
-          sessions = allSessionData.filter(session => session.endTime !== null).length;
-          
-          // Calcular tiempo total sumando todas las sesiones completadas
-          totalTimeMinutes = allSessionData.reduce((total, session) => {
-            return total + (session.duration || 0);
-          }, 0);
-          
-          // Convertir a minutos
-          totalTimeMinutes = Math.round(totalTimeMinutes / 60);
-        }
-        
-        // Calcular progreso general
-        const generalProgress = Math.round((totalSamples / (vowels.length * 20)) * 100);
-        
-        // Determinar vocales dominadas (completadas al 100%)
-        const masteredVowels = vowels.filter(vowel => stats[vowel] >= 20);
-        
-        setProgressData({
-          completed,
-          accuracy,
-          sessions,
-          totalTime: totalTimeMinutes,
-          generalProgress,
-          masteredVowels
-        });
-      }
-    };
+    const timer = setTimeout(() => {
+      speakAction('navigation', 'inicio');
+    }, 1000); // Esperar 1 segundo después de cargar
 
-    loadProgressData();
-    
-    // Escuchar cambios en el localStorage
-    const handleStorageChange = () => {
-      loadProgressData();
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
+    return () => clearTimeout(timer);
   }, []);
 
-  // Obtener sesiones recientes (máximo 5)
-  const getRecentSessions = () => {
-    const storedSessions = localStorage.getItem('practice_sessions_data');
-    if (!storedSessions) return [];
-    
-    const sessions = JSON.parse(storedSessions);
-    // Filtrar solo sesiones completadas y tomar las 5 más recientes
-    return sessions
-      .filter(session => session.endTime !== null)
-      .slice(0, 5); // Limitar a 5 sesiones
+  const handleTabClick = (tabName) => {
+    setActiveTab(tabName);
+    // Activar voz para la acción de navegación
+    speakAction('navigation', tabName);
   };
 
-  // Formatear la duración de segundos a un formato legible
-  const formatDuration = (seconds) => {
-    if (seconds < 60) {
-      return `${seconds}s`;
-    } else {
-      const minutes = Math.floor(seconds / 60);
-      const remainingSeconds = seconds % 60;
-      return `${minutes}m ${remainingSeconds}s`;
-    }
-  };
 
-  // Tarjetas de progreso para vocales con datos reales
-  const vocalProgressCards = (
-    <div className="progress-cards">
-      <div className="progress-card blue">
-        <div className="card-icon">⭐</div>
-        <div className="card-content">
-          <span className="card-number">{progressData.completed}/5</span>
-          <span className="card-text">Vocales Completadas</span>
-        </div>
-      </div>
-      
-      <div className="progress-card green">
-        <div className="card-icon">🎪</div>
-        <div className="card-content">
-          <span className="card-number">{progressData.accuracy}%</span>
-          <span className="card-text">Precisión Promedio</span>
-        </div>
-      </div>
-      
-      <div className="progress-card purple">
-        <div className="card-icon">🚀</div>
-        <div className="card-content">
-          <span className="card-number">{progressData.sessions}</span>
-          <span className="card-text">Sesiones Totales</span>
-        </div>
-      </div>
-      
-      <div className="progress-card yellow">
-        <div className="card-icon">⏰</div>
-        <div className="card-content">
-          <span className="card-number">{progressData.totalTime}m</span>
-          <span className="card-text">Tiempo Total</span>
-        </div>
-      </div>
-    </div>
-  );
-
-  // Progreso general con datos reales
-  const vocalGeneralProgress = (
-    <div className="general-progress">
-      <h3>Progreso General</h3>
-      <div className="progress-bar-container">
-        <div className="progress-bar">
-          <div className="progress-fill" style={{width: `${progressData.generalProgress}%`}}></div>
-        </div>
-        <span className="progress-percentage">{progressData.generalProgress}%</span>
-      </div>
-    </div>
-  );
-
-  // Vocales dominadas con datos reales
-  const vocalDominadas = (
-    <div className="vowels-section">
-      <h3>Vocales Dominadas</h3>
-      <div className="vowels-container">
-        <div className={`vowel ${progressData.masteredVowels.includes('A') ? 'mastered' : ''}`}>A</div>
-        <div className={`vowel ${progressData.masteredVowels.includes('E') ? 'mastered' : ''}`}>E</div>
-        <div className={`vowel ${progressData.masteredVowels.includes('I') ? 'mastered' : ''}`}>I</div>
-        <div className={`vowel ${progressData.masteredVowels.includes('O') ? 'mastered' : ''}`}>O</div>
-        <div className={`vowel ${progressData.masteredVowels.includes('U') ? 'mastered' : ''}`}>U</div>
-      </div>
-    </div>
-  );
-
-  // Sesiones recientes vocales con datos reales
-  const vocalSesiones = (
-    <div className="recent-sessions">
-      <h3>Sesiones Recientes</h3>
-      {getRecentSessions().length > 0 ? (
-        getRecentSessions().map((session, index) => (
-          <div key={session.id} className="session-item">
-            <div className="session-info">
-              <span className="session-title">Vocal {session.vowel}</span>
-              <span className="session-details">{session.samplesCollected || 0} muestras • {formatDuration(session.duration || 0)}</span>
-            </div>
-            <div className="session-accuracy">
-              {session.samplesCollected ? Math.min(100, Math.round((session.samplesCollected / 20) * 100)) : 0}%
-            </div>
-          </div>
-        ))
-      ) : (
-        <p className="no-sessions">Aún no hay sesiones registradas</p>
-      )}
-    </div>
-  );
-
-  // Obtener progreso individual para cada vocal
-  const getVowelProgress = (vowel) => {
-    const storedData = localStorage.getItem('practice_vocales_stats');
-    if (storedData) {
-      const stats = JSON.parse(storedData);
-      return stats[vowel] || 0;
-    }
-    return 0;
-  };
-
-  // Calcular porcentaje de progreso para cada vocal
-  const calculateProgressPercentage = (vowel) => {
-    const progress = getVowelProgress(vowel);
-    return Math.min(100, Math.round((progress / 20) * 100));
-  };
-
-  // Tarjetas de entrenamiento con progreso real
-  const vocalCards = (
-    <div className="training-cards-container">
-      {['A', 'E', 'I', 'O', 'U'].map((vowel, index) => {
-        const progress = calculateProgressPercentage(vowel);
-        const colorClass = ['blue', 'green', 'purple', 'yellow', 'orange'][index];
+  // Si estamos en la vista de práctica, mostrar el componente PracticeSection
+  if (activeTab === "practicar") {
+    return (
+      <div className="homepage-container">
+        <Header />
+        <VoiceAssistant />
         
-        return (
-          <div key={vowel} className={`training-card ${colorClass}`}>
-            <div className="card-icon">{vowel}</div>
-            <div className="card-content">
-              <span className="card-number"></span>
-              <span className="card-text">Entrenamiento de vocal {vowel}</span>
-              <div className="Img">
-                <img 
-                  src={process.env.PUBLIC_URL + `/img/Letra ${vowel}.jpg`} 
-                  alt={`Letra ${vowel} en lenguaje de señas`} 
-                  style={{ width: '80px', height: '80px', objectFit: 'contain' }}
-                />
+        {/* Main Header Section */}
+        <div className="main-header">
+          <div className="title-section">
+            <div className="title-icon">🤚</div>
+            <h1 className="main-title">Aprendizaje de Lenguaje de Señas con IA</h1>
+            <p className="main-subtitle">
+              Plataforma inteligente para aprender lenguaje de señas usando inteligencia artificial 
+              y reconocimiento de gestos en tiempo real
+            </p>
+          </div>
+          
+          {/* Navigation Tabs */}
+          <div className="navigation-tabs">
+            <div 
+              className={`nav-tab ${activeTab === "inicio" ? "active" : ""}`}
+              onClick={() => handleTabClick("inicio")}
+            >
+              <span className="tab-icon">🤚</span>
+              <span className="text">Inicio</span>
+              <span className="notification-dot"></span>
+            </div>
+            <div 
+              className={`nav-tab ${activeTab === "capturar" ? "active" : ""}`}
+              onClick={() => handleTabClick("capturar")}
+            >
+              <span className="tab-icon">📷</span>
+              <span className="text">Capturar</span>
+              <span className="notification-dot"></span>
+            </div>
+            <div 
+              className={`nav-tab ${activeTab === "entrenar" ? "active" : ""}`}
+              onClick={() => handleTabClick("entrenar")}
+            >
+              <span className="tab-icon">🧠</span>
+              <span className="text">Entrenar</span>
+              <span className="notification-dot"></span>
+            </div>
+            <div 
+              className={`nav-tab ${activeTab === "practicar" ? "active" : ""}`}
+              onClick={() => handleTabClick("practicar")}
+            >
+              <span className="tab-icon">🎮</span>
+              <span className="text">Practicar</span>
+              <span className="notification-dot"></span>
+            </div>
+          </div>
+        </div>
+
+        <PracticeSection />
+      </div>
+    );
+  }
+
+  // Vista principal (home)
+  return (
+    <div className="homepage-container">
+      <Header />
+      <VoiceAssistant />
+      
+      {/* Main Header Section */}
+      <div className="main-header">
+        <div className="title-section">
+          <div className="title-icon">🤚</div>
+          <h1 className="main-title">Aprendizaje de Lenguaje de Señas con IA</h1>
+          <p className="main-subtitle">
+            Plataforma inteligente para aprender lenguaje de señas usando inteligencia artificial 
+            y reconocimiento de gestos en tiempo real
+          </p>
+        </div>
+        
+        {/* Navigation Tabs */}
+        <div className="navigation-tabs">
+          <div 
+            className={`nav-tab ${activeTab === "inicio" ? "active" : ""}`}
+            onClick={() => handleTabClick("inicio")}
+          >
+            <span className="tab-icon">🤚</span>
+            <span className="text">Inicio</span>
+            <span className="notification-dot"></span>
+          </div>
+          <div 
+            className={`nav-tab ${activeTab === "capturar" ? "active" : ""}`}
+            onClick={() => handleTabClick("capturar")}
+          >
+            <span className="tab-icon">📷</span>
+            <span className="text">Capturar</span>
+            <span className="notification-dot"></span>
+          </div>
+          <div 
+            className={`nav-tab ${activeTab === "entrenar" ? "active" : ""}`}
+            onClick={() => handleTabClick("entrenar")}
+          >
+            <span className="tab-icon">🧠</span>
+            <span className="text">Entrenar</span>
+            <span className="notification-dot"></span>
+          </div>
+          <div 
+            className={`nav-tab ${activeTab === "practicar" ? "active" : ""}`}
+            onClick={() => handleTabClick("practicar")}
+          >
+            <span className="tab-icon">🎮</span>
+            <span className="text">Practicar</span>
+            <span className="notification-dot"></span>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Cards Section */}
+      <div className="main-cards-section">
+        <div className="main-cards-container">
+          <div className="main-card">
+            <div className="card-icon">📷</div>
+            <h3 className="card-title">Capturar Gestos</h3>
+            <p className="card-description">
+              Usa tu cámara para capturar y etiquetar gestos de lenguaje de señas por categorías específicas
+            </p>
+          </div>
+
+          <div className="main-card">
+            <div className="card-icon">🧠</div>
+            <h3 className="card-title">Entrenar IA</h3>
+            <p className="card-description">
+              Entrena tu modelo de inteligencia artificial con los gestos capturados
+            </p>
+          </div>
+
+          <div className="main-card">
+            <div className="card-icon">🎮</div>
+            <h3 className="card-title">Practicar</h3>
+            <p className="card-description">
+              Practica lenguaje de señas con reconocimiento inteligente en tiempo real
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* How to Start Section */}
+      <div className="how-to-start-section">
+        <div className="how-to-start-container">
+          <h2 className="section-title">Cómo empezar</h2>
+          
+          <div className="steps-container">
+            <div className="step-item">
+              <div className="step-number">1</div>
+              <div className="step-content">
+                <h3 className="step-title">Capturar</h3>
+                <p className="step-description">
+                  Selecciona categoría y etiqueta específica, luego usa la cámara 
+                  para capturar gestos organizadamente
+                </p>
+                <span className="status-badge admin-required">Admin requerido</span>
               </div>
-              <button className="button" onClick={() => window.location.assign(`/EntrenarVocales?character=${vowel}`)}>Entrenar</button>
-              <h3>Progreso</h3>
-              <div className="progress-bar-container">
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{width: `${progress}%`}}></div>
-                </div>
-                <span className="progress-percentage">{progress}%</span>
+            </div>
+
+            <div className="step-item">
+              <div className="step-number">2</div>
+              <div className="step-content">
+                <h3 className="step-title">Entrenar</h3>
+                <p className="step-description">
+                  Entrena tu modelo de IA con los gestos capturados 
+                  para reconocimiento preciso
+                </p>
+                <span className="status-badge admin-required">Admin requerido</span>
+              </div>
+            </div>
+
+            <div className="step-item">
+              <div className="step-number">3</div>
+              <div className="step-content">
+                <h3 className="step-title">Practicar</h3>
+                <p className="step-description">
+                  Practica con reconocimiento en tiempo real 
+                  y mejora tus habilidades
+                </p>
+                <span className="status-badge free-access">Acceso libre</span>
               </div>
             </div>
           </div>
-        );
-      })}
-    </div>
-  );
-
-  return (
-    <>
-      <Header />
-      <div className="hero-section">
-        <h1 className="main-title">Aprende Lenguaje de Señas con IA</h1>
-        <p className="description">
-          Sistema inteligente de reconocimiento de gestos para dominar las vocales del lenguaje de señas. 
-          Entrenamientos personalizados con retroalimentación en tiempo real.
-        </p>
-        <button className="main-button" onClick={handleTrainingClick}>
-          <span className="hand-icon">🤖</span>
-          Entrenar Modelos Personalizados IA
-        </button>
-      </div>
-      <div className="main-container">
-        <div className="progress-section">
-          <div className="progress-header">
-            <h2>Tu Progreso</h2>
-          </div>
-          {vocalProgressCards}
         </div>
-        {vocalGeneralProgress}
-        {vocalDominadas}
-        {vocalSesiones}
       </div>
-      <div className="training-cards" style={{ marginTop: "3rem", paddingBottom: "2rem" }}>
-        <h3>Entrenamiento de vocales</h3>
-        {vocalCards}
+
+      {/* Platform Features */}
+      <div className="platform-features-section">
+        <div className="platform-features-container">
+          <div className="feature-column">
+            <div className="feature-header">
+              <span className="feature-icon">💡</span>
+              <h3 className="feature-title">Aprendizaje Personalizado</h3>
+            </div>
+            <ul className="feature-list">
+              <li>Captura tus propios gestos organizados por categorías</li>
+              <li>Selección específica de letras, números y palabras</li>
+              <li>Entrena modelos de IA adaptados a tu estilo de señas</li>
+              <li>Practica con retroalimentación instantánea y precisa</li>
+            </ul>
+          </div>
+
+          <div className="feature-column">
+            <div className="feature-header">
+              <span className="feature-icon">📖</span>
+              <h3 className="feature-title">Contenido Completo</h3>
+            </div>
+            <ul className="feature-list">
+              <li>Vocales (A, E, I, O, U)</li>
+              <li>Números del 0 al 9</li>
+              <li>Abecedario completo A-Z</li>
+              <li>Palabras básicas de uso cotidiano</li>
+              <li>Operaciones aritméticas básicas</li>
+            </ul>
+          </div>
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 
