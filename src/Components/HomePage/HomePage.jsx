@@ -6,101 +6,182 @@ import { useNavigate } from "react-router-dom";
 function HomePage() {
   const navigate = useNavigate();
 
-  const handleTrainingClick = () => {
-    navigate("TrainingPage.jsx"); // para navegar a la pagina  de entrenamiento telaaa pero yo tengo codigo completo 
+  const handleCaptureClick = () => {
+    navigate("/capture");
+  };
+
+  const handleTrainClick = () => {
+    navigate("/training");
+  };
+
+  const handlePracticeClick = () => {
+    navigate("/practice");
   };
 
   return (
-    <form>
-      <>
-        <Header />
-        <div className="titulo">
-          <h1 className="subtitulo">Fácil y Paso a Paso</h1>
-          <p className="description">
-            Primero enseñas a la computadora tus señas. Después ella te ayuda a
-            practicar. Todo muy simple y con voz que te guía.
+    <div className="homepage-container">
+      <Header />
+      
+      {/* Main Header Section */}
+      <div className="main-header">
+        <div className="title-section">
+          <div className="title-icon">🤚</div>
+          <h1 className="main-title">Aprendizaje de Lenguaje de Señas con IA</h1>
+          <p className="main-subtitle">
+            Plataforma inteligente para aprender lenguaje de señas usando inteligencia artificial 
+            y reconocimiento de gestos en tiempo real
           </p>
         </div>
+        
+        {/* Navigation Tabs */}
+        <div className="navigation-tabs">
+          <div className="nav-tab active">
+            <span className="tab-icon">🤚</span>
+            <span className="text">Inicio</span>
+            <span className="notification-dot"></span>
+          </div>
+          <div className="nav-tab">
+            <span className="tab-icon">📷</span>
+            <span className="text">Capturar</span>
+            <span className="notification-dot"></span>
+          </div>
+          <div className="nav-tab">
+            <span className="tab-icon">🧠</span>
+            <span className="text">Entrenar</span>
+            <span className="notification-dot"></span>
+          </div>
+          <div className="nav-tab">
+            <span className="tab-icon">🎮</span>
+            <span className="text">Practicar</span>
+            <span className="notification-dot"></span>
+          </div>
+        </div>
+      </div>
 
-        <div className="main-container">
-          {/* Dos Pasos Simples */}
-          <h2 className="sub">Dos Pasos Simples</h2>
-          <div className="steps-container">
-            <div className="card-paso1">
-              <div className="step-icon">🧠</div>
-              <h3>Paso 1: Enseñar</h3>
-              <p>
-                Le enseñas a la computadora cómo haces las señas. Solo necesitas
-                hacer cada seña 5 veces.
-              </p>
-              <span className="simulador">Estado: 1/4 modos listos</span>
-            </div>
-
-            <div className="card-paso2">
-              <div className="step-icon">🎓</div>
-              <h3>Paso 2: Practicar</h3>
-              <p>
-                Ahora practicas y la computadora te dice si lo haces bien. Te
-                ayuda con voz amigable.
-              </p>
-              <span className="simulador">
-                Necesitas completar el Paso 1 primero
-              </span>
+      {/* Main Cards Section */}
+      <div className="main-cards-section">
+        <div className="main-cards-container">
+          <div className="main-card">
+            <div className="card-icon">📷</div>
+            <h3 className="card-title">Capturar Gestos</h3>
+            <p className="card-description">
+              Usa tu cámara para capturar y etiquetar gestos de lenguaje de señas por categorías específicas
+            </p>
+            <div className="card-buttons">
+              <button className="primary-button" onClick={handleCaptureClick}>
+                Crear Dataset
+              </button>
+              <label className="admin-button">Requiere Admin</label>
             </div>
           </div>
 
-        
+          <div className="main-card">
+            <div className="card-icon">🧠</div>
+            <h3 className="card-title">Entrenar IA</h3>
+            <p className="card-description">
+              Entrena tu modelo de inteligencia artificial con los gestos capturados
+            </p>
+            <div className="card-buttons">
+              <button className="primary-button" onClick={handleTrainClick}>
+                Machine Learning
+              </button>
+              <label className="admin-button">Requiere Admin</label>
+            </div>
+          </div>
 
-          <div className="categories-container">
-            <div className="card-blue">
-              <h4>Vocales</h4>
-              <p>Aprende las 5 vocales básicas en pocos intentos.</p>
-              <div className="button">
-                <button className="boton-enseñar" useNavigate="/TrainingPage">Enseñar</button>
-                <button className="boton-practicar">Practicar</button>
+          <div className="main-card">
+            <div className="card-icon">🎮</div>
+            <h3 className="card-title">Practicar</h3>
+            <p className="card-description">
+              Practica lenguaje de señas con reconocimiento inteligente en tiempo real
+            </p>
+            <div className="card-buttons">
+              <button className="primary-button" onClick={handlePracticeClick}>
+                Reconocimiento IA
+              </button>
+              <label className="free-button">Acceso Libre</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* How to Start Section */}
+      <div className="how-to-start-section">
+        <div className="how-to-start-container">
+          <h2 className="section-title">Cómo empezar</h2>
+          
+          <div className="steps-container">
+            <div className="step-item">
+              <div className="step-number">1</div>
+              <div className="step-content">
+                <h3 className="step-title">Capturar</h3>
+                <p className="step-description">
+                  Selecciona categoría y etiqueta específica, luego usa la cámara 
+                  para capturar gestos organizadamente
+                </p>
+                <span className="status-badge admin-required">Admin requerido</span>
               </div>
             </div>
 
-            <div className="card-green">
-              <h4>Palabras</h4>
-              <p>Practica palabras comunes y útiles del día a día.</p>
-              <div className="button">
-                <button className="boton-enseñar">Enseñar</button>
-                <button className="boton-practicar">Practicar</button>
+            <div className="step-item">
+              <div className="step-number">2</div>
+              <div className="step-content">
+                <h3 className="step-title">Entrenar</h3>
+                <p className="step-description">
+                  Entrena tu modelo de IA con los gestos capturados 
+                  para reconocimiento preciso
+                </p>
+                <span className="status-badge admin-required">Admin requerido</span>
               </div>
             </div>
 
-            <div className="card-orange">
-              <h4>Números</h4>
-              <p>Domina los números del 1 al 10 fácilmente.</p>
-              <div className="button">
-                <button
-                  className="boton-enseñar"
-                  onClick={() => navigate("/training")}
-                >
-                  Enseñar
-                </button>
-                <button
-                  className="boton-practicar"
-                  onClick={() => navigate("/training")}
-                >
-                  Practicar
-                </button>
-              </div>
-            </div>
-
-            <div className="card-purple">
-              <h4>Aritmética</h4>
-              <p>Aprende operaciones matemáticas básicas</p>
-              <div className="button">
-                <button className="boton-enseñar">Enseñar</button>
-                <button className="boton-practicar">Practicar</button>
+            <div className="step-item">
+              <div className="step-number">3</div>
+              <div className="step-content">
+                <h3 className="step-title">Practicar</h3>
+                <p className="step-description">
+                  Practica con reconocimiento en tiempo real 
+                  y mejora tus habilidades
+                </p>
+                <span className="status-badge free-access">Acceso libre</span>
               </div>
             </div>
           </div>
         </div>
-      </>
-    </form>
+      </div>
+
+      {/* Platform Features */}
+      <div className="platform-features-section">
+        <div className="platform-features-container">
+          <div className="feature-column">
+            <div className="feature-header">
+              <span className="feature-icon">💡</span>
+              <h3 className="feature-title">Aprendizaje Personalizado</h3>
+            </div>
+            <ul className="feature-list">
+              <li>Captura tus propios gestos organizados por categorías</li>
+              <li>Selección específica de letras, números y palabras</li>
+              <li>Entrena modelos de IA adaptados a tu estilo de señas</li>
+              <li>Practica con retroalimentación instantánea y precisa</li>
+            </ul>
+          </div>
+
+          <div className="feature-column">
+            <div className="feature-header">
+              <span className="feature-icon">📖</span>
+              <h3 className="feature-title">Contenido Completo</h3>
+            </div>
+            <ul className="feature-list">
+              <li>Vocales (A, E, I, O, U)</li>
+              <li>Números del 0 al 9</li>
+              <li>Abecedario completo A-Z</li>
+              <li>Palabras básicas de uso cotidiano</li>
+              <li>Operaciones aritméticas básicas</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
