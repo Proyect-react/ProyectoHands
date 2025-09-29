@@ -265,7 +265,7 @@ const TrainingIntegrated = () => {
       console.log("  - weightSpecs:", artifacts.weightSpecs?.length, "pesos");
 
       // 🔥 FIX CRÍTICO: NOMBRES CONSISTENTES
-      const weightsFileName = `${sanitizedModelName}_weights.bin`; // Mantener consistencia
+      const weightsFileName = `weights.bin`; // Mantener consistencia
       
       // ✅ CONSTRUIR model.json CORRECTO CON TRAINING CONFIG VÁLIDO
       const modelJsonCorrect = {
