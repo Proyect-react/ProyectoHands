@@ -1,0 +1,84 @@
+.voice-examples {
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 10px;
+  margin: 20px;
+  max-width: 800px;
+}
+
+.voice-examples h3 {
+  color: #333;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.example-section {
+  margin-bottom: 25px;
+  padding: 15px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.example-section h4 {
+  color: #555;
+  margin-bottom: 15px;
+  border-bottom: 2px solid #667eea;
+  padding-bottom: 5px;
+}
+
+.example-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.example-buttons button {
+  padding: 10px 15px;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.example-buttons button:hover {
+  background: #5a6fd8;
+  transform: translateY(-2px);
+}
+
+.custom-button {
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.custom-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .voice-examples {
+    margin: 10px;
+    padding: 15px;
+  }
+  
+  .example-buttons {
+    flex-direction: column;
+  }
+  
+  .example-buttons button {
+    width: 100%;
+  }
+}
