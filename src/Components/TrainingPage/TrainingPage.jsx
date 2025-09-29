@@ -275,7 +275,7 @@ const TrainingIntegrated = () => {
         // 🔥 ESTO ES CRÍTICO: weightsManifest con el nombre correcto
         weightsManifest: [
           {
-            paths: [weights.bin],  // Solo el nombre del archivo, NO la ruta completa
+            paths: [weightsFileName],  // Solo el nombre del archivo, NO la ruta completa
             weights: artifacts.weightSpecs
           }
         ],
