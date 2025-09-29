@@ -83,7 +83,6 @@ class ModelDownloadService {
       const availableModels = await this.getAvailableModels();
 
       if (availableModels.length === 0) {
-        console.log('ℹ️ No hay modelos disponibles en el backend');
         return { downloaded: [], skipped: [], errors: [] };
       }
 
@@ -137,7 +136,6 @@ class ModelDownloadService {
     try {
       const response = await this.fetchWithRetry(`${this.API_BASE_URL}/train/models/available`);
       const data = await response.json();
-      console.log(`✅ Respuesta del servidor:`, data);
       return data.models || [];
     } catch (error) {
       console.error('❌ Error obteniendo modelos disponibles:', error);
@@ -348,8 +346,6 @@ class ModelDownloadService {
       // Cargar desde IndexedDB
       const indexedDBKey = modelData.metadata?.indexeddb_key || `indexeddb://${modelKey}`;
 
-      console.log(`📁 Intentando cargar desde IndexedDB: ${indexedDBKey}`);
-
       const loadedModel = await tf.loadLayersModel(indexedDBKey);
 
       if (!loadedModel) {
@@ -409,8 +405,6 @@ class ModelDownloadService {
         throw new Error('Modelo no proporcionado');
       }
 
-      console.log('🎯 Realizando predicción con modelo pre-cargado...');
-
       // Validar landmarks
       if (!landmarks || landmarks.length !== 126) {
         throw new Error(`Landmarks inválidos: esperados 126, recibidos ${landmarks?.length || 0}`);
@@ -428,7 +422,6 @@ class ModelDownloadService {
       prediction.dispose();
 
       const result = Array.from(predictionData);
-      console.log(`✅ Predicción completada. Resultados: ${result.length} clases`);
 
       return result;
     } catch (error) {
@@ -505,9 +498,64 @@ class ModelDownloadService {
       return false;
     }
   }
+  async deleteModel(category, modelName) {
+    try {
+      const modelKey = this.createModelKey(category, modelName);
+      console.log(`🗑️ Eliminando modelo de modelDownloadService: ${modelKey}`);
 
-  // 🚨 ELIMINAR EL MÉTODO DUPLICADO getPersistedModels() QUE ESTÁ AL FINAL
-  // NO agregues otro getPersistedModels() aquí
+      // 1. Eliminar del cache en memoria
+      if (this.modelCache.has(modelKey)) {
+        const cached = this.modelCache.get(modelKey);
+        if (cached.model) {
+          try {
+            tf.dispose(cached.model);
+          } catch (e) {
+            console.warn('⚠️ Error liberando modelo:', e);
+          }
+        }
+        this.modelCache.delete(modelKey);
+        console.log('✅ Modelo eliminado del cache en memoria');
+      }
+
+      // 2. Eliminar del Map de modelos descargados
+      if (this.downloadedModels.has(modelKey)) {
+        this.downloadedModels.delete(modelKey);
+        console.log('✅ Modelo eliminado del Map de descargados');
+      }
+
+      // 3. Eliminar de modelos persistidos en localStorage
+      const persistedModels = this.getPersistedModels();
+      const updatedModels = persistedModels.filter(m =>
+        !(m.category === category && m.model_name === modelName)
+      );
+
+      if (updatedModels.length < persistedModels.length) {
+        this.savePersistedModels(updatedModels);
+        console.log('✅ Modelo eliminado de modelos persistidos');
+      }
+
+      // 4. Eliminar de IndexedDB
+      try {
+        const indexedDBKey = `indexeddb://${modelKey}`;
+        await tf.io.removeModel(indexedDBKey);
+        console.log('✅ Modelo eliminado de IndexedDB');
+      } catch (e) {
+        console.log('ℹ️ Modelo no estaba en IndexedDB:', e.message);
+      }
+
+      // 5. Limpiar cualquier promesa de descarga pendiente
+      if (this.downloadPromises.has(modelKey)) {
+        this.downloadPromises.delete(modelKey);
+      }
+
+      console.log(`✅ Modelo ${modelKey} eliminado completamente de modelDownloadService`);
+      return true;
+
+    } catch (error) {
+      console.error('❌ Error eliminando modelo de modelDownloadService:', error);
+      throw error;
+    }
+  }
 }
 
 // Exportar instancia única

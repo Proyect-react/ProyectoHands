@@ -76,7 +76,6 @@ const CollectPage = () => {
             return;
         }
 
-        console.log(`🚀 Enviando ${sampleBufferRef.current.length} muestras al backend...`);
 
         setBufferStatus(prev => ({ ...prev, sending: true }));
         bufferStatusRef.current.sending = true;
@@ -94,8 +93,6 @@ const CollectPage = () => {
             bufferStatusRef.current.count = 0;
 
             const batchResult = await apiService.collectBatchSamples(selectedCategory, samplesToSend);
-
-            console.log(`✅ Lote enviado exitosamente:`, batchResult);
 
             setBufferStatus(prev => ({
                 ...prev,
@@ -122,7 +119,6 @@ const CollectPage = () => {
     const addToBuffer = useCallback((landmarks, label) => {
         // 🔥 BLOQUEAR SI EL BUFFER ESTÁ ENVIANDO
         if (bufferStatusRef.current.sending) {
-            console.log('⏳ Buffer ocupado enviando, omitiendo muestra...');
             return;
         }
 
@@ -173,7 +169,6 @@ const CollectPage = () => {
 
     const flushBuffer = useCallback(async () => {
         if (sampleBufferRef.current.length > 0 && !bufferStatusRef.current.sending) {
-            console.log(`🔄 Enviando muestras restantes: ${sampleBufferRef.current.length}`);
             await sendBufferToBackend();
         }
     }, [sendBufferToBackend]);
@@ -191,7 +186,6 @@ const CollectPage = () => {
             totalCollected: 0,
             sending: false
         };
-        console.log('🧹 Buffer limpiado');
     }, []);
 
     // ========== FUNCIONES AUXILIARES ==========
@@ -249,7 +243,6 @@ const CollectPage = () => {
 
             // 🔥 VERIFICAR SI EL BUFFER ESTÁ OCUPADO
             if (bufferStatusRef.current.sending) {
-                console.log('⏳ Buffer ocupado, omitiendo frame...');
                 return;
             }
 
@@ -387,7 +380,6 @@ const CollectPage = () => {
             console.log(`▶️ Iniciando recolección para: ${selectedLabel} (${currentSamples}/30)`);
         } else {
             flushBuffer();
-            console.log(`⏸️ Recolección pausada para: ${selectedLabel}`);
         }
     };
 
@@ -405,25 +397,18 @@ const CollectPage = () => {
     };
 
     const handleLabelChange = async (label) => {
-        const wasCollecting = isCollecting;
-        if (wasCollecting) {
-            setIsCollecting(false);
-            collectingRef.current = false;
-            await flushBuffer();
-        }
-        setSelectedLabel(label);
-        selectedLabelRef.current = label;
-        clearBuffer();
-
-        const currentSamples = getLabelSamples(label);
-        if (wasCollecting && currentSamples < 30) {
-            setTimeout(() => {
-                setIsCollecting(true);
-                collectingRef.current = true;
-                lastCollectionTime.current = 0;
-            }, 500);
-        }
-    };
+    // 🚨 PAUSAR LA RECOLECCIÓN AL CAMBIAR DE ETIQUETA
+    if (isCollecting) {
+        setIsCollecting(false);
+        collectingRef.current = false;
+        await flushBuffer();
+    }
+    
+    setSelectedLabel(label);
+    selectedLabelRef.current = label;
+    clearBuffer();
+    
+};
 
     // ========== EFECTOS ==========
 
@@ -442,8 +427,14 @@ const CollectPage = () => {
     }, [isCollecting, selectedLabel]);
 
     useEffect(() => {
-        selectedLabelRef.current = selectedLabel;
-    }, [selectedLabel]);
+    selectedLabelRef.current = selectedLabel;
+    
+    // 🚨 DETENER RECOLECCIÓN SI LA NUEVA ETIQUETA YA ESTÁ COMPLETA
+    if (isCollecting && selectedLabel && getLabelSamples(selectedLabel) >= 30) {
+        setIsCollecting(false);
+        collectingRef.current = false;
+    }
+}, [selectedLabel, isCollecting]);
 
     useEffect(() => {
         bufferStatusRef.current = bufferStatus;
@@ -563,9 +554,6 @@ const CollectPage = () => {
                                 </div>
                             );
                         })}
-                    </div>
-                    <div style={{ marginTop: '10px', padding: '10px', background: '#e3f2fd', borderRadius: '5px', fontSize: '14px' }}>
-                        <strong>Total en backend:</strong> {datasetStatus.summary?.total_samples || 0} muestras
                     </div>
                 </div>
 

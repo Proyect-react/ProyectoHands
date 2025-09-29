@@ -50,7 +50,6 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
         tracks.forEach(track => track.stop());
       }
       
-      console.log('📹 Cámara detenida completamente');
     } catch (error) {
       console.warn('Error deteniendo cámara:', error);
     }
@@ -59,7 +58,6 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
   // 🆕 FUNCIÓN PARA INICIAR CÁMARA
   const startCamera = async () => {
     try {
-      console.log('🎬 Iniciando cámara...');
       setIsReady(false);
 
       // Primero detener cualquier cámara existente
@@ -89,7 +87,6 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
 
       // Inicializar Hands si no existe
       if (!handsRef.current) {
-        console.log('🆕 Creando nueva instancia de Hands...');
 
         const hands = new Hands({
           locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -167,7 +164,6 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
       }
 
       // Crear nueva instancia de cámara
-      console.log('🎥 Creando nueva instancia de cámara...');
       const camera = new Camera(videoElement, {
         onFrame: async () => {
           if (handsRef.current && videoElement.readyState === 4) {
@@ -205,7 +201,6 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
 
     // Cleanup al desmontar el componente
     return () => {
-      console.log('🧹 Limpieza del componente MediaPipeCamera...');
       stopCameraCompletely();
     };
   }, [isActive]);

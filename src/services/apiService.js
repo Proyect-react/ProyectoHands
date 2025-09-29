@@ -53,7 +53,6 @@ class APIService {
 
   async collectSample(category, label, landmarks, metadata = {}) {
     try {
-      console.log(`📤 Enviando muestra: ${category}/${label}`);
       
       const response = await this.fetchWithRetry(`${API_BASE_URL}/collect/sample/landmarks`, {
         method: 'POST',
@@ -77,7 +76,6 @@ class APIService {
 
   async collectBatchSamples(category, samples) {
     try {
-      console.log(`📦 Enviando lote de ${samples.length} muestras`);
       
       const samplesWithMetadata = samples.map(sample => ({
         ...sample,

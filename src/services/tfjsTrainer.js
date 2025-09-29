@@ -486,6 +486,50 @@ class TfJsTrainer {
       memoryUsage: tf.memory().numBytes
     };
   }
+  async deleteModel(category, modelName) {
+  try {
+    const key = `${category}_${modelName}`;
+    console.log(`🗑️ Eliminando modelo de tfjsTrainer: ${key}`);
+    
+    // 1. Limpiar de memoria
+    if (this.models.has(key)) {
+      const model = this.models.get(key);
+      try {
+        tf.dispose(model);
+        console.log('✅ Modelo liberado de memoria');
+      } catch (e) {
+        console.warn('⚠️ Error liberando modelo:', e);
+      }
+      this.models.delete(key);
+    }
+    
+    // 2. Limpiar labels
+    if (this.modelLabels.has(key)) {
+      this.modelLabels.delete(key);
+    }
+    
+    // 3. Limpiar localStorage
+    const infoKey = `${key}_info`;
+    localStorage.removeItem(infoKey);
+    console.log('✅ Info eliminada de localStorage');
+    
+    // 4. Eliminar de IndexedDB
+    try {
+      const indexedDBKey = `indexeddb://${key}`;
+      await tf.io.removeModel(indexedDBKey);
+      console.log('✅ Modelo eliminado de IndexedDB');
+    } catch (e) {
+      console.log('ℹ️ Modelo no estaba en IndexedDB');
+    }
+    
+    console.log(`✅ Modelo ${key} eliminado completamente`);
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Error eliminando modelo de tfjsTrainer:', error);
+    throw error;
+  }
+}
 }
 
 export default new TfJsTrainer();
