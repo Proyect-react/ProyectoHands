@@ -250,46 +250,59 @@ const TrainingIntegrated = () => {
   try {
     console.log("🚀 UPLOAD CORREGIDO - Subiendo modelo...");
     
-    // 🔥 SANITIZAR EL NOMBRE DEL MODELO (SIN ESPACIOS NI CARACTERES ESPECIALES)
+    // 🔥 SANITIZAR EL NOMBRE DEL MODELO
     const sanitizedModelName = modelName
-      .replace(/\s+/g, '_')           // Espacios -> guiones bajos
-      .replace(/[^a-zA-Z0-9_-]/g, '') // Solo letras, números, _ y -
-      .toLowerCase();                 // Minúsculas
+      .replace(/\s+/g, '_')           
+      .replace(/[^a-zA-Z0-9_-]/g, '') 
+      .toLowerCase();                 
     
     console.log(`📝 Nombre original: "${modelName}" -> Sanitizado: "${sanitizedModelName}"`);
     
-    // ✅ PASO 1: Guardar el modelo y capturar artifacts correctamente
     const modelArtifacts = await model.save(tf.io.withSaveHandler(async (artifacts) => {
       console.log("📦 Artifacts capturados:");
       console.log("  - modelTopology:", !!artifacts.modelTopology);
       console.log("  - weightData:", artifacts.weightData?.byteLength, "bytes");
       console.log("  - weightSpecs:", artifacts.weightSpecs?.length, "pesos");
 
-      // 🔥 NOMBRES DE ARCHIVOS CORRECTOS (SIN category_ al principio)
-      const weightsFileName = `weights.bin`;
+      // 🔥 FIX CRÍTICO: NOMBRES CONSISTENTES
+      const weightsFileName = `${sanitizedModelName}_weights.bin`; // Mantener consistencia
       
-      // ✅ CONSTRUIR model.json CORRECTO
+      // ✅ CONSTRUIR model.json CORRECTO CON TRAINING CONFIG VÁLIDO
       const modelJsonCorrect = {
         modelTopology: artifacts.modelTopology,
         
-        // 🔥 ESTO ES CRÍTICO: weightsManifest con el nombre correcto
+        // 🔥 WEIGHTS MANIFEST CON NOMBRE CORRECTO
         weightsManifest: [
           {
-            paths: [weightsFileName],  // Solo el nombre del archivo, NO la ruta completa
+            paths: [weightsFileName], // MISMO nombre que se guardará
             weights: artifacts.weightSpecs
           }
         ],
         
         format: "layers-model",
-        generatedBy: "TensorFlow.js tfjs-layers",
-        convertedBy: "HandSignAI Frontend Training System",
+        generatedBy: "TensorFlow.js tfjs-layers v4.0.0",
+        convertedBy: "HandSignAI Frontend Training System v1.0",
         
-        // Metadata adicional limpia
+        // 🔥 FIX CRÍTICO: TRAINING CONFIG VÁLIDO (no null)
         trainingConfig: {
-          category: category,
-          modelName: sanitizedModelName,
-          labels: labels,
-          uploadDate: new Date().toISOString()
+          loss: "sparseCategoricalCrossentropy",
+          optimizer: {
+            className: "Adam",
+            config: {
+              learningRate: 0.001,
+              beta1: 0.9,
+              beta2: 0.999,
+              epsilon: 1e-07
+            }
+          },
+          metrics: ["accuracy"],
+          // Metadatos adicionales
+          metadata: {
+            category: category,
+            modelName: sanitizedModelName,
+            labels: labels,
+            uploadDate: new Date().toISOString()
+          }
         }
       };
 
@@ -297,9 +310,9 @@ const TrainingIntegrated = () => {
       console.log("  - modelTopology:", !!modelJsonCorrect.modelTopology);
       console.log("  - weightsManifest:", !!modelJsonCorrect.weightsManifest);
       console.log("  - weightsManifest[0].paths:", modelJsonCorrect.weightsManifest[0].paths);
-      console.log("  - weightsManifest[0].weights length:", modelJsonCorrect.weightsManifest[0].weights.length);
+      console.log("  - trainingConfig:", !!modelJsonCorrect.trainingConfig);
 
-      // ✅ PASO 2: Crear FormData con archivos correctos
+      // ✅ CREAR FormData con nombres CONSISTENTES
       const formData = new FormData();
       
       // Agregar model.json
@@ -309,25 +322,23 @@ const TrainingIntegrated = () => {
       );
       formData.append('model_json', modelJsonBlob, `${sanitizedModelName}_model.json`);
       
-      // Agregar weights.bin
+      // Agregar weights.bin CON EL MISMO NOMBRE que está en weightsManifest
       const weightsBlob = new Blob([artifacts.weightData], { 
         type: 'application/octet-stream' 
       });
-      formData.append('weights_bin', weightsBlob, weightsFileName);
+      formData.append('weights_bin', weightsBlob, weightsFileName); // CONSISTENTE
       
       // Metadata
       formData.append('category', category);
-      formData.append('model_name', sanitizedModelName); // Usar nombre sanitizado
+      formData.append('model_name', sanitizedModelName);
       formData.append('upload_timestamp', new Date().toISOString());
       formData.append('labels', JSON.stringify(labels));
       
       console.log("📤 Archivos preparados:");
       console.log(`  - model.json: ${modelJsonBlob.size} bytes`);
-      console.log(`  - weights.bin: ${weightsBlob.size} bytes`);
-      console.log(`  - category: ${category}`);
-      console.log(`  - model_name: ${sanitizedModelName}`);
+      console.log(`  - weights.bin: ${weightsBlob.size} bytes (como ${weightsFileName})`);
       
-      // ✅ PASO 3: Subir al backend
+      // ✅ SUBIR AL BACKEND
       const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
       const uploadUrl = `${API_BASE_URL}/train/upload-tfjs-model`;
       
@@ -361,8 +372,7 @@ const TrainingIntegrated = () => {
     };
 
   } catch (error) {
-    console.error("❌ Error en upload CORREGIDO:", error);
-    console.error("Stack:", error.stack);
+    console.error("❌ Error en upload:", error);
     
     return {
       success: false,
