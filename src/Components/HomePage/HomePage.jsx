@@ -2,7 +2,9 @@
 import "./HomePage.css";
 import Header from "../Header/Header";
 import VoiceAssistant from "../VoiceAssistant/VoiceAssistant";
-import PracticeSection from "../PracticeSection/PracticeSection";
+import CollectPage from "../TrainingPage/recolectar";
+import TrainPage from "../TrainingPage/Entrenamiento";
+import PracticePage from "../TrainingPage/Practica";
 import { speakAction } from "../VoiceAssistant/VoiceActions";
 import { useState, useEffect } from "react";
 
@@ -24,121 +26,24 @@ function HomePage() {
     speakAction('navigation', tabName);
   };
 
+  // Renderizar el contenido según la pestaña activa
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "capturar":
+        return <CollectPage />;
+      case "entrenar":
+        return <TrainPage />;
+      case "practicar":
+        return <PracticePage />;
+      case "inicio":
+      default:
+        return renderHomeContent();
+    }
+  };
 
-  // Si estamos en la vista de práctica, mostrar el componente PracticeSection
-  if (activeTab === "practicar") {
-    return (
-      <div className="homepage-container">
-        <Header />
-        <VoiceAssistant />
-        
-        {/* Main Header Section */}
-        <div className="main-header">
-          <div className="title-section">
-            <div className="title-icon">🤚</div>
-            <h1 className="main-title">Aprendizaje de Lenguaje de Señas con IA</h1>
-            <p className="main-subtitle">
-              Plataforma inteligente para aprender lenguaje de señas usando inteligencia artificial 
-              y reconocimiento de gestos en tiempo real
-            </p>
-          </div>
-          
-          {/* Navigation Tabs */}
-          <div className="navigation-tabs">
-            <div 
-              className={`nav-tab ${activeTab === "inicio" ? "active" : ""}`}
-              onClick={() => handleTabClick("inicio")}
-            >
-              <span className="tab-icon">🤚</span>
-              <span className="text">Inicio</span>
-              <span className="notification-dot"></span>
-            </div>
-            <div 
-              className={`nav-tab ${activeTab === "capturar" ? "active" : ""}`}
-              onClick={() => handleTabClick("capturar")}
-            >
-              <span className="tab-icon">📷</span>
-              <span className="text">Capturar</span>
-              <span className="notification-dot"></span>
-            </div>
-            <div 
-              className={`nav-tab ${activeTab === "entrenar" ? "active" : ""}`}
-              onClick={() => handleTabClick("entrenar")}
-            >
-              <span className="tab-icon">🧠</span>
-              <span className="text">Entrenar</span>
-              <span className="notification-dot"></span>
-            </div>
-            <div 
-              className={`nav-tab ${activeTab === "practicar" ? "active" : ""}`}
-              onClick={() => handleTabClick("practicar")}
-            >
-              <span className="tab-icon">🎮</span>
-              <span className="text">Practicar</span>
-              <span className="notification-dot"></span>
-            </div>
-          </div>
-        </div>
-
-        <PracticeSection />
-      </div>
-    );
-  }
-
-  // Vista principal (home)
-  return (
-    <div className="homepage-container">
-      <Header />
-      <VoiceAssistant />
-      
-      {/* Main Header Section */}
-      <div className="main-header">
-        <div className="title-section">
-          <div className="title-icon">🤚</div>
-          <h1 className="main-title">Aprendizaje de Lenguaje de Señas con IA</h1>
-          <p className="main-subtitle">
-            Plataforma inteligente para aprender lenguaje de señas usando inteligencia artificial 
-            y reconocimiento de gestos en tiempo real
-          </p>
-        </div>
-        
-        {/* Navigation Tabs */}
-        <div className="navigation-tabs">
-          <div 
-            className={`nav-tab ${activeTab === "inicio" ? "active" : ""}`}
-            onClick={() => handleTabClick("inicio")}
-          >
-            <span className="tab-icon">🤚</span>
-            <span className="text">Inicio</span>
-            <span className="notification-dot"></span>
-          </div>
-          <div 
-            className={`nav-tab ${activeTab === "capturar" ? "active" : ""}`}
-            onClick={() => handleTabClick("capturar")}
-          >
-            <span className="tab-icon">📷</span>
-            <span className="text">Capturar</span>
-            <span className="notification-dot"></span>
-          </div>
-          <div 
-            className={`nav-tab ${activeTab === "entrenar" ? "active" : ""}`}
-            onClick={() => handleTabClick("entrenar")}
-          >
-            <span className="tab-icon">🧠</span>
-            <span className="text">Entrenar</span>
-            <span className="notification-dot"></span>
-          </div>
-          <div 
-            className={`nav-tab ${activeTab === "practicar" ? "active" : ""}`}
-            onClick={() => handleTabClick("practicar")}
-          >
-            <span className="tab-icon">🎮</span>
-            <span className="text">Practicar</span>
-            <span className="notification-dot"></span>
-          </div>
-        </div>
-      </div>
-
+  // Contenido de la página de inicio
+  const renderHomeContent = () => (
+    <>
       {/* Main Cards Section */}
       <div className="main-cards-section">
         <div className="main-cards-container">
@@ -244,6 +149,64 @@ function HomePage() {
           </div>
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <div className="homepage-container">
+      <Header />
+      <VoiceAssistant />
+      
+      {/* Main Header Section */}
+      <div className="main-header">
+        <div className="title-section">
+          <div className="title-icon">🤚</div>
+          <h1 className="main-title">Aprendizaje de Lenguaje de Señas con IA</h1>
+          <p className="main-subtitle">
+            Plataforma inteligente para aprender lenguaje de señas usando inteligencia artificial 
+            y reconocimiento de gestos en tiempo real
+          </p>
+        </div>
+        
+        {/* Navigation Tabs */}
+        <div className="navigation-tabs">
+          <div 
+            className={`nav-tab ${activeTab === "inicio" ? "active" : ""}`}
+            onClick={() => handleTabClick("inicio")}
+          >
+            <span className="tab-icon">🤚</span>
+            <span className="text">Inicio</span>
+            <span className="notification-dot"></span>
+          </div>
+          <div 
+            className={`nav-tab ${activeTab === "capturar" ? "active" : ""}`}
+            onClick={() => handleTabClick("capturar")}
+          >
+            <span className="tab-icon">📷</span>
+            <span className="text">Capturar</span>
+            <span className="notification-dot"></span>
+          </div>
+          <div 
+            className={`nav-tab ${activeTab === "entrenar" ? "active" : ""}`}
+            onClick={() => handleTabClick("entrenar")}
+          >
+            <span className="tab-icon">🧠</span>
+            <span className="text">Entrenar</span>
+            <span className="notification-dot"></span>
+          </div>
+          <div 
+            className={`nav-tab ${activeTab === "practicar" ? "active" : ""}`}
+            onClick={() => handleTabClick("practicar")}
+          >
+            <span className="tab-icon">🎮</span>
+            <span className="text">Practicar</span>
+            <span className="notification-dot"></span>
+          </div>
+        </div>
+      </div>
+
+      {/* Renderizar el contenido según la pestaña activa */}
+      {renderTabContent()}
     </div>
   );
 }

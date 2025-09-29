@@ -1,4 +1,4 @@
-// src/Components/TrainingPage/MediaPipeCamera.jsx - FIX RÁPIDO
+// src/Components/TrainingPage/MediaPipeCamera.jsx - VERSIÓN CORREGIDA
 import React, { useEffect, useRef, useState } from "react";
 import { Hands } from "@mediapipe/hands";
 import { Camera } from "@mediapipe/camera_utils";
@@ -12,22 +12,12 @@ const HAND_CONNECTIONS = [
   [0, 17]
 ];
 
-// Variables globales
-let globalHandsInstance = null;
-let globalCameraInstance = null;
-let isInitializing = false;
-// 🔥 NUEVA: Variable para callback actual
-let currentOnHandDetected = null;
-
-const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50' }) => {
+const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', width = 640, height = 480 }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isReady, setIsReady] = useState(false);
-
-  // 🔥 ACTUALIZAR callback global cada vez que cambie
-  useEffect(() => {
-    currentOnHandDetected = onHandDetected;
-  }, [onHandDetected]);
+  const handsRef = useRef(null);
+  const cameraRef = useRef(null);
 
   const extractLandmarksArray = (multiHandLandmarks) => {
     if (!multiHandLandmarks || multiHandLandmarks.length === 0) return null;
@@ -44,142 +34,62 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50' }
     return landmarks.length === 126 ? landmarks : null;
   };
 
-  useEffect(() => {
-    if (!isActive) {
+  // 🆕 FUNCIÓN PARA DETENER CÁMARA COMPLETAMENTE
+  const stopCameraCompletely = async () => {
+    try {
+      if (cameraRef.current) {
+        await cameraRef.current.stop();
+        cameraRef.current = null;
+      }
+      
+      // Limpiar el elemento video
+      const videoElement = videoRef.current;
+      if (videoElement) {
+        videoElement.srcObject = null;
+        const tracks = videoElement.srcObject?.getTracks() || [];
+        tracks.forEach(track => track.stop());
+      }
+      
+      console.log('📹 Cámara detenida completamente');
+    } catch (error) {
+      console.warn('Error deteniendo cámara:', error);
+    }
+  };
+
+  // 🆕 FUNCIÓN PARA INICIAR CÁMARA
+  const startCamera = async () => {
+    try {
+      console.log('🎬 Iniciando cámara...');
       setIsReady(false);
-      
-      // Detener cámara pero mantener MediaPipe
-      if (globalCameraInstance) {
-        try {
-          globalCameraInstance.stop();
-        } catch (e) {
-          console.warn('Error deteniendo cámara:', e);
-        }
+
+      // Primero detener cualquier cámara existente
+      await stopCameraCompletely();
+
+      const videoElement = videoRef.current;
+      const canvas = canvasRef.current;
+
+      if (!videoElement || !canvas) {
+        throw new Error('Elementos de video o canvas no encontrados');
       }
-      
-      return;
-    }
 
-    const videoElement = videoRef.current;
-    const canvas = canvasRef.current;
+      // Configurar dimensiones del canvas
+      canvas.width = width;
+      canvas.height = height;
 
-    if (!videoElement || !canvas) return;
-
-    // 🔥 FIX PRINCIPAL: Si existe MediaPipe, recrear la cámara
-    if (globalHandsInstance && globalCameraInstance) {
-      console.log('♻️ Recreando cámara con MediaPipe existente...');
-      
-      // 🔥 RECREAR LA CÁMARA (no solo restart)
-      const recreateCamera = async () => {
-        try {
-          // Detener cámara anterior
-          await globalCameraInstance.stop();
-          
-          // Crear nueva cámara
-          const newCamera = new Camera(videoElement, {
-            onFrame: async () => {
-              if (globalHandsInstance && videoElement.readyState === 4) {
-                try {
-                  await globalHandsInstance.send({ image: videoElement });
-                } catch (error) {
-                  // Ignorar errores menores
-                }
-              }
-            },
-            width: 640,
-            height: 480,
-            facingMode: 'user'
-          });
-
-          await newCamera.start();
-          globalCameraInstance = newCamera;
-          
-          console.log('✅ Cámara recreada exitosamente');
-          setIsReady(true);
-          
-        } catch (error) {
-          console.error('Error recreando cámara:', error);
-          // Si falla, reinicializar todo
-          globalHandsInstance = null;
-          globalCameraInstance = null;
-          setIsReady(false);
-        }
-      };
-      
-      recreateCamera();
-      return;
-    }
-
-    // Evitar múltiples inicializaciones
-    if (isInitializing) {
-      console.log('⏳ Ya inicializando...');
-      return;
-    }
-
-    isInitializing = true;
-
-    // 🔥 Callback que usa la función actual
-    const onResults = (results) => {
+      // Limpiar canvas
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      ctx.save();
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        const landmarks = results.multiHandLandmarks[0];
-        
-        // Dibujar conexiones
-        ctx.strokeStyle = "rgba(0,255,0,0.6)";
-        ctx.lineWidth = 2;
-        for (const [startIdx, endIdx] of HAND_CONNECTIONS) {
-          const start = landmarks[startIdx];
-          const end = landmarks[endIdx];
-          if (start && end) {
-            ctx.beginPath();
-            ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
-            ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
-            ctx.stroke();
-          }
-        }
-        
-        // Dibujar puntos
-        ctx.fillStyle = categoryColor || "red";
-        for (const landmark of landmarks) {
-          ctx.beginPath();
-          ctx.arc(
-            landmark.x * canvas.width,
-            landmark.y * canvas.height,
-            5,
-            0,
-            2 * Math.PI
-          );
-          ctx.fill();
-        }
-
-        // 🔥 USAR CALLBACK ACTUAL (no el del closure)
-        if (currentOnHandDetected) {
-          const landmarksArray = extractLandmarksArray(results.multiHandLandmarks);
-          if (landmarksArray) {
-            currentOnHandDetected(landmarksArray, results.multiHandLandmarks[0]);
-          }
-        }
-      } else {
-        // Mostrar mensaje cuando no hay manos
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.fillRect(10, 10, 220, 30);
-        ctx.fillStyle = '#333';
-        ctx.font = '14px Arial';
-        ctx.fillText('Muestra tu mano a la cámara', 15, 30);
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.font = '16px Arial';
+        ctx.fillText('Iniciando cámara...', 10, 30);
       }
 
-      ctx.restore();
-    };
-
-    const initMediaPipe = async () => {
-      try {
-        console.log('🆕 Inicializando MediaPipe...');
+      // Inicializar Hands si no existe
+      if (!handsRef.current) {
+        console.log('🆕 Creando nueva instancia de Hands...');
 
         const hands = new Hands({
           locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -190,62 +100,122 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50' }
           modelComplexity: 0,
           minDetectionConfidence: 0.6,
           minTrackingConfidence: 0.5,
-          selfieMode: true
+          selfieMode: false
         });
 
-        hands.onResults(onResults);
-        await hands.initialize();
-        globalHandsInstance = hands;
+        hands.onResults((results) => {
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return;
 
-        const camera = new Camera(videoElement, {
-          onFrame: async () => {
-            if (globalHandsInstance && videoElement.readyState === 4) {
-              try {
-                await globalHandsInstance.send({ image: videoElement });
-              } catch (error) {
-                // Ignorar errores menores
+          ctx.save();
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          
+          // Dibujar imagen de la cámara
+          ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+          if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const landmarks = results.multiHandLandmarks[0];
+            
+            // Dibujar conexiones
+            ctx.strokeStyle = "rgba(0,255,0,0.6)";
+            ctx.lineWidth = 2;
+            for (const [startIdx, endIdx] of HAND_CONNECTIONS) {
+              const start = landmarks[startIdx];
+              const end = landmarks[endIdx];
+              if (start && end) {
+                ctx.beginPath();
+                ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
+                ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
+                ctx.stroke();
               }
             }
-          },
-          width: 640,
-          height: 480,
-          facingMode: 'user'
+            
+            // Dibujar puntos
+            ctx.fillStyle = categoryColor || "red";
+            for (const landmark of landmarks) {
+              ctx.beginPath();
+              ctx.arc(
+                landmark.x * canvas.width,
+                landmark.y * canvas.height,
+                5,
+                0,
+                2 * Math.PI
+              );
+              ctx.fill();
+            }
+
+            if (onHandDetected) {
+              const landmarksArray = extractLandmarksArray(results.multiHandLandmarks);
+              if (landmarksArray) {
+                onHandDetected(landmarksArray, results.multiHandLandmarks[0]);
+              }
+            }
+          } else {
+            // Mostrar mensaje cuando no hay manos
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillRect(10, 10, 220, 30);
+            ctx.fillStyle = '#333';
+            ctx.font = '14px Arial';
+            ctx.fillText('Muestra tu mano a la cámara', 15, 30);
+          }
+
+          ctx.restore();
         });
 
-        await camera.start();
-        globalCameraInstance = camera;
-
-        console.log('✅ MediaPipe inicializado');
-        setIsReady(true);
-
-      } catch (error) {
-        console.error('❌ Error:', error);
-        alert('Error inicializando MediaPipe. Recarga la página (F5).');
-      } finally {
-        isInitializing = false;
+        await hands.initialize();
+        handsRef.current = hands;
       }
-    };
 
-    initMediaPipe();
+      // Crear nueva instancia de cámara
+      console.log('🎥 Creando nueva instancia de cámara...');
+      const camera = new Camera(videoElement, {
+        onFrame: async () => {
+          if (handsRef.current && videoElement.readyState === 4) {
+            try {
+              await handsRef.current.send({ image: videoElement });
+            } catch (error) {
+              console.warn('Error enviando frame a MediaPipe:', error);
+            }
+          }
+        },
+        width: width,
+        height: height,
+        facingMode: 'user'
+      });
 
+      await camera.start();
+      cameraRef.current = camera;
+
+      console.log('✅ Cámara iniciada exitosamente');
+      setIsReady(true);
+
+    } catch (error) {
+      console.error('❌ Error iniciando cámara:', error);
+      setIsReady(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isActive) {
+      startCamera();
+    } else {
+      stopCameraCompletely();
+      setIsReady(false);
+    }
+
+    // Cleanup al desmontar el componente
     return () => {
-      console.log('🧹 Limpieza...');
-      if (globalCameraInstance) {
-        try {
-          globalCameraInstance.stop();
-        } catch (e) {
-          console.warn('Error en limpieza:', e);
-        }
-      }
+      console.log('🧹 Limpieza del componente MediaPipeCamera...');
+      stopCameraCompletely();
     };
-  }, [isActive, categoryColor]);
+  }, [isActive]);
 
   if (!isActive) {
     return (
       <div style={{ 
         width: '100%', 
         maxWidth: '600px',
-        height: '480px',
+        height: `${height}px`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -263,16 +233,16 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50' }
       <video
         ref={videoRef}
         style={{ display: "none" }}
-        width="640"
-        height="480"
+        width={width}
+        height={height}
         autoPlay
         playsInline
         muted
       />
       <canvas
         ref={canvasRef}
-        width="640"
-        height="480"
+        width={width}
+        height={height}
         style={{
           width: '100%',
           height: 'auto',
@@ -282,7 +252,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50' }
           background: '#000'
         }}
       />
-      {!isReady && (
+      {!isReady && isActive && (
         <div style={{
           position: 'absolute',
           top: '50%',
@@ -294,7 +264,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50' }
           borderRadius: '5px',
           fontSize: '14px'
         }}>
-          🔄 Iniciando MediaPipe...
+          🔄 Iniciando cámara...
         </div>
       )}
     </div>
