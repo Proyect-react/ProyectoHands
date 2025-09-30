@@ -460,131 +460,158 @@ const CollectPage = () => {
     // ========== RENDER ==========
 
     return (
-        <div className="training-content">
-            {/* Panel izquierdo - Controles */}
-            <div className="control-panel">
-                {/* Selector de Categoría */}
-                <div className="category-selector" style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px' }}>
-                    <h4>Seleccionar Categoría:</h4>
-                    <div className="category-buttons" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                        {Object.entries(categories).map(([key, category]) => (
-                            <button
-                                key={key}
-                                className={`category-btn ${selectedCategory === key ? 'selected' : ''}`}
-                                onClick={() => handleCategoryChange(key)}
-                                style={{
-                                    background: selectedCategory === key ? category.color : '#e0e0e0',
-                                    color: selectedCategory === key ? 'white' : '#333',
-                                    border: 'none',
-                                    padding: '8px 15px',
-                                    borderRadius: '20px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    fontSize: '14px'
-                                }}
-                            >
-                                {category.name}
-                            </button>
-                        ))}
-                    </div>
-                    <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
-                        Categoría actual: <strong>{categories[selectedCategory]?.name}</strong> ({getCurrentLabels().length} etiquetas)
-                    </p>
-                </div>
-
-                {/* Selector de Etiqueta */}
-                <div className="label-selector">
-                    <h4>Seleccionar Etiqueta:</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '8px' }}>
-                        {getCurrentLabels().map(label => (
-                            <button
-                                key={label}
-                                className={`label-btn ${selectedLabel === label ? 'selected' : ''} ${isLabelReady(label) ? 'ready' : ''}`}
-                                onClick={() => handleLabelChange(label)}
-                                style={{
-                                    background: selectedLabel === label ? categories[selectedCategory].color :
-                                        isLabelReady(label) ? '#4CAF50' : '#f0f0f0',
-                                    color: selectedLabel === label || isLabelReady(label) ? 'white' : '#333',
-                                    border: 'none',
-                                    padding: '10px',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontSize: '14px',
-                                    fontWeight: '600',
-                                    position: 'relative'
-                                }}
-                            >
-                                {label}
-                                {isLabelReady(label) && (
-                                    <span style={{
-                                        position: 'absolute',
-                                        top: '-5px',
-                                        right: '-5px',
-                                        background: '#4CAF50',
-                                        color: 'white',
-                                        borderRadius: '50%',
-                                        width: '20px',
-                                        height: '20px',
-                                        fontSize: '12px',
+        <div style={{ 
+            minHeight: '100vh', 
+            background: 'linear-gradient(135deg, #BDD8E9 0%, #7BBDE8 100%)', 
+            padding: '20px',
+            fontFamily: 'Inter, sans-serif'
+        }}>
+            {/* Layout principal con dos columnas */}
+            <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '1fr 1fr', 
+                gap: '30px', 
+                maxWidth: '1400px', 
+                margin: '0 auto' 
+            }}>
+                
+                {/* Panel izquierdo - Selectores */}
+                <div style={{ 
+                    background: 'white',
+                    borderRadius: '15px',
+                    padding: '25px',
+                    boxShadow: '0 10px 30px rgba(0, 29, 57, 0.1)',
+                    border: '1px solid rgba(110, 162, 179, 0.2)',
+                    height: 'fit-content'
+                }}>
+                    {/* Selector de Categoría */}
+                    <div style={{ marginBottom: '30px' }}>
+                        <h2 style={{ color: '#001D39', fontWeight: '600', marginBottom: '20px', fontSize: '18px' }}>Seleccionar Categoría:</h2>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            {Object.entries(categories).map(([key, category]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => handleCategoryChange(key)}
+                                    style={{
+                                        background: selectedCategory === key ? '#4CAF50' : 'white',
+                                        color: selectedCategory === key ? 'white' : '#333',
+                                        border: selectedCategory === key ? 'none' : '2px solid #e0e0e0',
+                                        padding: '10px 15px',
+                                        borderRadius: '8px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        transition: 'all 0.3s ease',
                                         display: 'flex',
                                         alignItems: 'center',
+                                        gap: '6px',
+                                        minWidth: '100px',
                                         justifyContent: 'center'
-                                    }}>
-                                        ✓
-                                    </span>
-                                )}
-                            </button>
-                        ))}
+                                    }}
+                                >
+                                    {selectedCategory === key && <span style={{ fontSize: '12px' }}>🔴</span>}
+                                    {category.name}
+                                </button>
+                            ))}
+                        </div>
+                        <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
+                            Categoría actual: <strong>{categories[selectedCategory]?.name}</strong> ({getCurrentLabels().length} etiquetas)
+                        </p>
+                    </div>
+
+                    {/* Sección de Recolección */}
+                    <div>
+                        <h2 style={{ color: '#001D39', fontWeight: '600', marginBottom: '15px', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            📊 Recolección de Datos - {categories[selectedCategory]?.name}
+                        </h2>
+                        
+                        <h3 style={{ color: '#001D39', fontWeight: '500', marginBottom: '15px', fontSize: '16px' }}>Seleccionar Etiqueta:</h3>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            {getCurrentLabels().map(label => {
+                                const samples = getLabelSamples(label);
+                                const isReady = samples >= 30;
+                                return (
+                                    <button
+                                        key={label}
+                                        onClick={() => handleLabelChange(label)}
+                                        style={{
+                                            background: selectedLabel === label ? '#4CAF50' : 
+                                                isReady ? '#e8f5e8' : 'white',
+                                            color: selectedLabel === label ? 'white' : 
+                                                isReady ? '#4CAF50' : '#333',
+                                            border: selectedLabel === label ? 'none' : 
+                                                isReady ? '2px solid #4CAF50' : '2px solid #e0e0e0',
+                                            padding: '15px',
+                                            borderRadius: '8px',
+                                            cursor: 'pointer',
+                                            fontSize: '18px',
+                                            fontWeight: '600',
+                                            transition: 'all 0.3s ease',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                            minWidth: '70px',
+                                            position: 'relative'
+                                        }}
+                                    >
+                                        <span style={{ fontSize: '20px' }}>{label}</span>
+                                        <span style={{ fontSize: '10px', opacity: 0.8 }}>
+                                            ({samples}/30)
+                                        </span>
+                                        {isReady && (
+                                            <span style={{
+                                                position: 'absolute',
+                                                top: '-5px',
+                                                right: '-5px',
+                                                background: '#4CAF50',
+                                                color: 'white',
+                                                borderRadius: '50%',
+                                                width: '18px',
+                                                height: '18px',
+                                                fontSize: '10px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                ✓
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
-                {/* Estado del Dataset */}
-                <div className="dataset-status" style={{ marginTop: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '10px' }}>
-                    <h4>Estado del Dataset (Backend):</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
-                        {getCurrentLabels().map(label => {
-                            const samples = getLabelSamples(label);
-                            const isReady = samples >= 30;
-                            return (
-                                <div key={label} style={{
-                                    padding: '8px',
-                                    background: isReady ? '#e8f5e8' : '#fff3e0',
-                                    borderRadius: '5px',
-                                    textAlign: 'center',
-                                    fontSize: '14px'
-                                }}>
-                                    <div style={{ fontWeight: '600' }}>{label}</div>
-                                    <div style={{
-                                        color: isReady ? '#4CAF50' : '#FF9800',
-                                        fontSize: '12px'
-                                    }}>
-                                        {isReady ? '✅' : '⏳'} {samples}/30
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <div style={{ marginTop: '10px', padding: '10px', background: '#e3f2fd', borderRadius: '5px', fontSize: '14px' }}>
-                        <strong>Total en backend:</strong> {datasetStatus.summary?.total_samples || 0} muestras
-                    </div>
-                </div>
-
-                {/* Controles de Recolección */}
-                <div className="collection-controls" style={{ marginTop: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px' }}>
-                    <h4>Controles de Recolección:</h4>
-
-                    <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                {/* Panel derecho - Cámara y Controles */}
+                <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '20px' 
+                }}>
+                    {/* Botones de Cámara */}
+                    <div style={{ 
+                        display: 'flex', 
+                        gap: '15px', 
+                        justifyContent: 'center' 
+                    }}>
                         <button
                             onClick={handleStartCamera}
                             disabled={isCameraActive}
                             style={{
-                                background: isCameraActive ? '#ccc' : '#4CAF50',
+                                background: isCameraActive ? '#e0e0e0' : '#4CAF50',
                                 color: 'white',
                                 border: 'none',
-                                padding: '10px 15px',
-                                borderRadius: '5px',
+                                padding: '12px 20px',
+                                borderRadius: '8px',
                                 cursor: isCameraActive ? 'not-allowed' : 'pointer',
-                                flex: 1
+                                fontWeight: '600',
+                                fontSize: '14px',
+                                transition: 'all 0.3s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
                             }}
                         >
                             {isCameraActive ? '📹 Cámara Activa' : '🎥 Iniciar Cámara'}
@@ -594,173 +621,178 @@ const CollectPage = () => {
                             onClick={handleStopCamera}
                             disabled={!isCameraActive}
                             style={{
-                                background: !isCameraActive ? '#ccc' : '#f44336',
+                                background: !isCameraActive ? '#e0e0e0' : '#f44336',
                                 color: 'white',
                                 border: 'none',
-                                padding: '10px 15px',
-                                borderRadius: '5px',
+                                padding: '12px 20px',
+                                borderRadius: '8px',
                                 cursor: !isCameraActive ? 'not-allowed' : 'pointer',
-                                flex: 1
+                                fontWeight: '600',
+                                fontSize: '14px',
+                                transition: 'all 0.3s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
                             }}
                         >
                             🛑 Detener Cámara
                         </button>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
-                        <button
-                            onClick={handleToggleCollection}
-                            disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)}
-                            style={{
-                                background: !isCameraActive || !selectedLabel || isLabelReady(selectedLabel) ? '#ccc' :
-                                    isCollecting ? '#ff9800' : '#2196F3',
-                                color: 'white',
-                                border: 'none',
-                                padding: '12px 15px',
-                                borderRadius: '5px',
-                                cursor: (!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)) ? 'not-allowed' : 'pointer',
-                                flex: 1,
-                                fontWeight: '600',
-                                fontSize: '16px'
-                            }}
-                        >
-                            {isLabelReady(selectedLabel) ? '✅ Completado (30/30)' :
-                                isCollecting ? '⏸️ Pausar Recolección' :
-                                    `▶️ Iniciar Recolección (${getLabelSamples(selectedLabel)}/30)`
-                            }
-                        </button>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <button
-                            onClick={() => handleClearData('current')}
-                            disabled={!selectedLabel || getLabelSamples(selectedLabel) === 0}
-                            style={{
-                                background: !selectedLabel || getLabelSamples(selectedLabel) === 0 ? '#ccc' : '#ff9800',
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px 12px',
-                                borderRadius: '5px',
-                                cursor: (!selectedLabel || getLabelSamples(selectedLabel) === 0) ? 'not-allowed' : 'pointer',
-                                flex: 1
-                            }}
-                        >
-                            🗑️ Limpiar {selectedLabel || 'Etiqueta'}
-                        </button>
-
-                        <button
-                            onClick={() => handleClearData('all')}
-                            disabled={!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0}
-                            style={{
-                                background: (!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0) ? '#ccc' : '#f44336',
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px 12px',
-                                borderRadius: '5px',
-                                cursor: (!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0) ? 'not-allowed' : 'pointer',
-                                flex: 1
-                            }}
-                        >
-                            🗑️ Limpiar Todo
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Panel derecho - Cámara */}
-            <div className="camera-panel">
-                <div style={{
-                    position: 'relative',
-                    width: '100%',
-                    maxWidth: '640px',
-                    margin: '0 auto',
-                    background: '#000',
-                    borderRadius: '10px',
-                    overflow: 'hidden'
-                }}>
-
-                    <MediaPipeCamera
-                        isActive={isCameraActive}
-                        onHandDetected={handleHandDetected}
-                        width={640}
-                        height={480}
-                    />
-
-                    {/* Overlay de información */}
+                    {/* Cámara */}
                     <div style={{
-                        position: 'absolute',
-                        top: '10px',
-                        left: '10px',
-                        right: '10px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start'
+                        position: 'relative',
+                        width: '100%',
+                        background: '#000',
+                        borderRadius: '15px',
+                        overflow: 'hidden',
+                        boxShadow: '0 10px 30px rgba(0, 29, 57, 0.2)',
+                        border: '3px solid rgba(189, 216, 233, 0.3)'
                     }}>
+                        <MediaPipeCamera
+                            isActive={isCameraActive}
+                            onHandDetected={handleHandDetected}
+                            width={640}
+                            height={480}
+                        />
+
+                        {/* Overlay de información */}
                         <div style={{
+                            position: 'absolute',
+                            top: '10px',
+                            left: '10px',
+                            right: '10px',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start'
+                        }}>
+                            <div style={{
+                                background: 'rgba(0,0,0,0.7)',
+                                color: 'white',
+                                padding: '5px 10px',
+                                borderRadius: '5px',
+                                fontSize: '12px',
+                                fontWeight: '600'
+                            }}>
+                                📊 RECOLECCIÓN
+                            </div>
+
+                            <div style={{
+                                background: 'rgba(0,0,0,0.7)',
+                                color: isCollecting ? '#4CAF50' : 'white',
+                                padding: '5px 10px',
+                                borderRadius: '5px',
+                                fontSize: '12px',
+                                fontWeight: '600'
+                            }}>
+                                {isCollecting ? `🟢 COLECTANDO: ${selectedLabel}` : '⏸️ PAUSADO'}
+                            </div>
+                        </div>
+
+                        {/* Instrucciones */}
+                        <div style={{
+                            position: 'absolute',
+                            bottom: '10px',
+                            left: '10px',
+                            right: '10px',
                             background: 'rgba(0,0,0,0.7)',
                             color: 'white',
-                            padding: '5px 10px',
+                            padding: '8px',
                             borderRadius: '5px',
                             fontSize: '12px',
-                            fontWeight: '600'
+                            textAlign: 'center'
                         }}>
-                            📊 RECOLECCIÓN
-                        </div>
-
-                        <div style={{
-                            background: 'rgba(0,0,0,0.7)',
-                            color: isCollecting ? '#4CAF50' : 'white',
-                            padding: '5px 10px',
-                            borderRadius: '5px',
-                            fontSize: '12px',
-                            fontWeight: '600'
-                        }}>
-                            {isCollecting ? `🟢 COLECTANDO: ${selectedLabel}` : '⏸️ PAUSADO'}
+                            {isLabelReady(selectedLabel) ?
+                                `✅ ${selectedLabel} completado (30/30 muestras)` :
+                                isCollecting ?
+                                    `🟢 Recolectando muestras para "${selectedLabel}" - ${getLabelSamples(selectedLabel)}/30 - Mantén tu mano estable` :
+                                    '⏸️ Selecciona una etiqueta e inicia la recolección'
+                            }
                         </div>
                     </div>
 
-                    {/* Instrucciones */}
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '10px',
-                        left: '10px',
-                        right: '10px',
-                        background: 'rgba(0,0,0,0.7)',
-                        color: 'white',
-                        padding: '8px',
-                        borderRadius: '5px',
-                        fontSize: '12px',
+                    {/* Controles de Recolección */}
+                    <div style={{ 
+                        background: 'white',
+                        borderRadius: '15px', 
+                        border: '1px solid rgba(110, 162, 179, 0.3)',
+                        boxShadow: '0 10px 30px rgba(0, 29, 57, 0.1)',
+                        padding: '20px',
                         textAlign: 'center'
                     }}>
-                        {isLabelReady(selectedLabel) ?
-                            `✅ ${selectedLabel} completado (30/30 muestras)` :
-                            isCollecting ?
-                                `🟢 Recolectando muestras para "${selectedLabel}" - ${getLabelSamples(selectedLabel)}/30 - Mantén tu mano estable` :
-                                '⏸️ Selecciona una etiqueta e inicia la recolección'
-                        }
-                    </div>
-                </div>
+                        <h3 style={{ color: '#001D39', fontWeight: '600', marginBottom: '15px', fontSize: '16px' }}>Controles de Recolección:</h3>
 
-                {/* Información adicional debajo de la cámara */}
-                <div style={{ marginTop: '15px', textAlign: 'center' }}>
-                    {selectedLabel && (
-                        <div style={{
-                            padding: '10px',
-                            background: isLabelReady(selectedLabel) ? '#e8f5e8' : '#fff3e0',
-                            borderRadius: '5px',
-                            fontSize: '14px'
-                        }}>
-                            {isLabelReady(selectedLabel) ? (
-                                <span style={{ color: '#4CAF50', fontWeight: '600' }}>
-                                    ✅ {selectedLabel} completado (30/30 muestras)
-                                </span>
-                            ) : (
-                                <span style={{ color: '#FF9800' }}>
-                                    ⏳ {selectedLabel}: {getLabelSamples(selectedLabel)}/30 muestras
-                                </span>
-                            )}
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                            <button
+                                onClick={handleToggleCollection}
+                                disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)}
+                                style={{
+                                    background: !isCameraActive || !selectedLabel || isLabelReady(selectedLabel) ? '#e0e0e0' :
+                                        isCollecting ? '#FF9800' : '#4CAF50',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '12px 20px',
+                                    borderRadius: '8px',
+                                    cursor: (!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)) ? 'not-allowed' : 'pointer',
+                                    fontWeight: '600',
+                                    fontSize: '14px',
+                                    transition: 'all 0.3s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    minWidth: '180px',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                {isLabelReady(selectedLabel) ? '✅ Completado (30/30)' :
+                                    isCollecting ? '⏸️ Pausar Recolección' :
+                                        `▶️ Iniciar Recolección (${getLabelSamples(selectedLabel)}/30)`
+                                }
+                            </button>
+
+                            <button
+                                onClick={() => handleClearData('current')}
+                                disabled={!selectedLabel || getLabelSamples(selectedLabel) === 0}
+                                style={{
+                                    background: !selectedLabel || getLabelSamples(selectedLabel) === 0 ? '#e0e0e0' : '#FF9800',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '10px 15px',
+                                    borderRadius: '8px',
+                                    cursor: (!selectedLabel || getLabelSamples(selectedLabel) === 0) ? 'not-allowed' : 'pointer',
+                                    fontWeight: '600',
+                                    fontSize: '12px',
+                                    transition: 'all 0.3s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}
+                            >
+                                🗑️ Borrar Etiqueta
+                            </button>
+
+                            <button
+                                onClick={() => handleClearData('all')}
+                                disabled={!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0}
+                                style={{
+                                    background: (!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0) ? '#e0e0e0' : '#f44336',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '10px 15px',
+                                    borderRadius: '8px',
+                                    cursor: (!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0) ? 'not-allowed' : 'pointer',
+                                    fontWeight: '600',
+                                    fontSize: '12px',
+                                    transition: 'all 0.3s ease',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}
+                            >
+                                🗑️ Borrar Todo
+                            </button>
                         </div>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>
