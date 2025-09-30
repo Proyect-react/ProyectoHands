@@ -397,18 +397,18 @@ const CollectPage = () => {
     };
 
     const handleLabelChange = async (label) => {
-    // 🚨 PAUSAR LA RECOLECCIÓN AL CAMBIAR DE ETIQUETA
-    if (isCollecting) {
-        setIsCollecting(false);
-        collectingRef.current = false;
-        await flushBuffer();
-    }
-    
-    setSelectedLabel(label);
-    selectedLabelRef.current = label;
-    clearBuffer();
-    
-};
+        // 🚨 PAUSAR LA RECOLECCIÓN AL CAMBIAR DE ETIQUETA
+        if (isCollecting) {
+            setIsCollecting(false);
+            collectingRef.current = false;
+            await flushBuffer();
+        }
+
+        setSelectedLabel(label);
+        selectedLabelRef.current = label;
+        clearBuffer();
+
+    };
 
     // ========== EFECTOS ==========
 
@@ -427,14 +427,14 @@ const CollectPage = () => {
     }, [isCollecting, selectedLabel]);
 
     useEffect(() => {
-    selectedLabelRef.current = selectedLabel;
-    
-    // 🚨 DETENER RECOLECCIÓN SI LA NUEVA ETIQUETA YA ESTÁ COMPLETA
-    if (isCollecting && selectedLabel && getLabelSamples(selectedLabel) >= 30) {
-        setIsCollecting(false);
-        collectingRef.current = false;
-    }
-}, [selectedLabel, isCollecting]);
+        selectedLabelRef.current = selectedLabel;
+
+        // 🚨 DETENER RECOLECCIÓN SI LA NUEVA ETIQUETA YA ESTÁ COMPLETA
+        if (isCollecting && selectedLabel && getLabelSamples(selectedLabel) >= 30) {
+            setIsCollecting(false);
+            collectingRef.current = false;
+        }
+    }, [selectedLabel, isCollecting]);
 
     useEffect(() => {
         bufferStatusRef.current = bufferStatus;
@@ -451,23 +451,23 @@ const CollectPage = () => {
     // ========== RENDER ==========
 
     return (
-        <div style={{ 
-            minHeight: '100vh', 
-            background: 'linear-gradient(135deg, #BDD8E9 0%, #7BBDE8 100%)', 
+        <div style={{
+            minHeight: '100vh',
+            background: 'linear-gradient(135deg, #BDD8E9 0%, #7BBDE8 100%)',
             padding: '20px',
             fontFamily: 'Inter, sans-serif'
         }}>
             {/* Layout principal con dos columnas */}
-            <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
-                gap: '30px', 
-                maxWidth: '1400px', 
-                margin: '0 auto' 
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '30px',
+                maxWidth: '1400px',
+                margin: '0 auto'
             }}>
-                
+
                 {/* Panel izquierdo - Selectores */}
-                <div style={{ 
+                <div style={{
                     background: 'white',
                     borderRadius: '15px',
                     padding: '25px',
@@ -515,7 +515,7 @@ const CollectPage = () => {
                         <h2 style={{ color: '#001D39', fontWeight: '600', marginBottom: '15px', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                             📊 Recolección de Datos - {categories[selectedCategory]?.name}
                         </h2>
-                        
+
                         <h3 style={{ color: '#001D39', fontWeight: '500', marginBottom: '15px', fontSize: '16px' }}>Seleccionar Etiqueta:</h3>
                         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                             {getCurrentLabels().map(label => {
@@ -526,11 +526,11 @@ const CollectPage = () => {
                                         key={label}
                                         onClick={() => handleLabelChange(label)}
                                         style={{
-                                            background: selectedLabel === label ? '#4CAF50' : 
+                                            background: selectedLabel === label ? '#4CAF50' :
                                                 isReady ? '#e8f5e8' : 'white',
-                                            color: selectedLabel === label ? 'white' : 
+                                            color: selectedLabel === label ? 'white' :
                                                 isReady ? '#4CAF50' : '#333',
-                                            border: selectedLabel === label ? 'none' : 
+                                            border: selectedLabel === label ? 'none' :
                                                 isReady ? '2px solid #4CAF50' : '2px solid #e0e0e0',
                                             padding: '15px',
                                             borderRadius: '8px',
@@ -576,16 +576,16 @@ const CollectPage = () => {
                 </div>
 
                 {/* Panel derecho - Cámara y Controles */}
-                <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '20px' 
+                <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '20px'
                 }}>
                     {/* Botones de Cámara */}
-                    <div style={{ 
-                        display: 'flex', 
-                        gap: '15px', 
-                        justifyContent: 'center' 
+                    <div style={{
+                        display: 'flex',
+                        gap: '15px',
+                        justifyContent: 'center'
                     }}>
                         <button
                             onClick={handleStartCamera}
@@ -657,27 +657,6 @@ const CollectPage = () => {
                             justifyContent: 'space-between',
                             alignItems: 'flex-start'
                         }}>
-                            <div style={{
-                                background: 'rgba(0,0,0,0.7)',
-                                color: 'white',
-                                padding: '5px 10px',
-                                borderRadius: '5px',
-                                fontSize: '12px',
-                                fontWeight: '600'
-                            }}>
-                                📊 RECOLECCIÓN
-                            </div>
-
-                            <div style={{
-                                background: 'rgba(0,0,0,0.7)',
-                                color: isCollecting ? '#4CAF50' : 'white',
-                                padding: '5px 10px',
-                                borderRadius: '5px',
-                                fontSize: '12px',
-                                fontWeight: '600'
-                            }}>
-                                {isCollecting ? `🟢 COLECTANDO: ${selectedLabel}` : '⏸️ PAUSADO'}
-                            </div>
                         </div>
 
                         {/* Instrucciones */}
@@ -703,9 +682,9 @@ const CollectPage = () => {
                     </div>
 
                     {/* Controles de Recolección */}
-                    <div style={{ 
+                    <div style={{
                         background: 'white',
-                        borderRadius: '15px', 
+                        borderRadius: '15px',
                         border: '1px solid rgba(110, 162, 179, 0.3)',
                         boxShadow: '0 10px 30px rgba(0, 29, 57, 0.1)',
                         padding: '20px',

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './EntrenarVocales.css';
 // Cambiar la importación para usar importación nombrada
-import { DeteccionVocales } from '../../Camara/camaradeteccionVocales';
+import MediaPipeCamera from '../../Camara/MediaPipeCamera';
 
 // 🔥 CLAVES SEPARADAS SOLO PARA PRÁCTICA (no interfieren con TrainingPage)
 const LOCAL_STORAGE_PRACTICE_KEY = 'practice_vocales_stats';
@@ -306,7 +306,7 @@ function EntrenarVocales() {
 
           <div className="camera-feed">
             {isCameraActive ? (
-              <DeteccionVocales
+              <MediaPipeCamera
                 character={characterFromURL}
                 onPrecisionUpdate={handlePrecisionUpdate}
               />
