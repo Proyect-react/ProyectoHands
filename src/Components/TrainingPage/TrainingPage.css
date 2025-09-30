@@ -1,3 +1,262 @@
+/* ===== ESTILOS COPIADOS DE EntrenarVocales.css ===== */
+/* Estos estilos se aplicaban involuntariamente pero quedaban bien */
+
+/* Contenedor principal de entrenamiento */
+.training-integrated {
+  background: linear-gradient(135deg, #BDD8E9 0%, #7BBDE8 100%);
+  min-height: 100vh;
+  padding: 0;
+}
+
+/* Panel de controles (izquierdo) */
+.control-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 25px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(110, 162, 179, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 29, 57, 0.1);
+}
+
+.train-panel {
+  padding: 15px;
+  background: #f5f5f5;
+  border-radius: 10px;
+}
+
+.train-panel h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #001D39;
+  margin-bottom: 15px;
+}
+
+.train-panel label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.train-panel input,
+.train-panel select {
+  width: 100%;
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  margin-bottom: 15px;
+}
+
+.train-panel button {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 12px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  width: 100%;
+  font-weight: 600;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.train-panel button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.train-panel button:hover:not(:disabled) {
+  background: #45a049;
+  transform: translateY(-2px);
+}
+
+/* Panel de cámara (derecho) */
+.camera-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 25px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(110, 162, 179, 0.3);
+  box-shadow: 0 10px 30px rgba(0, 29, 57, 0.1);
+}
+
+/* Layout de contenido (2 columnas) */
+.training-content {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 30px;
+  padding: 30px;
+  max-width: 1600px;
+  margin: 0 auto;
+  min-height: calc(100vh - 200px);
+}
+
+/* Tarjetas de información */
+.info-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(189, 216, 233, 0.1) 100%);
+  border-radius: 15px;
+  padding: 20px;
+  border: 1px solid rgba(110, 162, 179, 0.3);
+  box-shadow: 0 8px 20px rgba(0, 29, 57, 0.1);
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.info-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0, 29, 57, 0.15);
+}
+
+.info-card h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #001D39;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Estado del dataset */
+.dataset-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.summary-item {
+  padding: 10px;
+  background: rgba(189, 216, 233, 0.2);
+  border-radius: 8px;
+  font-size: 14px;
+  color: #333;
+}
+
+.summary-item strong {
+  color: #001D39;
+  font-weight: 600;
+}
+
+/* Estado de descarga */
+.download-status {
+  padding: 15px;
+  background: #e3f2fd;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.status-message {
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.status-message strong {
+  color: #001D39;
+}
+
+/* Progreso de entrenamiento */
+.training-progress {
+  margin-top: 15px;
+  padding: 15px;
+  border-radius: 10px;
+}
+
+.training-progress.training {
+  background: #e3f2fd;
+}
+
+.training-progress.completed {
+  background: #e8f5e8;
+}
+
+.training-progress.error {
+  background: #ffebee;
+}
+
+/* Barra de progreso */
+.progress-bar-container {
+  width: 100%;
+  height: 20px;
+  background: #f0f0f0;
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #45a049);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+}
+
+/* Métricas de entrenamiento */
+.training-metrics {
+  font-size: 14px;
+  color: #333;
+}
+
+.training-metrics div {
+  margin: 5px 0;
+}
+
+.training-metrics strong {
+  color: #001D39;
+}
+
+/* Selector de categorías */
+.category-selector {
+  margin-bottom: 20px;
+  padding: 15px;
+  background: #f5f5f5;
+  border-radius: 10px;
+}
+
+.category-selector h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #001D39;
+  margin-bottom: 10px;
+}
+
+.category-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.category-btn {
+  background: #e0e0e0;
+  color: #333;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.category-btn.selected {
+  background: #4CAF50;
+  color: white;
+}
+
+.category-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ===== ESTILOS ORIGINALES DE TrainingPage ===== */
+
 .numbers-container {
   padding: 20px;
   font-family: Arial, sans-serif;
@@ -19,12 +278,11 @@ h1 {
   margin-bottom: 5px;
 }
 
-
 .cards-grid {
   margin-top: 20px;
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* exacto 3 columnas */
-  gap: 16px; /* espacio entre cards */
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
 }
 
 .card {
@@ -37,7 +295,6 @@ h1 {
   flex-direction: column;
 }
 
-/* Contenedor de la imagen */
 .image-container {
   position: relative;
 }
@@ -49,7 +306,6 @@ h1 {
   display: block;
 }
 
-/* Badge con el número */
 .badge {
   position: absolute;
   top: 10px;
@@ -61,7 +317,6 @@ h1 {
   font-size: 14px;
   box-shadow: 0px 2px 5px rgba(0,0,0,0.2);
 }
-
 
 .card-body {
   padding: 12px;
@@ -83,7 +338,6 @@ h1 {
   color: #666;
 }
 
-/* Botón comenzar práctica */
 .boton-comenzar {
   margin-top: 8px;
   background: #ff6600;
@@ -98,4 +352,54 @@ h1 {
 
 .boton-comenzar:hover {
   background: #e55c00;
+}
+
+/* ===== RESPONSIVE DESIGN ===== */
+
+@media (max-width: 1200px) {
+  .training-content {
+    grid-template-columns: 1fr 1.5fr;
+    gap: 20px;
+    padding: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .training-content {
+    grid-template-columns: 1fr;
+    gap: 15px;
+    padding: 15px;
+  }
+  
+  .control-panel,
+  .camera-panel {
+    padding: 15px;
+  }
+  
+  .category-buttons {
+    flex-direction: column;
+  }
+  
+  .category-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .training-content {
+    padding: 10px;
+  }
+  
+  .control-panel,
+  .camera-panel {
+    padding: 10px;
+  }
+  
+  .train-panel {
+    padding: 10px;
+  }
+  
+  .info-card {
+    padding: 12px;
+  }
 }
