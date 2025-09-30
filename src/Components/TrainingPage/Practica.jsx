@@ -1,4 +1,4 @@
-// src/Components/TrainingPage/PracticePage.jsx
+// src/Components/TrainingPage/Practica.jsx - REESTRUCTURADA
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import modelDownloadService from '../../services/modelDownloadService';
 import tfjsTrainer from '../../services/tfjsTrainer';
@@ -11,28 +11,41 @@ const categories = {
     vocales: {
         name: 'Vocales',
         labels: ['A', 'E', 'I', 'O', 'U'],
-        color: '#4CAF50'
+        color: '#4CAF50',
+        icon: '🔤',
+        description: 'Aprende las 5 vocales'
     },
     numeros: {
         name: 'Números',
         labels: ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
-        color: '#2196F3'
+        color: '#2196F3',
+        icon: '🔢',
+        description: 'Practica números del 0 al 9'
     },
     operaciones: {
         name: 'Operaciones',
         labels: ['+', '-', '*', '/', '='],
-        color: '#FF9800'
+        color: '#FF9800',
+        icon: '➕',
+        description: 'Símbolos matemáticos básicos'
     },
     palabras: {
         name: 'Palabras',
         labels: ['hola', 'gracias', 'por_favor', 'si', 'no'],
-        color: '#9C27B0'
+        color: '#9C27B0',
+        icon: '💬',
+        description: 'Palabras esenciales'
     }
 };
 
 const PracticePage = () => {
-    const [selectedCategory, setSelectedCategory] = useState('vocales');
+    // Estados de navegación
+    const [currentView, setCurrentView] = useState('categories'); // 'categories', 'labels', 'practice'
+    const [selectedCategory, setSelectedCategory] = useState(null);
+    const [selectedLabel, setSelectedLabel] = useState(null);
     const [selectedModel, setSelectedModel] = useState('');
+
+    // Estados de práctica
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [predictionResult, setPredictionResult] = useState(null);
     const [availableModels, setAvailableModels] = useState([]);
@@ -46,23 +59,20 @@ const PracticePage = () => {
     });
 
     const lastCollectionTime = useRef(0);
+    const loadedModelsCache = useRef(new Map());
 
-    // ========== FUNCIÓN DE LIMPIEZA DE MODELOS ==========
+    // ========== FUNCIONES DE LIMPIEZA ==========
     const cleanAvailableModels = useCallback((models) => {
         const seen = new Set();
         return models
-            .filter(model => model && model.category) // Filtrar modelos válidos
+            .filter(model => model && model.category)
             .map((model, index) => {
-                // Asignar nombre único si no tiene
                 const modelName = model.model_name || `modelo_${Date.now()}_${index}`;
-
-                // Evitar duplicados
                 const uniqueKey = `${model.category}_${modelName}`;
                 if (seen.has(uniqueKey)) {
                     return null;
                 }
                 seen.add(uniqueKey);
-
                 return {
                     ...model,
                     model_name: modelName,
@@ -70,20 +80,16 @@ const PracticePage = () => {
                     samples_used: model.samples_used || 0
                 };
             })
-            .filter(model => model !== null); // Remover nulos
+            .filter(model => model !== null);
     }, []);
 
     // ========== FUNCIONES DE DESCARGA ==========
-
     const loadDownloadedModels = useCallback(async (preserveSelection = false) => {
         try {
             await modelDownloadService.loadPersistedModels();
 
-            // 🚨 CORRECCIÓN: Filtrar modelos válidos
             const downloadedModels = modelDownloadService.getDownloadedModels(selectedCategory)
-                .filter(model => model && model.model_name && model.category); // Solo modelos con nombre y categoría
-
-            console.log(`📋 Modelos válidos para ${selectedCategory}:`, downloadedModels);
+                .filter(model => model && model.model_name && model.category);
 
             const formattedModels = downloadedModels.map(model => ({
                 model_name: model.model_name,
@@ -98,33 +104,24 @@ const PracticePage = () => {
 
             const localModels = await tfjsTrainer.getLocalModels(selectedCategory);
             const localModelsFormatted = localModels
-                .filter(model => model.category === selectedCategory && model.model_name) // Solo con nombre
+                .filter(model => model.category === selectedCategory && model.model_name)
                 .map(model => ({
                     ...model,
                     source: 'local'
                 }));
 
             const allModels = cleanAvailableModels([...formattedModels, ...localModelsFormatted]);
-
-            console.log(`🎯 Todos los modelos disponibles para ${selectedCategory}:`, allModels);
-
             setAvailableModels(allModels);
 
-            // 🚨 CORREGIDO: Solo seleccionar automáticamente si no hay preservación de selección
             if (!preserveSelection) {
                 if (allModels.length > 0 && !allModels.some(m => m.model_name === selectedModel)) {
                     const firstModel = allModels[0].model_name;
-                    console.log(`🔍 Seleccionando primer modelo: ${firstModel}`);
                     setSelectedModel(firstModel);
                 } else if (allModels.length === 0) {
-                    console.log(`⚠️ No hay modelos disponibles para ${selectedCategory}`);
                     setSelectedModel('');
                 }
             } else {
-                console.log(`🔒 Preservando selección actual: ${selectedModel}`);
-                // Verificar que el modelo seleccionado aún existe
                 if (selectedModel && !allModels.some(m => m.model_name === selectedModel)) {
-                    console.log(`⚠️ Modelo seleccionado ya no existe, deseleccionando`);
                     setSelectedModel('');
                 }
             }
@@ -143,8 +140,6 @@ const PracticePage = () => {
                 message: 'Verificando modelos disponibles...'
             }));
 
-            console.log('🔍 Verificando modelos...');
-
             const result = await modelDownloadService.checkAndDownloadModels(category);
 
             setDownloadStatus(prev => ({
@@ -160,11 +155,7 @@ const PracticePage = () => {
                         : '✅ Todos los modelos actualizados'
             }));
 
-            // 🚨 CORREGIDO: Recargar modelos después de la descarga con preservación de selección
             await loadDownloadedModels(preserveSelection);
-
-            console.log('📊 Resultado:', result);
-
             return result;
 
         } catch (error) {
@@ -179,18 +170,12 @@ const PracticePage = () => {
         }
     }, [loadDownloadedModels]);
 
-    // ========== PREDICCIÓN OPTIMIZADA ==========
-
-    // 🆕 Cache para modelos ya cargados
-    const loadedModelsCache = useRef(new Map());
-
+    // ========== PREDICCIÓN ==========
     const predictWithDownloadedModel = useCallback(async (landmarks) => {
         try {
             if (!selectedModel || !selectedCategory) {
                 throw new Error('No hay modelo o categoría seleccionada');
             }
-
-            console.log(`🔍 Prediciendo con modelo: ${selectedCategory}/${selectedModel}`);
 
             const selectedModelInfo = availableModels.find(m =>
                 m.model_name === selectedModel && m.category === selectedCategory
@@ -205,31 +190,18 @@ const PracticePage = () => {
             const cacheKey = `${selectedCategory}_${selectedModel}`;
 
             if (selectedModelInfo.source === 'downloaded') {
-                console.log(`📥 Usando modelo descargado: ${selectedCategory}/${selectedModel}`);
-
-                // 🚨 OPTIMIZACIÓN: Verificar si ya está en cache
                 if (!loadedModelsCache.current.has(cacheKey)) {
-                    console.log(`🔄 Cargando modelo en cache: ${cacheKey}`);
-
-                    // Cargar modelo solo si no está en cache
                     const modelData = await modelDownloadService.loadModel(selectedCategory, selectedModel);
                     if (!modelData || !modelData.model) {
                         throw new Error('No se pudo cargar el modelo desde IndexedDB');
                     }
-
-                    // Guardar en cache
                     loadedModelsCache.current.set(cacheKey, {
                         model: modelData.model,
                         labels: modelData.labels
                     });
-                } else {
-                    console.log(`⚡ Usando modelo desde cache: ${cacheKey}`);
                 }
 
-                // Obtener del cache
                 const cachedModel = loadedModelsCache.current.get(cacheKey);
-
-                // Hacer predicción sin recargar el modelo
                 predictions = await modelDownloadService.predictWithModel(
                     cachedModel.model,
                     landmarks
@@ -237,13 +209,9 @@ const PracticePage = () => {
                 labels = cachedModel.labels;
 
             } else {
-                console.log(`💾 Usando modelo local: ${selectedCategory}/${selectedModel}`);
-
                 if (!tfjsTrainer.hasModel(selectedCategory, selectedModel)) {
-                    // Cargar modelo local si no está en memoria
                     await tfjsTrainer.loadModel(selectedCategory, selectedModel);
                 }
-
                 predictions = await tfjsTrainer.predict(selectedCategory, selectedModel, landmarks);
                 labels = await tfjsTrainer.getModelLabels(selectedCategory, selectedModel);
             }
@@ -255,6 +223,10 @@ const PracticePage = () => {
             const maxConfidence = Math.max(...predictions);
             const predictedIndex = predictions.indexOf(maxConfidence);
             const predictedLabel = labels && labels[predictedIndex] ? labels[predictedIndex] : 'Desconocido';
+
+            // Filtrar para mostrar solo la etiqueta que estamos practicando
+            const targetLabelIndex = labels.indexOf(selectedLabel);
+            const targetConfidence = targetLabelIndex >= 0 ? predictions[targetLabelIndex] : 0;
 
             const ranking = predictions.map((confidence, index) => ({
                 label: labels && labels[index] ? labels[index] : `Etiqueta ${index}`,
@@ -268,13 +240,16 @@ const PracticePage = () => {
                 percentage: (maxConfidence * 100).toFixed(1),
                 high_confidence: maxConfidence > 0.7,
                 top_3: ranking,
-                model_source: selectedModelInfo.source
+                model_source: selectedModelInfo.source,
+                // Info específica para la etiqueta que practicamos
+                target_label: selectedLabel,
+                target_confidence: targetConfidence,
+                target_percentage: (targetConfidence * 100).toFixed(1),
+                is_correct: predictedLabel === selectedLabel
             };
 
         } catch (error) {
             console.error('❌ Error en predicción:', error);
-
-            // 🚨 LIMPIAR CACHE EN CASO DE ERROR
             const cacheKey = `${selectedCategory}_${selectedModel}`;
             loadedModelsCache.current.delete(cacheKey);
 
@@ -284,10 +259,11 @@ const PracticePage = () => {
                 percentage: "0",
                 high_confidence: false,
                 top_3: [],
-                error: error.message
+                error: error.message,
+                is_correct: false
             };
         }
-    }, [selectedModel, selectedCategory, availableModels]);
+    }, [selectedModel, selectedCategory, selectedLabel, availableModels]);
 
     const calcularTamanioMano = (landmarks) => {
         if (!landmarks || landmarks.length === 0) return 0;
@@ -302,52 +278,89 @@ const PracticePage = () => {
     };
 
     // ========== HANDLER DE CÁMARA ==========
-
-    // ========== HANDLER DE CÁMARA OPTIMIZADO ==========
-
     const handleHandDetected = useCallback((landmarksArray, rawLandmarks) => {
-        if (!landmarksArray || !selectedModel) return;
+        if (!landmarksArray || !selectedModel) {
+            // Limpiar si no hay landmarks o modelo
+            setPredictionResult(null);
+            return;
+        }
 
         const now = Date.now();
         const handSize = calcularTamanioMano(rawLandmarks);
 
-        // 🚨 OPTIMIZACIÓN: Aumentar el intervalo entre predicciones
-        if (handSize >= MIN_HAND_SIZE && now - lastCollectionTime.current > 800) {
+        // Si la mano es muy pequeña o no hay mano, limpiar resultado
+        if (handSize < MIN_HAND_SIZE) {
+            setPredictionResult(null);
+            return;
+        }
+
+        // Solo hacer predicción si ha pasado suficiente tiempo
+        if (now - lastCollectionTime.current > 1500) {
             predictWithDownloadedModel(landmarksArray)
                 .then(result => {
-                    if (result) setPredictionResult(result);
+                    // Solo mostrar resultado si detectó la letra que estamos practicando
+                    if (result && result.prediction === selectedLabel) {
+                        setPredictionResult(result);
+                    } else {
+                        // Limpiar si detectó otra letra
+                        setPredictionResult(null);
+                    }
                     lastCollectionTime.current = now;
                 })
                 .catch(error => {
                     console.error('Error en predicción:', error);
+                    setPredictionResult(null);
                 });
-        } else if (handSize < MIN_HAND_SIZE) {
-            setPredictionResult({
-                prediction: "Acerca tu mano a la cámara",
-                percentage: 0,
-                high_confidence: false,
-                top_3: []
-            });
         }
-    }, [selectedModel, predictWithDownloadedModel]);
+    }, [selectedModel, selectedLabel, predictWithDownloadedModel]);
 
-    // ========== HANDLERS DE UI ==========
+    // ========== HANDLERS DE NAVEGACIÓN ==========
+    const handleSelectCategory = async (categoryKey) => {
+        setSelectedCategory(categoryKey);
+        setSelectedLabel(null);
+        setSelectedModel('');
+        setPredictionResult(null);
+        setIsCameraActive(false);
+        loadedModelsCache.current.clear();
 
+        await checkAndDownloadModels(categoryKey, false);
+        setCurrentView('labels');
+    };
+
+    const handleSelectLabel = (label) => {
+        setSelectedLabel(label);
+        setPredictionResult(null);
+        setCurrentView('practice');
+    };
+
+    const handleBackToCategories = () => {
+        setCurrentView('categories');
+        setSelectedCategory(null);
+        setSelectedLabel(null);
+        setSelectedModel('');
+        setIsCameraActive(false);
+        setPredictionResult(null);
+        loadedModelsCache.current.clear();
+    };
+
+    const handleBackToLabels = () => {
+        setCurrentView('labels');
+        setSelectedLabel(null);
+        setIsCameraActive(false);
+        setPredictionResult(null);
+    };
+
+    // ========== HANDLERS DE CÁMARA ==========
     const handleStartCamera = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: 640,
-                    height: 480,
-                    facingMode: 'user'
-                }
+                video: { width: 640, height: 480, facingMode: 'user' }
             });
-
             stream.getTracks().forEach(track => track.stop());
             setIsCameraActive(true);
         } catch (error) {
             console.error('Error solicitando permisos:', error);
-            alert(`No se pudo acceder a la cámara:\n${error.message}\n\nVerifica los permisos en tu navegador.`);
+            alert(`No se pudo acceder a la cámara:\n${error.message}`);
         }
     };
 
@@ -357,85 +370,201 @@ const PracticePage = () => {
     };
 
     const handleModelChange = (modelName) => {
-        console.log(`🎯 Cambiando modelo a: ${modelName}`);
-
-        // 🚨 LIMPIAR CACHE AL CAMBIAR DE MODELO
         loadedModelsCache.current.clear();
-
         setSelectedModel(modelName);
         setPredictionResult(null);
     };
 
-    const handleCategoryChange = async (newCategory) => {
-        console.log(`🔄 Cambiando categoría a: ${newCategory}`);
-
-        // 🚨 LIMPIAR CACHE AL CAMBIAR DE CATEGORÍA
-        loadedModelsCache.current.clear();
-
-        setSelectedCategory(newCategory);
-        setSelectedModel('');
-        setPredictionResult(null);
-        await checkAndDownloadModels(newCategory, false);
-    };
-
     // ========== EFECTOS ==========
-
     useEffect(() => {
-        const initializeModels = async () => {
-            console.log('🚀 Inicializando modelos...');
-            await checkAndDownloadModels(selectedCategory, true); // Preservar selección en inicialización
-        };
-
-        initializeModels();
+        if (selectedCategory) {
+            checkAndDownloadModels(selectedCategory, true);
+        }
     }, [selectedCategory, checkAndDownloadModels]);
 
-    // 🆕 EFECTO PARA DEBUG: Mostrar modelos disponibles cuando cambian
-    useEffect(() => {
-        console.log(`🔄 Modelos disponibles actualizados para ${selectedCategory}:`, availableModels);
-        console.log(`🎯 Modelo seleccionado actualmente: ${selectedModel}`);
-    }, [availableModels, selectedCategory, selectedModel]);
+    // ========== RENDER: VISTA DE CATEGORÍAS ==========
+    const renderCategoriesView = () => (
+        <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+            <h2 style={{ textAlign: 'center', marginBottom: '30px', fontSize: '28px' }}>
+                📚 Selecciona una Categoría para Practicar
+            </h2>
 
-    // ========== RENDER ==========
-
-    return (
-        <div className="training-integrated">
-            <div className="training-content">
-                {/* Panel de Controles */}
-                <div className="control-panel">
-
-                    {/* Selector de Categoría */}
-                    <div className="category-selector" style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '10px' }}>
-                        <h4>Seleccionar Categoría:</h4>
-                        <div className="category-buttons" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                            {Object.entries(categories).map(([key, category]) => (
-                                <button
-                                    key={key}
-                                    className={`category-btn ${selectedCategory === key ? 'selected' : ''}`}
-                                    onClick={() => handleCategoryChange(key)}
-                                    style={{
-                                        background: selectedCategory === key ? category.color : '#e0e0e0',
-                                        color: selectedCategory === key ? 'white' : '#333',
-                                        border: 'none',
-                                        padding: '8px 15px',
-                                        borderRadius: '20px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        fontSize: '14px'
-                                    }}
-                                >
-                                    {category.name}
-                                </button>
-                            ))}
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                gap: '20px',
+                marginTop: '20px'
+            }}>
+                {Object.entries(categories).map(([key, category]) => (
+                    <div
+                        key={key}
+                        onClick={() => handleSelectCategory(key)}
+                        style={{
+                            background: 'white',
+                            borderRadius: '12px',
+                            padding: '30px',
+                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                            cursor: 'pointer',
+                            transition: 'all 0.3s ease',
+                            textAlign: 'center',
+                            border: `3px solid ${category.color}`,
+                            ':hover': {
+                                transform: 'translateY(-5px)',
+                                boxShadow: '0 6px 12px rgba(0,0,0,0.15)'
+                            }
+                        }}
+                    >
+                        <div style={{ fontSize: '48px', marginBottom: '15px' }}>
+                            {category.icon}
                         </div>
-                        <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
-                            Categoría actual: <strong>{categories[selectedCategory]?.name}</strong>
+                        <h3 style={{
+                            color: category.color,
+                            fontSize: '24px',
+                            marginBottom: '10px',
+                            fontWeight: 'bold'
+                        }}>
+                            {category.name}
+                        </h3>
+                        <p style={{ color: '#666', fontSize: '14px', marginBottom: '15px' }}>
+                            {category.description}
                         </p>
-                        <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#999' }}>
-                            Modelos disponibles: {availableModels.filter(m => m.category === selectedCategory).length}
-                        </p>
+                        <div style={{
+                            background: category.color,
+                            color: 'white',
+                            padding: '8px 16px',
+                            borderRadius: '20px',
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            display: 'inline-block'
+                        }}>
+                            {category.labels.length} elementos
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+
+    // ========== RENDER: VISTA DE ETIQUETAS ==========
+    const renderLabelsView = () => {
+        const category = categories[selectedCategory];
+
+        return (
+            <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+                <button
+                    onClick={handleBackToCategories}
+                    style={{
+                        background: '#666',
+                        color: 'white',
+                        border: 'none',
+                        padding: '10px 20px',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        marginBottom: '20px',
+                        fontSize: '14px'
+                    }}
+                >
+                    ← Volver a Categorías
+                </button>
+
+                <h2 style={{
+                    textAlign: 'center',
+                    marginBottom: '30px',
+                    fontSize: '28px',
+                    color: category.color
+                }}>
+                    {category.icon} {category.name}
+                </h2>
+
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: '15px',
+                    marginTop: '20px'
+                }}>
+                    {category.labels.map(label => (
+                        <div
+                            key={label}
+                            onClick={() => handleSelectLabel(label)}
+                            style={{
+                                background: 'white',
+                                borderRadius: '12px',
+                                padding: '30px',
+                                boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s ease',
+                                textAlign: 'center',
+                                border: `3px solid ${category.color}`,
+                                ':hover': {
+                                    transform: 'translateY(-5px)',
+                                    boxShadow: '0 6px 12px rgba(0,0,0,0.15)'
+                                }
+                            }}
+                        >
+                            <div style={{
+                                fontSize: '48px',
+                                fontWeight: 'bold',
+                                color: category.color,
+                                marginBottom: '10px'
+                            }}>
+                                {label}
+                            </div>
+                            <div style={{
+                                fontSize: '14px',
+                                color: '#666',
+                                fontWeight: '600'
+                            }}>
+                                Practicar
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    // ========== RENDER: VISTA DE PRÁCTICA ==========
+    const renderPracticeView = () => {
+        const category = categories[selectedCategory];
+
+        return (
+            <div className="training-content">
+                {/* Panel izquierdo - Controles */}
+                <div className="control-panel">
+                    <button
+                        onClick={handleBackToLabels}
+                        style={{
+                            background: '#666',
+                            color: 'white',
+                            border: 'none',
+                            padding: '10px 20px',
+                            borderRadius: '5px',
+                            cursor: 'pointer',
+                            marginBottom: '20px',
+                            fontSize: '14px',
+                            width: '100%'
+                        }}
+                    >
+                        ← Volver a {category.name}
+                    </button>
+
+                    <div style={{
+                        background: category.color,
+                        color: 'white',
+                        padding: '20px',
+                        borderRadius: '10px',
+                        textAlign: 'center',
+                        marginBottom: '20px'
+                    }}>
+                        <div style={{ fontSize: '48px', marginBottom: '10px' }}>
+                            {selectedLabel}
+                        </div>
+                        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                            Practicando: {selectedLabel}
+                        </div>
                     </div>
 
-                    {/* Selector de Modelo - CORREGIDO */}
+                    {/* Selector de Modelo */}
                     <div style={{ marginBottom: '15px' }}>
                         <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>
                             Seleccionar Modelo:
@@ -455,80 +584,17 @@ const PracticePage = () => {
                             {availableModels
                                 .filter(model => model.category === selectedCategory)
                                 .map((model, index) => {
-                                    // 🚨 CORRECCIÓN: Generar clave única incluso si model_name es undefined
                                     const modelName = model.model_name || `unnamed_${index}`;
                                     const uniqueKey = `${model.category}_${modelName}_${index}`;
-
                                     return (
                                         <option key={uniqueKey} value={modelName}>
-                                            {modelName} ({model.source === 'downloaded' ? '🔽' : '💾'}) - {model.accuracy}% - {model.samples_used} muestras
+                                            {modelName} ({model.source === 'downloaded' ? '🔽' : '💾'}) - {model.accuracy}%
                                         </option>
                                     );
                                 })
                             }
                         </select>
-                        {availableModels.filter(model => model.category === selectedCategory).length === 0 && (
-                            <p style={{ fontSize: '12px', color: '#ff9800', marginTop: '5px' }}>
-                                ⚠️ No hay modelos disponibles para esta categoría
-                            </p>
-                        )}
                     </div>
-
-                    {/* Botón para forzar recarga de modelos */}
-                    <div style={{ marginBottom: '15px' }}>
-                        <button
-                            onClick={() => checkAndDownloadModels(selectedCategory, true)} // Preservar selección
-                            style={{
-                                background: '#2196F3',
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px 12px',
-                                borderRadius: '5px',
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                                width: '100%'
-                            }}
-                        >
-                            🔄 Recargar Modelos (Preservar Selección)
-                        </button>
-                    </div>
-
-                    {/* Botón para limpiar modelos corruptos */}
-                    <div style={{ marginBottom: '15px' }}>
-                        <button
-                            onClick={() => {
-                                localStorage.removeItem('modelos-persistidos');
-                                sessionStorage.clear();
-                                console.log('🧹 Modelos limpiados, recargando...');
-                                setTimeout(() => window.location.reload(), 1000);
-                            }}
-                            style={{
-                                background: '#ff9800',
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px 12px',
-                                borderRadius: '5px',
-                                cursor: 'pointer',
-                                fontSize: '12px',
-                                width: '100%'
-                            }}
-                        >
-                            🧹 Limpiar Modelos Corruptos
-                        </button>
-                    </div>
-
-                    {/* Estado de Descarga */}
-                    {downloadStatus.checking && (
-                        <div style={{
-                            padding: '10px',
-                            background: '#e3f2fd',
-                            borderRadius: '5px',
-                            fontSize: '12px',
-                            marginBottom: '10px'
-                        }}>
-                            🔍 {downloadStatus.message}
-                        </div>
-                    )}
 
                     {/* Controles de Cámara */}
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
@@ -545,7 +611,7 @@ const PracticePage = () => {
                                 flex: 1
                             }}
                         >
-                            {isCameraActive ? '📹 Cámara Activa' : '🎥 Iniciar Cámara'}
+                            {isCameraActive ? '📹 Activa' : '🎥 Iniciar'}
                         </button>
 
                         <button
@@ -561,7 +627,7 @@ const PracticePage = () => {
                                 flex: 1
                             }}
                         >
-                            🛑 Detener Cámara
+                            🛑 Detener
                         </button>
                     </div>
 
@@ -570,72 +636,37 @@ const PracticePage = () => {
                         <div style={{
                             marginTop: '15px',
                             padding: '15px',
-                            background: predictionResult.high_confidence ? '#e8f5e8' : '#fff3e0',
+                            background: predictionResult.is_correct ? '#e8f5e8' : '#ffebee',
                             borderRadius: '10px',
-                            border: `2px solid ${predictionResult.high_confidence ? '#4CAF50' : '#FF9800'}`
+                            border: `2px solid ${predictionResult.is_correct ? '#4CAF50' : '#f44336'}`
                         }}>
                             <div style={{
                                 fontSize: '24px',
                                 fontWeight: 'bold',
                                 textAlign: 'center',
                                 marginBottom: '10px',
-                                color: predictionResult.high_confidence ? '#2E7D32' : '#FF9800'
+                                color: predictionResult.is_correct ? '#2E7D32' : '#c62828'
                             }}>
-                                {predictionResult.prediction}
+                                {predictionResult.is_correct ? '✅ ¡CORRECTO!' : '❌ Incorrecto'}
                             </div>
 
                             <div style={{
-                                fontSize: '16px',
+                                fontSize: '18px',
+                                textAlign: 'center',
+                                marginBottom: '10px',
+                                color: '#666'
+                            }}>
+                                Detectado: <strong>{predictionResult.prediction}</strong>
+                            </div>
+
+                            <div style={{
+                                fontSize: '14px',
                                 textAlign: 'center',
                                 marginBottom: '15px',
                                 color: '#666'
                             }}>
-                                Confianza: {predictionResult.percentage}%
+                                Confianza en "{selectedLabel}": {predictionResult.target_percentage}%
                             </div>
-
-                            {predictionResult.top_3 && predictionResult.top_3.length > 0 && (
-                                <div style={{ fontSize: '14px' }}>
-                                    <div style={{ fontWeight: '600', marginBottom: '8px' }}>Top 3:</div>
-                                    {predictionResult.top_3.map((item, index) => (
-                                        <div key={index} style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            padding: '5px 0',
-                                            borderBottom: '1px solid #f0f0f0'
-                                        }}>
-                                            <span>{item.label}</span>
-                                            <span>{item.percentage}%</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <div style={{
-                                fontSize: '12px',
-                                textAlign: 'center',
-                                marginTop: '10px',
-                                color: '#999'
-                            }}>
-                                Modelo: {selectedModel} ({predictionResult.model_source})
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Información del Modelo Seleccionado */}
-                    {selectedModel && (
-                        <div style={{
-                            marginTop: '15px',
-                            padding: '10px',
-                            background: '#e3f2fd',
-                            borderRadius: '5px',
-                            fontSize: '12px'
-                        }}>
-                            <div><strong>Modelo:</strong> {selectedModel}</div>
-                            <div><strong>Categoría:</strong> {selectedCategory}</div>
-                            <div><strong>Fuente:</strong> {
-                                availableModels.find(m => m.model_name === selectedModel)?.source === 'downloaded' ?
-                                    '🔽 Descargado del Backend' : '💾 Entrenado Localmente'
-                            }</div>
                         </div>
                     )}
                 </div>
@@ -651,11 +682,10 @@ const PracticePage = () => {
                         borderRadius: '10px',
                         overflow: 'hidden'
                     }}>
-
                         <MediaPipeCamera
                             isActive={isCameraActive}
                             onHandDetected={handleHandDetected}
-                            categoryColor={categories[selectedCategory]?.color}
+                            categoryColor={category.color}
                             width={640}
                             height={480}
                         />
@@ -670,7 +700,6 @@ const PracticePage = () => {
                             justifyContent: 'space-between',
                             alignItems: 'flex-start'
                         }}>
-                            {/* Indicador de Modo */}
                             <div style={{
                                 background: 'rgba(0,0,0,0.7)',
                                 color: 'white',
@@ -679,7 +708,7 @@ const PracticePage = () => {
                                 fontSize: '12px',
                                 fontWeight: '600'
                             }}>
-                                🎯 PRÁCTICA
+                                🎯 PRACTICANDO: {selectedLabel}
                             </div>
 
                             {selectedModel && (
@@ -709,48 +738,22 @@ const PracticePage = () => {
                             textAlign: 'center'
                         }}>
                             {selectedModel ?
-                                '🎯 Realiza la seña frente a la cámara' :
+                                `🎯 Realiza la seña de "${selectedLabel}" frente a la cámara` :
                                 '⏸️ Selecciona un modelo para comenzar'
                             }
                         </div>
                     </div>
-
-                    {/* Información adicional debajo de la cámara */}
-                    <div style={{ marginTop: '15px', textAlign: 'center' }}>
-                        {predictionResult && (
-                            <div style={{
-                                padding: '10px',
-                                background: predictionResult.high_confidence ? '#e8f5e8' : '#fff3e0',
-                                borderRadius: '5px',
-                                fontSize: '14px'
-                            }}>
-                                {predictionResult.high_confidence ? (
-                                    <span style={{ color: '#4CAF50', fontWeight: '600' }}>
-                                        ✅ Alta confianza: {predictionResult.prediction} ({predictionResult.percentage}%)
-                                    </span>
-                                ) : (
-                                    <span style={{ color: '#FF9800' }}>
-                                        ⚠️ Baja confianza: {predictionResult.prediction} ({predictionResult.percentage}%)
-                                    </span>
-                                )}
-                            </div>
-                        )}
-
-                        {!selectedModel && (
-                            <div style={{
-                                padding: '10px',
-                                background: '#fff3e0',
-                                borderRadius: '5px',
-                                fontSize: '14px'
-                            }}>
-                                <span style={{ color: '#FF9800' }}>
-                                    ⚠️ Selecciona un modelo para comenzar a practicar
-                                </span>
-                            </div>
-                        )}
-                    </div>
                 </div>
             </div>
+        );
+    };
+
+    // ========== RENDER PRINCIPAL ==========
+    return (
+        <div className="training-integrated">
+            {currentView === 'categories' && renderCategoriesView()}
+            {currentView === 'labels' && renderLabelsView()}
+            {currentView === 'practice' && renderPracticeView()}
         </div>
     );
 };
