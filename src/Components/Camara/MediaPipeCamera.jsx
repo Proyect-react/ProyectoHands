@@ -12,7 +12,7 @@ const HAND_CONNECTIONS = [
   [0, 17]
 ];
 
-const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', width = 640, height = 480 }) => {
+const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', width = 700, height = 600 }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [isReady, setIsReady] = useState(false);
@@ -82,7 +82,6 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = 'white';
         ctx.font = '16px Arial';
-        ctx.fillText('Iniciando cámara...', 10, 30);
       }
 
       // Inicializar Hands si no existe
@@ -148,12 +147,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
               }
             }
           } else {
-            // Mostrar mensaje cuando no hay manos
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-            ctx.fillRect(10, 10, 220, 30);
-            ctx.fillStyle = '#333';
-            ctx.font = '14px Arial';
-            ctx.fillText('Muestra tu mano a la cámara', 15, 30);
+            
           }
 
           ctx.restore();
@@ -209,7 +203,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
     return (
       <div style={{ 
         width: '100%', 
-        maxWidth: '600px',
+        maxWidth: '700px',
         height: `${height}px`,
         display: 'flex',
         alignItems: 'center',
@@ -224,7 +218,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
   }
 
   return (
-    <div style={{ width: '100%', maxWidth: '600px', position: 'relative' }}>
+    <div style={{ width: '100%', maxWidth: '677px', position: 'relative' }}>
       <video
         ref={videoRef}
         style={{ display: "none" }}

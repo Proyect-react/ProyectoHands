@@ -511,14 +511,6 @@ const CollectPage = () => {
                         </div>
 
                         {/* Instrucciones */}
-                        <div className="collect-camera-instruction-bar">
-                            {isLabelReady(selectedLabel) ?
-                                `✅ ${selectedLabel} completado (30/30 muestras)` :
-                                isCollecting ?
-                                    `🟢 Recolectando muestras para "${selectedLabel}" - ${getLabelSamples(selectedLabel)}/30 - Mantén tu mano estable` :
-                                    '⏸️ Selecciona una etiqueta e inicia la recolección'
-                            }
-                        </div>
                     </div>
 
                     {/* Controles de Recolección */}

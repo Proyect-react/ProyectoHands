@@ -84,7 +84,22 @@ class TfJsTrainer {
               const progress = Math.round(((epoch + 1) / epochs) * 100);
               const accuracy = logs.acc ? (logs.acc * 100).toFixed(1) : '0.0';
               const loss = logs.loss ? logs.loss.toFixed(4) : '0.0000';
-              onProgress(progress, `Época ${epoch + 1}/${epochs} - Precisión: ${accuracy}% - Pérdida: ${loss}`);
+              
+              // 🆕 Datos de época para gráficos
+              const epochData = {
+                epoch: epoch,
+                acc: logs.acc || 0,
+                val_acc: logs.val_acc || 0,
+                loss: logs.loss || 0,
+                val_loss: logs.val_loss || 0
+              };
+              
+              // Enviar 3 parámetros: progreso, mensaje y datos de época
+              onProgress(
+                progress, 
+                `Época ${epoch + 1}/${epochs} - Precisión: ${accuracy}% - Pérdida: ${loss}`,
+                epochData
+              );
             } catch (callbackError) {
               console.warn('Error en callback de progreso:', callbackError);
             }

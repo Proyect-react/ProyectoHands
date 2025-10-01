@@ -82,6 +82,7 @@ html, body {
   width: 100%;
   padding: 12px 16px;
   border-radius: 10px;
+  box-sizing: border-box;
   border: 2px solid rgba(110, 162, 179, 0.3);
   font-size: 0.95rem;
   background: rgba(255, 255, 255, 0.9);
@@ -164,7 +165,11 @@ html, body {
 .info-panel {
   display: flex;
   flex-direction: column;
-  gap: 25px;
+  gap: 8px;
+  padding: 0 2px;
+  max-width: 920px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .info-card {
@@ -248,7 +253,7 @@ html, body {
 
 /* ===== LISTA DE MODELOS ===== */
 .models-list {
-  max-height: 400px;
+  max-height: 300px;
   overflow-y: auto;
   padding-right: 5px;
 }
@@ -1084,7 +1089,7 @@ html, body {
 .collect-action-buttons-row {
   display: flex;
   gap: 12px;
-  justify-content: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
 }
 

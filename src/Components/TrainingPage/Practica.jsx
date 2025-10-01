@@ -410,6 +410,23 @@ const PracticePage = () => {
                             value={selectedModel}
                             onChange={(e) => handleModelChange(e.target.value)}
                             className="practice-model-selector"
+                            style={{
+                                width: '100%',
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                border: `2px solid ${category.color}`,
+                                fontSize: '1rem',
+                                background: 'linear-gradient(135deg, #f5fafd 0%, #e3f0fa 100%)',
+                                color: '#0A4174',
+                                fontWeight: 600,
+                                marginTop: '8px',
+                                marginBottom: '8px',
+                                outline: 'none',
+                                boxShadow: '0 2px 8px rgba(0,29,57,0.05)',
+                                transition: 'border 0.3s, box-shadow 0.3s'
+                            }}
+                            onFocus={e => e.target.style.border = `2.5px solid ${category.color}`}
+                            onBlur={e => e.target.style.border = `2px solid ${category.color}`}
                         >
                             <option value="">-- Selecciona un modelo --</option>
                             {availableModels
@@ -443,20 +460,7 @@ const PracticePage = () => {
                             🛑 Detener
                         </button>
                     </div>
-
-                    {predictionResult && (
-                        <div className={`practice-prediction-box ${predictionResult.is_correct ? 'practice-prediction-correct' : 'practice-prediction-incorrect'}`}>
-                            <div className={`practice-prediction-status ${predictionResult.is_correct ? 'practice-prediction-status-correct' : 'practice-prediction-status-incorrect'}`}>
-                                {predictionResult.is_correct ? '✅ ¡CORRECTO!' : '❌ Incorrecto'}
-                            </div>
-                            <div className="practice-prediction-detected">
-                                Detectado: <strong>{predictionResult.prediction}</strong>
-                            </div>
-                            <div className="practice-prediction-confidence">
-                                Confianza en "{selectedLabel}": {predictionResult.target_percentage}%
-                            </div>
-                        </div>
-                    )}
+                        
                 </div>
 
                 <div className="camera-panel">
@@ -475,7 +479,6 @@ const PracticePage = () => {
                             </div>
                             {selectedModel && (
                                 <div className="practice-camera-model-badge">
-                                    MODELO: {selectedModel}
                                 </div>
                             )}
                         </div>
@@ -487,6 +490,19 @@ const PracticePage = () => {
                             }
                         </div>
                     </div>
+                    {predictionResult && (
+                        <div className={`practice-prediction-box ${predictionResult.is_correct ? 'practice-prediction-correct' : 'practice-prediction-incorrect'}`}>
+                            <div className={`practice-prediction-status ${predictionResult.is_correct ? 'practice-prediction-status-correct' : 'practice-prediction-status-incorrect'}`}>
+                                {predictionResult.is_correct ? '✅ ¡CORRECTO!' : '❌ Incorrecto'}
+                            </div>
+                            <div className="practice-prediction-detected">
+                                Detectado: <strong>{predictionResult.prediction}</strong>
+                            </div>
+                            <div className="practice-prediction-confidence">
+                                Confianza en "{selectedLabel}": {predictionResult.target_percentage}%
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
