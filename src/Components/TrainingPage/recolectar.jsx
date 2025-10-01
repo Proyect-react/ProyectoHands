@@ -1,4 +1,4 @@
-// src/Components/TrainingPage/CollectPage.jsx
+// src/Components/TrainingPage/CollectPage.jsx - CON CLASSNAMES
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import apiService from '../../services/apiService';
@@ -57,8 +57,6 @@ const CollectPage = () => {
     const COLLECTION_INTERVAL = 1000;
     const MIN_HAND_SIZE = 0.17;
 
-    // ========== FUNCIONES DEL BACKEND ==========
-
     const loadBackendDatasetStatus = useCallback(async () => {
         try {
             const status = await apiService.getDatasetStatus(selectedCategory);
@@ -69,21 +67,16 @@ const CollectPage = () => {
         }
     }, [selectedCategory]);
 
-    // ========== FUNCIONES DE BUFFER ==========
-
     const sendBufferToBackend = useCallback(async () => {
         if (sampleBufferRef.current.length === 0 || bufferStatusRef.current.sending) {
             return;
         }
-
 
         setBufferStatus(prev => ({ ...prev, sending: true }));
         bufferStatusRef.current.sending = true;
 
         try {
             const samplesToSend = [...sampleBufferRef.current];
-
-            // 🔥 LIMPIAR EL BUFFER INMEDIATAMENTE para evitar que se sigan agregando muestras
             sampleBufferRef.current = [];
             setBufferStatus(prev => ({
                 ...prev,
@@ -101,13 +94,10 @@ const CollectPage = () => {
             }));
 
             bufferStatusRef.current.sending = false;
-
             await loadBackendDatasetStatus();
 
         } catch (error) {
             console.error('❌ Error enviando lote al backend:', error);
-
-            // 🔥 REINTENTAR EN CASO DE ERROR (opcional)
             console.log('🔄 Reintentando envío en 2 segundos...');
             setTimeout(() => {
                 setBufferStatus(prev => ({ ...prev, sending: false }));
@@ -117,14 +107,12 @@ const CollectPage = () => {
     }, [selectedCategory, loadBackendDatasetStatus]);
 
     const addToBuffer = useCallback((landmarks, label) => {
-        // 🔥 BLOQUEAR SI EL BUFFER ESTÁ ENVIANDO
         if (bufferStatusRef.current.sending) {
             return;
         }
 
         const currentSamples = getLabelSamples(label);
 
-        // 🔥 DETENER AUTOMÁTICAMENTE si ya se alcanzó el límite
         if (currentSamples >= 30) {
             setIsCollecting(false);
             collectingRef.current = false;
@@ -153,15 +141,12 @@ const CollectPage = () => {
         bufferStatusRef.current.count = newCount;
         bufferStatusRef.current.totalCollected = newTotal;
 
-
-        // 🔥 VERIFICAR SI SE ALCANZÓ EL LÍMITE después de agregar esta muestra
         if (currentSamples + 1 >= 30) {
             setIsCollecting(false);
             collectingRef.current = false;
             console.log(`🎯 Límite de 30 muestras alcanzado para ${label}. Recolección completada.`);
         }
 
-        // 🔥 ENVIAR INMEDIATAMENTE SI SE ALCANZA EL TAMAÑO DEL BUFFER
         if (newCount >= BUFFER_SIZE) {
             sendBufferToBackend();
         }
@@ -187,8 +172,6 @@ const CollectPage = () => {
             sending: false
         };
     }, []);
-
-    // ========== FUNCIONES AUXILIARES ==========
 
     const extractLandmarksArray = (multiHandLandmarks) => {
         if (!multiHandLandmarks || multiHandLandmarks.length === 0) return null;
@@ -222,18 +205,14 @@ const CollectPage = () => {
         return maxX - minX;
     };
 
-    // ========== HANDLER PARA MEDIAPIPECAMERA ==========
-
     const handleHandDetected = useCallback((landmarksArray, rawLandmarks) => {
         if (!landmarksArray) return;
 
         const now = Date.now();
 
-        // 🔥 VERIFICAR SI DEBEMOS DETENER LA RECOLECCIÓN
         if (collectingRef.current && selectedLabelRef.current) {
             const currentSamples = getLabelSamples(selectedLabelRef.current);
 
-            // Detener si ya se alcanzó el límite
             if (currentSamples >= 30) {
                 setIsCollecting(false);
                 collectingRef.current = false;
@@ -241,7 +220,6 @@ const CollectPage = () => {
                 return;
             }
 
-            // 🔥 VERIFICAR SI EL BUFFER ESTÁ OCUPADO
             if (bufferStatusRef.current.sending) {
                 return;
             }
@@ -256,8 +234,6 @@ const CollectPage = () => {
             }
         }
     }, [addToBuffer]);
-
-    // ========== HANDLERS ==========
 
     const handleClearData = async (type = 'current') => {
         if (type === 'current' && !selectedLabel) {
@@ -313,7 +289,6 @@ const CollectPage = () => {
         }
     };
 
-    // Funciones auxiliares
     const getLabelSamples = (label) => {
         return datasetStatus.labels?.[label]?.samples || 0;
     };
@@ -326,7 +301,6 @@ const CollectPage = () => {
         return categories[selectedCategory]?.labels || [];
     };
 
-    // Handlers básicos
     const handleStartCamera = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -361,7 +335,6 @@ const CollectPage = () => {
 
         const currentSamples = getLabelSamples(selectedLabel);
 
-        // 🔥 DETENER SI YA SE ALCANZÓ EL LÍMITE
         if (currentSamples >= 30) {
             setIsCollecting(false);
             collectingRef.current = false;
@@ -397,7 +370,6 @@ const CollectPage = () => {
     };
 
     const handleLabelChange = async (label) => {
-        // 🚨 PAUSAR LA RECOLECCIÓN AL CAMBIAR DE ETIQUETA
         if (isCollecting) {
             setIsCollecting(false);
             collectingRef.current = false;
@@ -407,15 +379,11 @@ const CollectPage = () => {
         setSelectedLabel(label);
         selectedLabelRef.current = label;
         clearBuffer();
-
     };
-
-    // ========== EFECTOS ==========
 
     useEffect(() => {
         collectingRef.current = isCollecting;
 
-        // 🔥 VERIFICAR SI DEBEMOS DETENER LA RECOLECCIÓN CUANDO CAMBIA EL ESTADO DEL DATASET
         if (isCollecting && selectedLabel) {
             const currentSamples = getLabelSamples(selectedLabel);
             if (currentSamples >= 30) {
@@ -429,7 +397,6 @@ const CollectPage = () => {
     useEffect(() => {
         selectedLabelRef.current = selectedLabel;
 
-        // 🚨 DETENER RECOLECCIÓN SI LA NUEVA ETIQUETA YA ESTÁ COMPLETA
         if (isCollecting && selectedLabel && getLabelSamples(selectedLabel) >= 30) {
             setIsCollecting(false);
             collectingRef.current = false;
@@ -448,76 +415,39 @@ const CollectPage = () => {
         clearBuffer();
     }, [selectedCategory, selectedLabel, clearBuffer]);
 
-    // ========== RENDER ==========
-
     return (
-        <div style={{
-            minHeight: '100vh',
-            background: 'linear-gradient(135deg, #BDD8E9 0%, #7BBDE8 100%)',
-            padding: '20px',
-            fontFamily: 'Inter, sans-serif'
-        }}>
-            {/* Layout principal con dos columnas */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '30px',
-                maxWidth: '1400px',
-                margin: '0 auto'
-            }}>
-
+        <div className="collect-main-wrapper">
+            <div className="collect-two-column-grid">
                 {/* Panel izquierdo - Selectores */}
-                <div style={{
-                    background: 'white',
-                    borderRadius: '15px',
-                    padding: '25px',
-                    boxShadow: '0 10px 30px rgba(0, 29, 57, 0.1)',
-                    border: '1px solid rgba(110, 162, 179, 0.2)',
-                    height: 'fit-content'
-                }}>
+                <div className="collect-left-panel">
                     {/* Selector de Categoría */}
                     <div style={{ marginBottom: '30px' }}>
-                        <h2 style={{ color: '#001D39', fontWeight: '600', marginBottom: '20px', fontSize: '18px' }}>Seleccionar Categoría:</h2>
-                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <h2 className="collect-section-heading">Seleccionar Categoría:</h2>
+                        <div className="collect-category-buttons-wrapper">
                             {Object.entries(categories).map(([key, category]) => (
                                 <button
                                     key={key}
                                     onClick={() => handleCategoryChange(key)}
-                                    style={{
-                                        background: selectedCategory === key ? '#4CAF50' : 'white',
-                                        color: selectedCategory === key ? 'white' : '#333',
-                                        border: selectedCategory === key ? 'none' : '2px solid #e0e0e0',
-                                        padding: '10px 15px',
-                                        borderRadius: '8px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        fontSize: '14px',
-                                        transition: 'all 0.3s ease',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        minWidth: '100px',
-                                        justifyContent: 'center'
-                                    }}
+                                    className={`collect-category-btn ${selectedCategory === key ? 'collect-category-btn-selected' : 'collect-category-btn-unselected'}`}
                                 >
-                                    {selectedCategory === key && <span style={{ fontSize: '12px' }}>🔴</span>}
+                                    {selectedCategory === key && <span className="collect-category-status-dot">🔴</span>}
                                     {category.name}
                                 </button>
                             ))}
                         </div>
-                        <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
+                        <p className="collect-category-info-text">
                             Categoría actual: <strong>{categories[selectedCategory]?.name}</strong> ({getCurrentLabels().length} etiquetas)
                         </p>
                     </div>
 
                     {/* Sección de Recolección */}
                     <div>
-                        <h2 style={{ color: '#001D39', fontWeight: '600', marginBottom: '15px', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <h2 className="collect-section-heading">
                             📊 Recolección de Datos - {categories[selectedCategory]?.name}
                         </h2>
 
-                        <h3 style={{ color: '#001D39', fontWeight: '500', marginBottom: '15px', fontSize: '16px' }}>Seleccionar Etiqueta:</h3>
-                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        <h3 className="collect-subsection-heading">Seleccionar Etiqueta:</h3>
+                        <div className="collect-labels-buttons-wrapper">
                             {getCurrentLabels().map(label => {
                                 const samples = getLabelSamples(label);
                                 const isReady = samples >= 30;
@@ -525,46 +455,17 @@ const CollectPage = () => {
                                     <button
                                         key={label}
                                         onClick={() => handleLabelChange(label)}
-                                        style={{
-                                            background: selectedLabel === label ? '#4CAF50' :
-                                                isReady ? '#e8f5e8' : 'white',
-                                            color: selectedLabel === label ? 'white' :
-                                                isReady ? '#4CAF50' : '#333',
-                                            border: selectedLabel === label ? 'none' :
-                                                isReady ? '2px solid #4CAF50' : '2px solid #e0e0e0',
-                                            padding: '15px',
-                                            borderRadius: '8px',
-                                            cursor: 'pointer',
-                                            fontSize: '18px',
-                                            fontWeight: '600',
-                                            transition: 'all 0.3s ease',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            gap: '5px',
-                                            minWidth: '70px',
-                                            position: 'relative'
-                                        }}
+                                        className={`collect-label-btn ${
+                                            selectedLabel === label ? 'collect-label-btn-selected' :
+                                            isReady ? 'collect-label-btn-ready' : 'collect-label-btn-default'
+                                        }`}
                                     >
-                                        <span style={{ fontSize: '20px' }}>{label}</span>
-                                        <span style={{ fontSize: '10px', opacity: 0.8 }}>
+                                        <span className="collect-label-text-display">{label}</span>
+                                        <span className="collect-label-count-badge">
                                             ({samples}/30)
                                         </span>
                                         {isReady && (
-                                            <span style={{
-                                                position: 'absolute',
-                                                top: '-5px',
-                                                right: '-5px',
-                                                background: '#4CAF50',
-                                                color: 'white',
-                                                borderRadius: '50%',
-                                                width: '18px',
-                                                height: '18px',
-                                                fontSize: '10px',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                            }}>
+                                            <span className="collect-label-check-icon">
                                                 ✓
                                             </span>
                                         )}
@@ -576,34 +477,13 @@ const CollectPage = () => {
                 </div>
 
                 {/* Panel derecho - Cámara y Controles */}
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '20px'
-                }}>
+                <div className="collect-right-column">
                     {/* Botones de Cámara */}
-                    <div style={{
-                        display: 'flex',
-                        gap: '15px',
-                        justifyContent: 'center'
-                    }}>
+                    <div className="collect-camera-buttons-row">
                         <button
                             onClick={handleStartCamera}
                             disabled={isCameraActive}
-                            style={{
-                                background: isCameraActive ? '#e0e0e0' : '#4CAF50',
-                                color: 'white',
-                                border: 'none',
-                                padding: '12px 20px',
-                                borderRadius: '8px',
-                                cursor: isCameraActive ? 'not-allowed' : 'pointer',
-                                fontWeight: '600',
-                                fontSize: '14px',
-                                transition: 'all 0.3s ease',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                            }}
+                            className={`collect-camera-control-btn ${!isCameraActive ? 'collect-camera-control-btn-start' : ''}`}
                         >
                             {isCameraActive ? '📹 Cámara Activa' : '🎥 Iniciar Cámara'}
                         </button>
@@ -611,35 +491,14 @@ const CollectPage = () => {
                         <button
                             onClick={handleStopCamera}
                             disabled={!isCameraActive}
-                            style={{
-                                background: !isCameraActive ? '#e0e0e0' : '#f44336',
-                                color: 'white',
-                                border: 'none',
-                                padding: '12px 20px',
-                                borderRadius: '8px',
-                                cursor: !isCameraActive ? 'not-allowed' : 'pointer',
-                                fontWeight: '600',
-                                fontSize: '14px',
-                                transition: 'all 0.3s ease',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                            }}
+                            className={`collect-camera-control-btn ${isCameraActive ? 'collect-camera-control-btn-stop' : ''}`}
                         >
                             🛑 Detener Cámara
                         </button>
                     </div>
 
                     {/* Cámara */}
-                    <div style={{
-                        position: 'relative',
-                        width: '100%',
-                        background: '#000',
-                        borderRadius: '15px',
-                        overflow: 'hidden',
-                        boxShadow: '0 10px 30px rgba(0, 29, 57, 0.2)',
-                        border: '3px solid rgba(189, 216, 233, 0.3)'
-                    }}>
+                    <div className="collect-camera-box">
                         <MediaPipeCamera
                             isActive={isCameraActive}
                             onHandDetected={handleHandDetected}
@@ -648,30 +507,11 @@ const CollectPage = () => {
                         />
 
                         {/* Overlay de información */}
-                        <div style={{
-                            position: 'absolute',
-                            top: '10px',
-                            left: '10px',
-                            right: '10px',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start'
-                        }}>
+                        <div className="collect-camera-overlay-container">
                         </div>
 
                         {/* Instrucciones */}
-                        <div style={{
-                            position: 'absolute',
-                            bottom: '10px',
-                            left: '10px',
-                            right: '10px',
-                            background: 'rgba(0,0,0,0.7)',
-                            color: 'white',
-                            padding: '8px',
-                            borderRadius: '5px',
-                            fontSize: '12px',
-                            textAlign: 'center'
-                        }}>
+                        <div className="collect-camera-instruction-bar">
                             {isLabelReady(selectedLabel) ?
                                 `✅ ${selectedLabel} completado (30/30 muestras)` :
                                 isCollecting ?
@@ -682,37 +522,17 @@ const CollectPage = () => {
                     </div>
 
                     {/* Controles de Recolección */}
-                    <div style={{
-                        background: 'white',
-                        borderRadius: '15px',
-                        border: '1px solid rgba(110, 162, 179, 0.3)',
-                        boxShadow: '0 10px 30px rgba(0, 29, 57, 0.1)',
-                        padding: '20px',
-                        textAlign: 'center'
-                    }}>
-                        <h3 style={{ color: '#001D39', fontWeight: '600', marginBottom: '15px', fontSize: '16px' }}>Controles de Recolección:</h3>
+                    <div className="collect-controls-box">
+                        <h3 className="collect-controls-title">Controles de Recolección:</h3>
 
-                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <div className="collect-action-buttons-row">
                             <button
                                 onClick={handleToggleCollection}
                                 disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)}
-                                style={{
-                                    background: !isCameraActive || !selectedLabel || isLabelReady(selectedLabel) ? '#e0e0e0' :
-                                        isCollecting ? '#FF9800' : '#4CAF50',
-                                    color: 'white',
-                                    border: 'none',
-                                    padding: '12px 20px',
-                                    borderRadius: '8px',
-                                    cursor: (!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)) ? 'not-allowed' : 'pointer',
-                                    fontWeight: '600',
-                                    fontSize: '14px',
-                                    transition: 'all 0.3s ease',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    minWidth: '180px',
-                                    justifyContent: 'center'
-                                }}
+                                className={`collect-action-btn ${
+                                    !isCameraActive || !selectedLabel || isLabelReady(selectedLabel) ? '' :
+                                    isCollecting ? 'collect-action-btn-toggle' : 'collect-action-btn-toggle-start'
+                                }`}
                             >
                                 {isLabelReady(selectedLabel) ? '✅ Completado (30/30)' :
                                     isCollecting ? '⏸️ Pausar Recolección' :
@@ -723,20 +543,7 @@ const CollectPage = () => {
                             <button
                                 onClick={() => handleClearData('current')}
                                 disabled={!selectedLabel || getLabelSamples(selectedLabel) === 0}
-                                style={{
-                                    background: !selectedLabel || getLabelSamples(selectedLabel) === 0 ? '#e0e0e0' : '#FF9800',
-                                    color: 'white',
-                                    border: 'none',
-                                    padding: '10px 15px',
-                                    borderRadius: '8px',
-                                    cursor: (!selectedLabel || getLabelSamples(selectedLabel) === 0) ? 'not-allowed' : 'pointer',
-                                    fontWeight: '600',
-                                    fontSize: '12px',
-                                    transition: 'all 0.3s ease',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                }}
+                                className={`collect-action-btn ${(!selectedLabel || getLabelSamples(selectedLabel) === 0) ? '' : 'collect-action-btn-clear-label'}`}
                             >
                                 🗑️ Borrar Etiqueta
                             </button>
@@ -744,20 +551,7 @@ const CollectPage = () => {
                             <button
                                 onClick={() => handleClearData('all')}
                                 disabled={!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0}
-                                style={{
-                                    background: (!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0) ? '#e0e0e0' : '#f44336',
-                                    color: 'white',
-                                    border: 'none',
-                                    padding: '10px 15px',
-                                    borderRadius: '8px',
-                                    cursor: (!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0) ? 'not-allowed' : 'pointer',
-                                    fontWeight: '600',
-                                    fontSize: '12px',
-                                    transition: 'all 0.3s ease',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                }}
+                                className={`collect-action-btn ${(!datasetStatus.summary?.total_samples || datasetStatus.summary.total_samples === 0) ? '' : 'collect-action-btn-clear-all'}`}
                             >
                                 🗑️ Borrar Todo
                             </button>
