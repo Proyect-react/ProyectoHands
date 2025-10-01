@@ -72,231 +72,307 @@ const TrainPage = () => {
         trainAccuracy: [],
         valAccuracy: []
     });
+    const [windowSize, setWindowSize] = useState({
+        width: typeof window !== 'undefined' ? window.innerWidth : 1200,
+        height: typeof window !== 'undefined' ? window.innerHeight : 800
+    });
 
-// Datos para gráfico de líneas
-const lineChartData = {
-    labels: trainingHistory.epochs.length > 0 
-        ? trainingHistory.epochs 
-        : ['Esperando entrenamiento...'],
-    datasets: [
-        {
-            label: 'Precisión de Entrenamiento',
-            data: trainingHistory.trainAccuracy.length > 0 
-                ? trainingHistory.trainAccuracy 
-                : [0],
-            borderColor: 'rgb(75, 192, 192)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            tension: 0.4,
-            pointBackgroundColor: 'rgb(75, 192, 192)',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-        },
-        {
-            label: 'Precisión de Validación',
-            data: trainingHistory.valAccuracy.length > 0 
-                ? trainingHistory.valAccuracy 
-                : [0],
-            borderColor: 'rgb(255, 99, 132)',
-            backgroundColor: 'rgba(255, 99, 132, 0.2)',
-            tension: 0.4,
-            pointBackgroundColor: 'rgb(255, 99, 132)',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 6,
-        },
-    ],
-};
+    // Effect para manejar el redimensionamiento de la ventana
+    useEffect(() => {
+        const handleResize = () => {
+            setWindowSize({
+                width: window.innerWidth,
+                height: window.innerHeight
+            });
+        };
 
-const lineChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-        legend: {
-            position: 'top',
-            labels: {
-                padding: 10,
-                usePointStyle: true,
-                pointStyle: 'circle',
-                boxWidth: 8,
-            }
-        },
-        title: {
-            display: true,
-            text: 'Progreso del Entrenamiento',
-            padding: {
-                top: 0,
-                bottom: 15
+        window.addEventListener('resize', handleResize);
+        
+        // Cleanup
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Función auxiliar para obtener el tamaño de fuente basado en el ancho de la ventana
+    const getResponsiveFontSize = (baseSize) => {
+        if (windowSize.width < 480) return baseSize - 2;
+        if (windowSize.width < 768) return baseSize - 1;
+        return baseSize;
+    };
+
+    // Datos para gráfico de líneas
+    const lineChartData = {
+        labels: trainingHistory.epochs.length > 0 
+            ? trainingHistory.epochs 
+            : ['Esperando entrenamiento...'],
+        datasets: [
+            {
+                label: 'Precisión de Entrenamiento',
+                data: trainingHistory.trainAccuracy.length > 0 
+                    ? trainingHistory.trainAccuracy 
+                    : [0],
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.4,
+                pointBackgroundColor: 'rgb(75, 192, 192)',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: windowSize.width < 768 ? 3 : 4,
+                pointHoverRadius: windowSize.width < 768 ? 5 : 6,
             },
-            font: {
-                size: 14
-            }
-        },
-        tooltip: {
-            mode: 'index',
-            intersect: false,
-            padding: 8,
-            bodySpacing: 4,
-        }
-    },
-    scales: {
-        y: {
-            beginAtZero: true,
-            max: 1,
+            {
+                label: 'Precisión de Validación',
+                data: trainingHistory.valAccuracy.length > 0 
+                    ? trainingHistory.valAccuracy 
+                    : [0],
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                tension: 0.4,
+                pointBackgroundColor: 'rgb(255, 99, 132)',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: windowSize.width < 768 ? 3 : 4,
+                pointHoverRadius: windowSize.width < 768 ? 5 : 6,
+            },
+        ],
+    };
+
+    const lineChartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+                labels: {
+                    padding: 10,
+                    usePointStyle: true,
+                    pointStyle: 'circle',
+                    boxWidth: 8,
+                    font: {
+                        size: getResponsiveFontSize(12)
+                    }
+                }
+            },
             title: {
                 display: true,
-                text: 'Precisión',
-                padding: {top: 0, bottom: 5}
+                text: 'Progreso del Entrenamiento',
+                padding: {
+                    top: 0,
+                    bottom: 10
+                },
+                font: {
+                    size: getResponsiveFontSize(14)
+                }
             },
-            grid: {
-                drawBorder: false,
-            },
-            ticks: {
-                padding: 5,
-                stepSize: 0.2
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+                padding: 8,
+                bodySpacing: 4,
+                titleFont: {
+                    size: getResponsiveFontSize(12)
+                },
+                bodyFont: {
+                    size: getResponsiveFontSize(12)
+                }
             }
         },
-        x: {
-            grid: {
-                display: false
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 1,
+                title: {
+                    display: true,
+                    text: 'Precisión',
+                    padding: {top: 0, bottom: 5},
+                    font: {
+                        size: getResponsiveFontSize(12)
+                    }
+                },
+                grid: {
+                    drawBorder: false,
+                },
+                ticks: {
+                    padding: 5,
+                    stepSize: 0.2,
+                    font: {
+                        size: getResponsiveFontSize(11)
+                    }
+                }
             },
-            ticks: {
-                maxRotation: 0,
-                padding: 5
+            x: {
+                grid: {
+                    display: false
+                },
+                ticks: {
+                    maxRotation: windowSize.width < 768 ? 45 : 0,
+                    padding: 5,
+                    font: {
+                        size: getResponsiveFontSize(11)
+                    }
+                }
+            },
+        },
+        layout: {
+            padding: {
+                top: 5,
+                right: 10,
+                bottom: 5,
+                left: 10
             }
         },
-    },
-    layout: {
-        padding: {
-            top: 5,
-            right: 10,
-            bottom: 5,
-            left: 10
+        elements: {
+            point: {
+                radius: windowSize.width < 768 ? 3 : 4,
+                hoverRadius: windowSize.width < 768 ? 5 : 6
+            },
+            line: {
+                borderWidth: windowSize.width < 768 ? 2 : 2.5
+            }
         }
-    }
-};
+    };
 
-// Datos para gráfico de barras
-const getBarChartData = () => {
-    if (!datasetStatus.labels || Object.keys(datasetStatus.labels).length === 0) {
+    // Datos para gráfico de barras
+    const getBarChartData = () => {
+        if (!datasetStatus.labels || Object.keys(datasetStatus.labels).length === 0) {
+            return {
+                labels: categories[selectedCategory]?.labels || [],
+                datasets: [{
+                    label: 'Muestras por Etiqueta',
+                    data: [],
+                    backgroundColor: 'rgba(189, 216, 233, 0.8)',
+                    borderColor: 'rgb(73, 118, 159)',
+                    borderWidth: 1,
+                }],
+            };
+        }
+    
+        const labels = categories[selectedCategory]?.labels || [];
+        const data = labels.map(label => {
+            const labelData = datasetStatus.labels[label];
+            return typeof labelData === 'object' && labelData !== null 
+                ? (labelData.samples || 0) 
+                : (labelData || 0);
+        });
+        
+        const colors = [
+            'rgba(255, 99, 132, 0.8)',
+            'rgba(54, 162, 235, 0.8)',
+            'rgba(255, 206, 86, 0.8)',
+            'rgba(75, 192, 192, 0.8)',
+            'rgba(153, 102, 255, 0.8)',
+            'rgba(255, 159, 64, 0.8)',
+            'rgba(199, 199, 199, 0.8)',
+            'rgba(83, 102, 255, 0.8)',
+            'rgba(40, 159, 64, 0.8)',
+            'rgba(210, 99, 132, 0.8)',
+        ];
+    
+        const borderColors = colors.map(color => color.replace('0.8', '1'));
+    
         return {
-            labels: categories[selectedCategory]?.labels || [],
+            labels: labels,
             datasets: [{
                 label: 'Muestras por Etiqueta',
-                data: [],
-                backgroundColor: 'rgba(189, 216, 233, 0.8)',
-                borderColor: 'rgb(73, 118, 159)',
-                borderWidth: 1,
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderColor: borderColors.slice(0, labels.length),
+                borderWidth: windowSize.width < 768 ? 1 : 1.5,
+                borderRadius: 4,
+                borderSkipped: false,
             }],
         };
-    }
-
-    const labels = categories[selectedCategory]?.labels || [];
-    const data = labels.map(label => {
-        const labelData = datasetStatus.labels[label];
-        return typeof labelData === 'object' && labelData !== null 
-            ? (labelData.samples || 0) 
-            : (labelData || 0);
-    });
-    
-    const colors = [
-        'rgba(255, 99, 132, 0.8)',
-        'rgba(54, 162, 235, 0.8)',
-        'rgba(255, 206, 86, 0.8)',
-        'rgba(75, 192, 192, 0.8)',
-        'rgba(153, 102, 255, 0.8)',
-        'rgba(255, 159, 64, 0.8)',
-        'rgba(199, 199, 199, 0.8)',
-        'rgba(83, 102, 255, 0.8)',
-        'rgba(40, 159, 64, 0.8)',
-        'rgba(210, 99, 132, 0.8)',
-    ];
-
-    const borderColors = colors.map(color => color.replace('0.8', '1'));
-
-    return {
-        labels: labels,
-        datasets: [{
-            label: 'Muestras por Etiqueta',
-            data: data,
-            backgroundColor: colors.slice(0, labels.length),
-            borderColor: borderColors.slice(0, labels.length),
-            borderWidth: 1,
-            borderRadius: 4,
-            borderSkipped: false,
-        }],
     };
-};
 
-const barChartData = getBarChartData();
+    const barChartData = getBarChartData();
 
-const barChartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-        legend: {
-            position: 'top',
-            labels: {
-                padding: 10,
-                usePointStyle: true,
-                pointStyle: 'rect',
-                boxWidth: 8,
-            }
-        },
-        title: {
-            display: true,
-            text: 'Distribución de Muestras',
-            padding: {
-                top: 0,
-                bottom: 15
+    const barChartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+                labels: {
+                    padding: 10,
+                    usePointStyle: true,
+                    pointStyle: 'rect',
+                    boxWidth: 8,
+                    font: {
+                        size: getResponsiveFontSize(12)
+                    }
+                }
             },
-            font: {
-                size: 14
-            }
-        },
-        tooltip: {
-            mode: 'index',
-            intersect: false,
-            padding: 8,
-            bodySpacing: 4,
-        }
-    },
-    scales: {
-        y: {
-            beginAtZero: true,
             title: {
                 display: true,
-                text: 'Cantidad de Muestras',
-                padding: {top: 0, bottom: 5}
+                text: 'Distribución de Muestras',
+                padding: {
+                    top: 0,
+                    bottom: 10
+                },
+                font: {
+                    size: getResponsiveFontSize(14)
+                }
             },
-            grid: {
-                drawBorder: false,
-            },
-            ticks: {
-                padding: 5,
-                precision: 0
+            tooltip: {
+                mode: 'index',
+                intersect: false,
+                padding: 8,
+                bodySpacing: 4,
+                titleFont: {
+                    size: getResponsiveFontSize(12)
+                },
+                bodyFont: {
+                    size: getResponsiveFontSize(12)
+                }
             }
         },
-        x: {
-            grid: {
-                display: false
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Cantidad de Muestras',
+                    padding: {top: 0, bottom: 5},
+                    font: {
+                        size: getResponsiveFontSize(12)
+                    }
+                },
+                grid: {
+                    drawBorder: false,
+                },
+                ticks: {
+                    padding: 5,
+                    precision: 0,
+                    font: {
+                        size: getResponsiveFontSize(11)
+                    }
+                }
             },
-            ticks: {
-                padding: 5
+            x: {
+                grid: {
+                    display: false
+                },
+                ticks: {
+                    padding: 5,
+                    font: {
+                        size: getResponsiveFontSize(11)
+                    }
+                }
+            },
+        },
+        layout: {
+            padding: {
+                top: 5,
+                right: 10,
+                bottom: 5,
+                left: 10
             }
         },
-    },
-    layout: {
-        padding: {
-            top: 5,
-            right: 10,
-            bottom: 5,
-            left: 10
+        elements: {
+            bar: {
+                borderWidth: windowSize.width < 768 ? 1 : 1.5
+            }
         }
-    }
-};
+    };
 
     const loadAvailableModels = async (category) => {
         try {
@@ -692,6 +768,7 @@ const barChartOptions = {
 
         loadData();
     }, [selectedCategory]);
+    
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (!document.hidden) {
