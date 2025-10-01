@@ -416,9 +416,9 @@ const CollectPage = () => {
     }, [selectedCategory, selectedLabel, clearBuffer]);
 
     return (
-        <div className="collect-main-wrapper">
+        <div className="collect-main-wrapper" style={{ overflow: 'hidden' }}>
             <div className="collect-two-column-grid">
-                {/* Panel izquierdo - Selectores */}
+                {/* Panel izquierdo - Selectores y Controles de Recolección */}
                 <div className="collect-left-panel">
                     {/* Selector de Categoría */}
                     <div style={{ marginBottom: '30px' }}>
@@ -474,47 +474,9 @@ const CollectPage = () => {
                             })}
                         </div>
                     </div>
-                </div>
 
-                {/* Panel derecho - Cámara y Controles */}
-                <div className="collect-right-column">
-                    {/* Botones de Cámara */}
-                    <div className="collect-camera-buttons-row">
-                        <button
-                            onClick={handleStartCamera}
-                            disabled={isCameraActive}
-                            className={`collect-camera-control-btn ${!isCameraActive ? 'collect-camera-control-btn-start' : ''}`}
-                        >
-                            {isCameraActive ? '📹 Cámara Activa' : '🎥 Iniciar Cámara'}
-                        </button>
-
-                        <button
-                            onClick={handleStopCamera}
-                            disabled={!isCameraActive}
-                            className={`collect-camera-control-btn ${isCameraActive ? 'collect-camera-control-btn-stop' : ''}`}
-                        >
-                            🛑 Detener Cámara
-                        </button>
-                    </div>
-
-                    {/* Cámara */}
-                    <div className="collect-camera-box">
-                        <MediaPipeCamera
-                            isActive={isCameraActive}
-                            onHandDetected={handleHandDetected}
-                            width={640}
-                            height={480}
-                        />
-
-                        {/* Overlay de información */}
-                        <div className="collect-camera-overlay-container">
-                        </div>
-
-                        {/* Instrucciones */}
-                    </div>
-
-                    {/* Controles de Recolección */}
-                    <div className="collect-controls-box">
+                    {/* Controles de Recolección - MOVIDOS AQUÍ */}
+                    <div className="collect-controls-box" style={{ marginTop: '20px' }}>
                         <h3 className="collect-controls-title">Controles de Recolección:</h3>
 
                         <div className="collect-action-buttons-row">
@@ -548,6 +510,42 @@ const CollectPage = () => {
                                 🗑️ Borrar Todo
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                {/* Panel derecho - Cámara y Botones de Cámara */}
+                <div className="collect-right-column">
+                    {/* Cámara */}
+                    <div className="collect-camera-box">
+                        <MediaPipeCamera
+                            isActive={isCameraActive}
+                            onHandDetected={handleHandDetected}
+                            width={640}
+                            height={480}
+                        />
+
+                        {/* Overlay de información */}
+                        <div className="collect-camera-overlay-container">
+                        </div>
+                    </div>
+
+                    {/* Botones de Cámara - MOVIDOS AQUÍ */}
+                    <div className="collect-camera-buttons-row" style={{ marginTop: '20px' }}>
+                        <button
+                            onClick={handleStartCamera}
+                            disabled={isCameraActive}
+                            className={`collect-camera-control-btn ${!isCameraActive ? 'collect-camera-control-btn-start' : ''}`}
+                        >
+                            {isCameraActive ? '📹 Cámara Activa' : '🎥 Iniciar Cámara'}
+                        </button>
+
+                        <button
+                            onClick={handleStopCamera}
+                            disabled={!isCameraActive}
+                            className={`collect-camera-control-btn ${isCameraActive ? 'collect-camera-control-btn-stop' : ''}`}
+                        >
+                            🛑 Detener Cámara
+                        </button>
                     </div>
                 </div>
             </div>
