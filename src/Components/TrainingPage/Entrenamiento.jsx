@@ -73,131 +73,230 @@ const TrainPage = () => {
         valAccuracy: []
     });
 
-    // Datos para gráfico de líneas
-    const lineChartData = {
-        labels: trainingHistory.epochs.length > 0 
-            ? trainingHistory.epochs 
-            : ['Esperando entrenamiento...'],
-        datasets: [
-            {
-                label: 'Precisión de Entrenamiento',
-                data: trainingHistory.trainAccuracy.length > 0 
-                    ? trainingHistory.trainAccuracy 
-                    : [0],
-                borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                tension: 0.4,
-            },
-            {
-                label: 'Precisión de Validación',
-                data: trainingHistory.valAccuracy.length > 0 
-                    ? trainingHistory.valAccuracy 
-                    : [0],
-                borderColor: 'rgb(255, 99, 132)',
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                tension: 0.4,
-            },
-        ],
-    };
+// Datos para gráfico de líneas
+const lineChartData = {
+    labels: trainingHistory.epochs.length > 0 
+        ? trainingHistory.epochs 
+        : ['Esperando entrenamiento...'],
+    datasets: [
+        {
+            label: 'Precisión de Entrenamiento',
+            data: trainingHistory.trainAccuracy.length > 0 
+                ? trainingHistory.trainAccuracy 
+                : [0],
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            tension: 0.4,
+            pointBackgroundColor: 'rgb(75, 192, 192)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+        },
+        {
+            label: 'Precisión de Validación',
+            data: trainingHistory.valAccuracy.length > 0 
+                ? trainingHistory.valAccuracy 
+                : [0],
+            borderColor: 'rgb(255, 99, 132)',
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            tension: 0.4,
+            pointBackgroundColor: 'rgb(255, 99, 132)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+        },
+    ],
+};
 
-    const lineChartOptions = {
-        responsive: true,
-        plugins: {
-            legend: {
-                position: 'top',
+const lineChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: {
+            position: 'top',
+            labels: {
+                padding: 10,
+                usePointStyle: true,
+                pointStyle: 'circle',
+                boxWidth: 8,
+            }
+        },
+        title: {
+            display: true,
+            text: 'Progreso del Entrenamiento',
+            padding: {
+                top: 0,
+                bottom: 15
             },
+            font: {
+                size: 14
+            }
+        },
+        tooltip: {
+            mode: 'index',
+            intersect: false,
+            padding: 8,
+            bodySpacing: 4,
+        }
+    },
+    scales: {
+        y: {
+            beginAtZero: true,
+            max: 1,
             title: {
                 display: true,
-                text: 'Progreso del Entrenamiento',
+                text: 'Precisión',
+                padding: {top: 0, bottom: 5}
             },
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                max: 1,
-                title: {
-                    display: true,
-                    text: 'Precisión'
-                }
+            grid: {
+                drawBorder: false,
             },
+            ticks: {
+                padding: 5,
+                stepSize: 0.2
+            }
         },
-    };
-
-    // Datos para gráfico de barras
-    const getBarChartData = () => {
-        if (!datasetStatus.labels || Object.keys(datasetStatus.labels).length === 0) {
-            return {
-                labels: categories[selectedCategory]?.labels || [],
-                datasets: [{
-                    label: 'Muestras por Etiqueta',
-                    data: [],
-                    backgroundColor: 'rgba(189, 216, 233, 0.8)',
-                    borderColor: 'rgb(73, 118, 159)',
-                    borderWidth: 1,
-                }],
-            };
+        x: {
+            grid: {
+                display: false
+            },
+            ticks: {
+                maxRotation: 0,
+                padding: 5
+            }
+        },
+    },
+    layout: {
+        padding: {
+            top: 5,
+            right: 10,
+            bottom: 5,
+            left: 10
         }
-    
-        const labels = categories[selectedCategory]?.labels || [];
-        // 🔧 FIX: Manejar la estructura con .samples
-        const data = labels.map(label => {
-            const labelData = datasetStatus.labels[label];
-            // Si es un objeto con 'samples', usar eso; si es un número, usarlo directamente
-            return typeof labelData === 'object' && labelData !== null 
-                ? (labelData.samples || 0) 
-                : (labelData || 0);
-        });
-        
-        const colors = [
-            'rgba(255, 99, 132, 0.8)',
-            'rgba(54, 162, 235, 0.8)',
-            'rgba(255, 206, 86, 0.8)',
-            'rgba(75, 192, 192, 0.8)',
-            'rgba(153, 102, 255, 0.8)',
-            'rgba(255, 159, 64, 0.8)',
-            'rgba(199, 199, 199, 0.8)',
-            'rgba(83, 102, 255, 0.8)',
-            'rgba(40, 159, 64, 0.8)',
-            'rgba(210, 99, 132, 0.8)',
-        ];
-    
-        const borderColors = colors.map(color => color.replace('0.8', '1'));
-    
+    }
+};
+
+// Datos para gráfico de barras
+const getBarChartData = () => {
+    if (!datasetStatus.labels || Object.keys(datasetStatus.labels).length === 0) {
         return {
-            labels: labels,
+            labels: categories[selectedCategory]?.labels || [],
             datasets: [{
                 label: 'Muestras por Etiqueta',
-                data: data,
-                backgroundColor: colors.slice(0, labels.length),
-                borderColor: borderColors.slice(0, labels.length),
+                data: [],
+                backgroundColor: 'rgba(189, 216, 233, 0.8)',
+                borderColor: 'rgb(73, 118, 159)',
                 borderWidth: 1,
             }],
         };
+    }
+
+    const labels = categories[selectedCategory]?.labels || [];
+    const data = labels.map(label => {
+        const labelData = datasetStatus.labels[label];
+        return typeof labelData === 'object' && labelData !== null 
+            ? (labelData.samples || 0) 
+            : (labelData || 0);
+    });
+    
+    const colors = [
+        'rgba(255, 99, 132, 0.8)',
+        'rgba(54, 162, 235, 0.8)',
+        'rgba(255, 206, 86, 0.8)',
+        'rgba(75, 192, 192, 0.8)',
+        'rgba(153, 102, 255, 0.8)',
+        'rgba(255, 159, 64, 0.8)',
+        'rgba(199, 199, 199, 0.8)',
+        'rgba(83, 102, 255, 0.8)',
+        'rgba(40, 159, 64, 0.8)',
+        'rgba(210, 99, 132, 0.8)',
+    ];
+
+    const borderColors = colors.map(color => color.replace('0.8', '1'));
+
+    return {
+        labels: labels,
+        datasets: [{
+            label: 'Muestras por Etiqueta',
+            data: data,
+            backgroundColor: colors.slice(0, labels.length),
+            borderColor: borderColors.slice(0, labels.length),
+            borderWidth: 1,
+            borderRadius: 4,
+            borderSkipped: false,
+        }],
     };
+};
 
-    const barChartData = getBarChartData();
+const barChartData = getBarChartData();
 
-    const barChartOptions = {
-        responsive: true,
-        plugins: {
-            legend: {
-                position: 'top',
+const barChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: {
+            position: 'top',
+            labels: {
+                padding: 10,
+                usePointStyle: true,
+                pointStyle: 'rect',
+                boxWidth: 8,
+            }
+        },
+        title: {
+            display: true,
+            text: 'Distribución de Muestras',
+            padding: {
+                top: 0,
+                bottom: 15
             },
+            font: {
+                size: 14
+            }
+        },
+        tooltip: {
+            mode: 'index',
+            intersect: false,
+            padding: 8,
+            bodySpacing: 4,
+        }
+    },
+    scales: {
+        y: {
+            beginAtZero: true,
             title: {
                 display: true,
-                text: 'Distribución de Muestras',
+                text: 'Cantidad de Muestras',
+                padding: {top: 0, bottom: 5}
             },
-        },
-        scales: {
-            y: {
-                beginAtZero: true,
-                title: {
-                    display: true,
-                    text: 'Cantidad de Muestras'
-                }
+            grid: {
+                drawBorder: false,
             },
+            ticks: {
+                padding: 5,
+                precision: 0
+            }
         },
-    };
+        x: {
+            grid: {
+                display: false
+            },
+            ticks: {
+                padding: 5
+            }
+        },
+    },
+    layout: {
+        padding: {
+            top: 5,
+            right: 10,
+            bottom: 5,
+            left: 10
+        }
+    }
+};
 
     const loadAvailableModels = async (category) => {
         try {
