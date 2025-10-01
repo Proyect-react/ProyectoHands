@@ -50,7 +50,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
         }
         cameraRef.current = null;
       }
-      
+
       // 🚨 CRÍTICO: También destruir Hands para forzar reinicio completo
       if (handsRef.current) {
         try {
@@ -60,7 +60,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
         }
         handsRef.current = null;
       }
-      
+
       // Detener el stream manualmente
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => {
@@ -69,7 +69,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
         });
         streamRef.current = null;
       }
-      
+
       // Limpiar el elemento video
       const videoElement = videoRef.current;
       if (videoElement) {
@@ -77,7 +77,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
         videoElement.pause();
         videoElement.load(); // Forzar reset del video
       }
-      
+
       // Limpiar canvas completamente
       const canvas = canvasRef.current;
       if (canvas) {
@@ -90,9 +90,9 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
           ctx.restore();
         }
       }
-      
+
       console.log('✅ Cámara detenida completamente');
-      
+
     } catch (error) {
       console.warn('⚠️ Error deteniendo cámara:', error);
     }
@@ -101,7 +101,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
   // 🆕 FUNCIÓN PARA INICIAR CÁMARA (CORREGIDA)
   const startCamera = async () => {
     if (!mountedRef.current) return;
-    
+
     try {
       console.log('🎥 Iniciando cámara...');
       setIsReady(false);
@@ -150,7 +150,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
 
       // 🚨 PASO 2: Asignar stream al video
       videoElement.srcObject = stream;
-      
+
       // 🚨 PASO 3: Esperar a que el video esté listo
       await new Promise((resolve, reject) => {
         const timeoutId = setTimeout(() => {
@@ -182,7 +182,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
       });
 
       hands.setOptions({
-        maxNumHands: 1,
+        maxNumHands: 2,
         modelComplexity: 0,
         minDetectionConfidence: 0.6,
         minTrackingConfidence: 0.5,
@@ -191,13 +191,13 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
 
       hands.onResults((results) => {
         if (!mountedRef.current) return;
-        
+
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
 
         ctx.save();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
+
         // Dibujar imagen de la cámara
         if (results.image && results.image.width > 0 && results.image.height > 0) {
           try {
@@ -213,40 +213,43 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
         }
 
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-          const landmarks = results.multiHandLandmarks[0];
-          
-          // Dibujar conexiones
-          ctx.strokeStyle = "rgba(0,255,0,0.6)";
-          ctx.lineWidth = 2;
-          for (const [startIdx, endIdx] of HAND_CONNECTIONS) {
-            const start = landmarks[startIdx];
-            const end = landmarks[endIdx];
-            if (start && end) {
-              ctx.beginPath();
-              ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
-              ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
-              ctx.stroke();
-            }
-          }
-          
-          // Dibujar puntos
-          ctx.fillStyle = categoryColor || "red";
-          for (const landmark of landmarks) {
-            ctx.beginPath();
-            ctx.arc(
-              landmark.x * canvas.width,
-              landmark.y * canvas.height,
-              5,
-              0,
-              2 * Math.PI
-            );
-            ctx.fill();
-          }
+          const handsCount = results.multiHandLandmarks.length;
 
+          results.multiHandLandmarks.forEach((landmarks, handIndex) => {
+            // Dibujar conexiones - AMBAS MANOS CON EL MISMO COLOR
+            ctx.strokeStyle = categoryColor + "99"; // Agregar transparencia
+            ctx.lineWidth = 2;
+            for (const [startIdx, endIdx] of HAND_CONNECTIONS) {
+              const start = landmarks[startIdx];
+              const end = landmarks[endIdx];
+              if (start && end) {
+                ctx.beginPath();
+                ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
+                ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
+                ctx.stroke();
+              }
+            }
+
+            // Dibujar puntos - AMBAS MANOS CON EL MISMO COLOR
+            ctx.fillStyle = categoryColor;
+            for (const landmark of landmarks) {
+              ctx.beginPath();
+              ctx.arc(
+                landmark.x * canvas.width,
+                landmark.y * canvas.height,
+                5,
+                0,
+                2 * Math.PI
+              );
+              ctx.fill();
+            }
+          });
+
+          // Enviar landmarks solo una vez con el conteo de manos
           if (onHandDetected) {
             const landmarksArray = extractLandmarksArray(results.multiHandLandmarks);
             if (landmarksArray) {
-              onHandDetected(landmarksArray, results.multiHandLandmarks[0]);
+              onHandDetected(landmarksArray, results.multiHandLandmarks[0], handsCount);
             }
           }
         }
@@ -293,10 +296,10 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
     } catch (error) {
       console.error('❌ Error iniciando cámara:', error);
       setIsReady(false);
-      
+
       // Limpiar en caso de error
       await stopCameraCompletely();
-      
+
       // Mostrar error al usuario
       if (mountedRef.current) {
         alert(`Error iniciando cámara: ${error.message}\n\nAsegúrate de dar permisos de cámara.`);
@@ -306,7 +309,7 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
 
   useEffect(() => {
     mountedRef.current = true;
-    
+
     if (isActive) {
       startCamera();
     } else {
@@ -323,8 +326,8 @@ const MediaPipeCamera = ({ onHandDetected, isActive, categoryColor = '#4CAF50', 
 
   if (!isActive) {
     return (
-      <div style={{ 
-        width: '100%', 
+      <div style={{
+        width: '100%',
         maxWidth: '700px',
         height: `${height}px`,
         display: 'flex',

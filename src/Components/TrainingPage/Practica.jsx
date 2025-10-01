@@ -1,4 +1,4 @@
-// src/Components/TrainingPage/Practica.jsx - CON CLASSNAMES
+// src/Components/TrainingPage/Practica.jsx - CON IMÁGENES DE SEÑAS
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import modelDownloadService from '../../services/modelDownloadService';
 import tfjsTrainer from '../../services/tfjsTrainer';
@@ -24,7 +24,14 @@ const categories = {
     },
     operaciones: {
         name: 'Operaciones',
-        labels: ['+', '-', '*', '/', '='],
+        labels: ['+', '-', '*', '÷', '='],
+        filenames: { // 🆕 MAPEO DE NOMBRES DE ARCHIVO
+            '+': 'suma',
+            '-': 'resta', 
+            '*': 'multiplicacion',
+            '÷': 'division',
+            '=': 'igual'
+        },
         color: '#FF9800',
         icon: '➕',
         description: 'Símbolos matemáticos básicos'
@@ -57,6 +64,20 @@ const PracticePage = () => {
 
     const lastCollectionTime = useRef(0);
     const loadedModelsCache = useRef(new Map());
+
+    // 🆕 FUNCIÓN PARA OBTENER EL NOMBRE DEL ARCHIVO
+    const getImageFileName = useCallback((categoryKey, label) => {
+        const category = categories[categoryKey];
+        if (!category) return label;
+        
+        // Si existe mapeo de nombres de archivo, usarlo
+        if (category.filenames && category.filenames[label]) {
+            return category.filenames[label];
+        }
+        
+        // Si no, usar el label directamente
+        return label;
+    }, []);
 
     const cleanAvailableModels = useCallback((models) => {
         const seen = new Set();
@@ -239,17 +260,37 @@ const PracticePage = () => {
         return maxX - minX;
     };
 
-    const handleHandDetected = useCallback((landmarksArray, rawLandmarks) => {
+    const handleHandDetected = useCallback((landmarksArray, rawLandmarks, handsCount = 1) => {
         if (!landmarksArray || !selectedModel) {
             setPredictionResult(null);
             return;
         }
         const now = Date.now();
+        
+        // Palabras que requieren dos manos
+        const twoHandSigns = ['gracias'];
+        const requiresTwoHands = twoHandSigns.includes(selectedLabel);
+        
+        // Validar cantidad de manos requeridas
+        if (requiresTwoHands && handsCount < 2) {
+            setPredictionResult({
+                prediction: "Se requieren 2 manos",
+                confidence: 0,
+                percentage: "0",
+                high_confidence: false,
+                top_3: [],
+                is_correct: false,
+                warning: `La seña "${selectedLabel}" requiere usar ambas manos`
+            });
+            return;
+        }
+        
         const handSize = calcularTamanioMano(rawLandmarks);
         if (handSize < MIN_HAND_SIZE) {
             setPredictionResult(null);
             return;
         }
+        
         if (now - lastCollectionTime.current > 1500) {
             predictWithDownloadedModel(landmarksArray)
                 .then(result => {
@@ -392,6 +433,9 @@ const PracticePage = () => {
     // ========== RENDER: VISTA DE PRÁCTICA ==========
     const renderPracticeView = () => {
         const category = categories[selectedCategory];
+        // 🆕 OBTENER NOMBRE DEL ARCHIVO USANDO LA FUNCIÓN
+        const imageFileName = getImageFileName(selectedCategory, selectedLabel);
+        
         return (
             <div className="training-content">
                 <div className="control-panel">
@@ -459,6 +503,74 @@ const PracticePage = () => {
                         >
                             🛑 Detener
                         </button>
+                    </div>
+
+                    {/* SECCIÓN DE IMAGEN DE REFERENCIA - ACTUALIZADA */}
+                    <div style={{
+                        marginTop: '20px',
+                        padding: '15px',
+                        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+                        borderRadius: '12px',
+                        border: `2px solid ${category.color}`,
+                        textAlign: 'center'
+                    }}>
+                        <h4 style={{
+                            margin: '0 0 12px 0',
+                            color: category.color,
+                            fontSize: '1.1rem',
+                            fontWeight: 'bold'
+                        }}>
+                            📖 Seña de Referencia
+                        </h4>
+                        <div style={{
+                            background: 'white',
+                            borderRadius: '8px',
+                            padding: '10px',
+                            minHeight: '200px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            border: `1px solid ${category.color}30`,
+                            position: 'relative'
+                        }}>
+                            <img
+                                src={`/img/${selectedCategory}/${imageFileName}.jpg`}
+                                alt={`Seña de ${selectedLabel}`}
+                                style={{
+                                    maxWidth: '100%',
+                                    maxHeight: '250px',
+                                    objectFit: 'contain',
+                                    borderRadius: '4px'
+                                }}
+                                onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextElementSibling.style.display = 'flex';
+                                }}
+                            />
+                            <div style={{
+                                display: 'none',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '10px',
+                                color: '#6c757d'
+                            }}>
+                                <div style={{ fontSize: '48px' }}>✋</div>
+                                <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                                    Imagen no disponible para: <strong>{selectedLabel}</strong>
+                                </p>
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: '#adb5bd' }}>
+                                    Archivo buscado: {imageFileName}.jpg
+                                </p>
+                            </div>
+                        </div>
+                        <p style={{
+                            margin: '10px 0 0 0',
+                            fontSize: '0.85rem',
+                            color: '#6c757d',
+                            fontStyle: 'italic'
+                        }}>
+                            Imita esta seña frente a la cámara
+                        </p>
                     </div>
                         
                 </div>

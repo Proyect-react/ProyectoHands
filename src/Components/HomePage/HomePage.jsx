@@ -1,6 +1,5 @@
 // src/components/HomePage.jsx
 import "./HomePage.css";
-import Header from "../Header/Header";
 import VoiceAssistant from "../VoiceAssistant/VoiceAssistant";
 import CollectPage from "../TrainingPage/recolectar";
 import TrainPage from "../TrainingPage/Entrenamiento";
@@ -8,8 +7,25 @@ import PracticePage from "../TrainingPage/Practica";
 import { speakAction } from "../VoiceAssistant/VoiceActions";
 import { useState, useEffect } from "react";
 
+// 🔹 Componente Modal reutilizable
+function Modal({ title, message, onClose }) {
+  if (!message) return null;
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <h3>{title}</h3>
+        <p>{message}</p>
+        <button onClick={onClose}>Cerrar</button>
+      </div>
+    </div>
+  );
+}
+
 function HomePage() {
   const [activeTab, setActiveTab] = useState("inicio");
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // 🔑 estado login
+  const [credentials, setCredentials] = useState({ user: "", pass: "" });
+  const [modalData, setModalData] = useState({ title: "", message: "" });
 
   // Efecto para mensaje de bienvenida inicial
   useEffect(() => {
@@ -21,9 +37,40 @@ function HomePage() {
   }, []);
 
   const handleTabClick = (tabName) => {
+    // Verificar acceso para secciones restringidas
+    if (!isLoggedIn && (tabName === "capturar" || tabName === "entrenar")) {
+      setModalData({
+        title: "Acceso Restringido",
+        message: "⚠️ Solo administradores pueden acceder a esta sección.",
+      });
+      setActiveTab("inicio");
+      return;
+    }
+    
     setActiveTab(tabName);
     // Activar voz para la acción de navegación
     speakAction('navigation', tabName);
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (credentials.user === "admin" && credentials.pass === "1234") {
+      setIsLoggedIn(true);
+      setModalData({ title: "Login Exitoso", message: "✅ Bienvenido administrador" });
+      setActiveTab("inicio");
+      setCredentials({ user: "", pass: "" }); // Limpiar campos
+    } else {
+      setModalData({
+        title: "Error de Autenticación",
+        message: "❌ Usuario o contraseña incorrectos",
+      });
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setActiveTab("inicio");
+    setModalData({ title: "Sesión Cerrada", message: "👋 Has cerrado sesión correctamente" });
   };
 
   // Renderizar el contenido según la pestaña activa
@@ -35,13 +82,70 @@ function HomePage() {
         return <TrainPage />;
       case "practicar":
         return <PracticePage />;
+      case "login":
+        return renderLoginForm();
       case "inicio":
       default:
         return renderHomeContent();
     }
   };
 
-  // Contenido de la página de inicio
+  // Formulario de login
+  const renderLoginForm = () => (
+    <div className="login-container" style={{
+      maxWidth: '400px',
+      margin: '40px auto',
+      padding: '30px',
+      background: '#f5f5f5',
+      borderRadius: '10px',
+      textAlign: 'center'
+    }}>
+      <h2 style={{ marginBottom: '20px', color: '#333' }}>Iniciar Sesión</h2>
+      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <input
+          type="text"
+          placeholder="Usuario"
+          value={credentials.user}
+          onChange={(e) => setCredentials({ ...credentials, user: e.target.value })}
+          style={{
+            padding: '12px',
+            borderRadius: '5px',
+            border: '1px solid #ccc',
+            fontSize: '16px'
+          }}
+        />
+        <input
+          type="password"
+          placeholder="Contraseña"
+          value={credentials.pass}
+          onChange={(e) => setCredentials({ ...credentials, pass: e.target.value })}
+          style={{
+            padding: '12px',
+            borderRadius: '5px',
+            border: '1px solid #ccc',
+            fontSize: '16px'
+          }}
+        />
+        <button 
+          type="submit"
+          style={{
+            background: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            padding: '12px',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            fontWeight: '600'
+          }}
+        >
+          Entrar
+        </button>
+      </form>
+    </div>
+  );
+
+  // Contenido de la página de inicio (MANTENIDO EXACTAMENTE IGUAL)
   const renderHomeContent = () => (
     <>
       {/* Main Cards Section */}
@@ -53,6 +157,19 @@ function HomePage() {
             <p className="card-description">
               Usa tu cámara para capturar y etiquetar gestos de lenguaje de señas por categorías específicas
             </p>
+            {!isLoggedIn && (
+              <div style={{
+                marginTop: '10px',
+                padding: '5px 10px',
+                background: '#ff9800',
+                color: 'white',
+                borderRadius: '15px',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                🔒 Admin requerido
+              </div>
+            )}
           </div>
 
           <div className="main-card">
@@ -61,6 +178,19 @@ function HomePage() {
             <p className="card-description">
               Entrena tu modelo de inteligencia artificial con los gestos capturados
             </p>
+            {!isLoggedIn && (
+              <div style={{
+                marginTop: '10px',
+                padding: '5px 10px',
+                background: '#ff9800',
+                color: 'white',
+                borderRadius: '15px',
+                fontSize: '12px',
+                fontWeight: '600'
+              }}>
+                🔒 Admin requerido
+              </div>
+            )}
           </div>
 
           <div className="main-card">
@@ -69,6 +199,17 @@ function HomePage() {
             <p className="card-description">
               Practica lenguaje de señas con reconocimiento inteligente en tiempo real
             </p>
+            <div style={{
+              marginTop: '10px',
+              padding: '5px 10px',
+              background: '#4CAF50',
+              color: 'white',
+              borderRadius: '15px',
+              fontSize: '12px',
+              fontWeight: '600'
+            }}>
+              ✅ Acceso libre
+            </div>
           </div>
         </div>
       </div>
@@ -142,7 +283,6 @@ function HomePage() {
             <ul className="feature-list">
               <li>Vocales (A, E, I, O, U)</li>
               <li>Números del 0 al 9</li>
-              <li>Abecedario completo A-Z</li>
               <li>Palabras básicas de uso cotidiano</li>
               <li>Operaciones aritméticas básicas</li>
             </ul>
@@ -154,7 +294,7 @@ function HomePage() {
 
   return (
     <div className="homepage-container">
-      <Header />
+      
       <VoiceAssistant />
       
       {/* Main Header Section */}
@@ -168,7 +308,7 @@ function HomePage() {
           </p>
         </div>
         
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs - MODIFICADO PARA INCLUIR LOGIN/LOGOUT */}
         <div className="navigation-tabs">
           <div 
             className={`nav-tab ${activeTab === "inicio" ? "active" : ""}`}
@@ -202,11 +342,37 @@ function HomePage() {
             <span className="text">Practicar</span>
             <span className="notification-dot"></span>
           </div>
+          
+          {/* Botón de Login/Logout */}
+          {!isLoggedIn ? (
+            <div 
+              className={`nav-tab ${activeTab === "login" ? "active" : ""}`}
+              onClick={() => setActiveTab("login")}
+            >
+              <span className="tab-icon">🔑</span>
+              <span className="text">Login</span>
+            </div>
+          ) : (
+            <div 
+              className="nav-tab logout-tab"
+              onClick={handleLogout}
+            >
+              <span className="tab-icon">🚪</span>
+              <span className="text">Salir</span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Renderizar el contenido según la pestaña activa */}
       {renderTabContent()}
+
+      {/* Modal para mensajes */}
+      <Modal
+        title={modalData.title}
+        message={modalData.message}
+        onClose={() => setModalData({ title: "", message: "" })}
+      />
     </div>
   );
 }
