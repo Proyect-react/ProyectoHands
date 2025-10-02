@@ -611,7 +611,7 @@ const PracticePage = () => {
                                 Detectado: <strong>{predictionResult.prediction}</strong>
                             </div>
                             <div className="practice-prediction-confidence">
-                                Confianza en "{selectedLabel}": {predictionResult.target_percentage}%
+                                Precisión en "{selectedLabel}": {predictionResult.target_percentage}%
                             </div>
                         </div>
                     )}

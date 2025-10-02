@@ -92,58 +92,27 @@ function HomePage() {
 
   // Formulario de login
   const renderLoginForm = () => (
-    <div className="login-container" style={{
-      maxWidth: '400px',
-      margin: '40px auto',
-      padding: '30px',
-      background: '#f5f5f5',
-      borderRadius: '10px',
-      textAlign: 'center'
-    }}>
-      <h2 style={{ marginBottom: '20px', color: '#333' }}>Iniciar Sesión</h2>
-      <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+    <div className="login-container">
+      <h2>Iniciar Sesión</h2>
+      <form onSubmit={handleLogin}>
         <input
           type="text"
           placeholder="Usuario"
           value={credentials.user}
           onChange={(e) => setCredentials({ ...credentials, user: e.target.value })}
-          style={{
-            padding: '12px',
-            borderRadius: '5px',
-            border: '1px solid #ccc',
-            fontSize: '16px'
-          }}
         />
         <input
           type="password"
           placeholder="Contraseña"
           value={credentials.pass}
           onChange={(e) => setCredentials({ ...credentials, pass: e.target.value })}
-          style={{
-            padding: '12px',
-            borderRadius: '5px',
-            border: '1px solid #ccc',
-            fontSize: '16px'
-          }}
         />
-        <button 
-          type="submit"
-          style={{
-            background: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            padding: '12px',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            fontSize: '16px',
-            fontWeight: '600'
-          }}
-        >
+        <button type="submit">
           Entrar
         </button>
       </form>
     </div>
-  );
+);
 
   // Contenido de la página de inicio (MANTENIDO EXACTAMENTE IGUAL)
   const renderHomeContent = () => (

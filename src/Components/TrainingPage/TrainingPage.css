@@ -822,7 +822,7 @@ html, body {
   font-size: 0.85rem;
   text-align: center;
   margin-bottom: 12px;
-  color: var(--warm-taupe);
+  color: var(--blue-30);
 }
 
 /* ===== CÁMARA CON OVERLAY ===== */
@@ -854,7 +854,7 @@ html, body {
 .camera-overlay-badge,
 .practice-camera-badge {
   background: rgba(6, 25, 26, 0.8); /* Basado en chinese-black */
-  color: var(--pale-silver);
+  color: white;
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -869,7 +869,7 @@ html, body {
   left: 12px;
   right: 12px;
   background: rgba(6, 25, 26, 0.8);
-  color: var(--pale-silver);
+  color: white;
   padding: 10px;
   border-radius: 6px;
   font-size: 0.75rem;
