@@ -575,7 +575,7 @@ const PracticePage = () => {
                         
                 </div>
 
-                <div className="camera-panel">
+                <div>
                     <div className="practice-camera-wrapper">
                         <MediaPipeCamera
                             isActive={isCameraActive}
