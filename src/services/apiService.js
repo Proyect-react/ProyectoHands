@@ -1,5 +1,4 @@
-// src/services/apiService.js - ACTUALIZADO PARA RENDER
-// 🚨 URL CORREGIDA PARA RENDER
+
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
 
 class APIService {
