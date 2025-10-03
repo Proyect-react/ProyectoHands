@@ -90,7 +90,7 @@ ProyectoHands/
 - **Miguel Quijano** 
 - **Silvia Castro** 
 - **Eduardo Caballero** 
-- - **Carlos Luna** 
+- **Carlos Luna** 
 - **Luis Reyes** 
 - **Adrian Miranda** 
 
