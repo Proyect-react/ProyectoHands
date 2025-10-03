@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import modelDownloadService from '../../services/modelDownloadService';
 import tfjsTrainer from '../../services/tfjsTrainer';
+import { speakAction } from "../VoiceAssistant/VoiceActions";
 import MediaPipeCamera from '../Camara/MediaPipeCamera';
 import './TrainingPage.css';
 
@@ -142,6 +143,9 @@ const PracticePage = () => {
 
     const checkAndDownloadModels = useCallback(async (category = null, preserveSelection = false) => {
         try {
+            // Agregar voz al inicio de descarga
+            speakAction('system', 'loading', "Seleccione la etiqueta que desea practicar");
+
             setDownloadStatus(prev => ({ ...prev, checking: true, message: 'Verificando modelos disponibles...' }));
             const result = await modelDownloadService.checkAndDownloadModels(category);
             setDownloadStatus(prev => ({
@@ -153,10 +157,20 @@ const PracticePage = () => {
                 message: result.downloaded.length > 0 ? `✅ ${result.downloaded.length} modelos descargados` :
                     result.errors.length > 0 ? `⚠️ ${result.errors.length} errores en descarga` : '✅ Todos los modelos actualizados'
             }));
+
+            // Agregar voz al completar descarga
+            if (result.downloaded.length > 0) {
+                speakAction('capture', 'complete', `${result.downloaded.length} modelos descargados exitosamente`);
+            }
+
             await loadDownloadedModels(preserveSelection);
             return result;
         } catch (error) {
             console.error('❌ Error en verificación:', error);
+            
+            // Agregar voz de error
+            speakAction('system', 'error');
+            
             setDownloadStatus(prev => ({
                 ...prev,
                 checking: false,
@@ -296,6 +310,10 @@ const PracticePage = () => {
                 .then(result => {
                     if (result && result.prediction === selectedLabel) {
                         setPredictionResult(result);
+                        // Agregar voz cuando la predicción es correcta
+                        if (result.is_correct) {
+                            speakAction('feedback', 'correct');
+                        }
                     } else {
                         setPredictionResult(null);
                     }
@@ -315,6 +333,10 @@ const PracticePage = () => {
         setPredictionResult(null);
         setIsCameraActive(false);
         loadedModelsCache.current.clear();
+        
+        // Agregar voz al seleccionar categoría
+        speakAction('practice', categoryKey);
+        
         await checkAndDownloadModels(categoryKey, false);
         setCurrentView('labels');
     };
@@ -322,6 +344,10 @@ const PracticePage = () => {
     const handleSelectLabel = (label) => {
         setSelectedLabel(label);
         setPredictionResult(null);
+        
+        // Agregar voz al seleccionar etiqueta
+        speakAction('practice', 'vocales', `Practicando ${label}`);
+        
         setCurrentView('practice');
     };
 
@@ -349,8 +375,15 @@ const PracticePage = () => {
             });
             stream.getTracks().forEach(track => track.stop());
             setIsCameraActive(true);
+            
+            // Agregar voz al iniciar cámara
+            speakAction('capture', 'start');
         } catch (error) {
             console.error('Error solicitando permisos:', error);
+            
+            // Agregar voz de error de cámara
+            speakAction('system', 'cameraError');
+            
             alert(`No se pudo acceder a la cámara:\n${error.message}`);
         }
     };
@@ -364,6 +397,9 @@ const PracticePage = () => {
         loadedModelsCache.current.clear();
         setSelectedModel(modelName);
         setPredictionResult(null);
+        
+        // Agregar voz al cambiar modelo
+        speakAction('system', 'loading', `Modelo ${modelName} seleccionado`);
     };
 
     useEffect(() => {

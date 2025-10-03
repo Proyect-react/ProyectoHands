@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import apiService from '../../services/apiService';
 import modelDownloadService from '../../services/modelDownloadService';
+import { speakAction } from "../VoiceAssistant/VoiceActions";
 import MediaPipeCamera from '../Camara/MediaPipeCamera';
 import './TrainingPage.css';
 
@@ -99,6 +100,10 @@ const CollectPage = () => {
         } catch (error) {
             console.error('❌ Error enviando lote al backend:', error);
             console.log('🔄 Reintentando envío en 2 segundos...');
+            
+            // Agregar voz de error
+            speakAction('capture', 'error');
+            
             setTimeout(() => {
                 setBufferStatus(prev => ({ ...prev, sending: false }));
                 bufferStatusRef.current.sending = false;
@@ -145,6 +150,9 @@ const CollectPage = () => {
             setIsCollecting(false);
             collectingRef.current = false;
             console.log(`🎯 Límite de 30 muestras alcanzado para ${label}. Recolección completada.`);
+            
+            // Agregar voz cuando se completa la recolección
+            speakAction('capture', 'complete');
         }
 
         if (newCount >= BUFFER_SIZE) {
@@ -271,9 +279,15 @@ const CollectPage = () => {
             if (type === 'current') {
                 await apiService.clearLabelData(selectedCategory, selectedLabel);
                 alert(`Datos de "${selectedLabel}" eliminados del backend`);
+                
+                // Agregar voz al eliminar datos
+                speakAction('system', 'loading', `Datos de ${selectedLabel} eliminados`);
             } else if (type === 'all') {
                 await apiService.clearCategoryData(selectedCategory);
                 alert(`Todas las muestras de "${selectedCategory}" eliminadas del backend`);
+                
+                // Agregar voz al eliminar todos los datos
+                speakAction('system', 'loading', `Todos los datos de ${selectedCategory} eliminados`);
             }
 
             await loadBackendDatasetStatus();
@@ -281,6 +295,9 @@ const CollectPage = () => {
         } catch (error) {
             alert(`Error eliminando datos del backend: ${error.message}`);
             console.error('Error eliminando:', error);
+            
+            // Agregar voz de error
+            speakAction('system', 'error');
 
             if (wasCollecting) {
                 setIsCollecting(true);
@@ -313,8 +330,15 @@ const CollectPage = () => {
 
             stream.getTracks().forEach(track => track.stop());
             setIsCameraActive(true);
+            
+            // Agregar voz al iniciar cámara
+            speakAction('capture', 'start');
         } catch (error) {
             console.error('Error solicitando permisos:', error);
+            
+            // Agregar voz de error de cámara
+            speakAction('system', 'cameraError');
+            
             alert(`No se pudo acceder a la cámara:\n${error.message}\n\nVerifica los permisos en tu navegador.`);
         }
     };
@@ -351,8 +375,14 @@ const CollectPage = () => {
             lastCollectionTime.current = 0;
             processingRef.current = false;
             console.log(`▶️ Iniciando recolección para: ${selectedLabel} (${currentSamples}/30)`);
+            
+            // Agregar voz al iniciar recolección
+            speakAction('capture', 'start', `Iniciando captura de gestos para ${selectedLabel}`);
         } else {
             flushBuffer();
+            
+            // Agregar voz al pausar recolección
+            speakAction('system', 'loading', "Recolección pausada");
         }
     };
 
@@ -366,6 +396,10 @@ const CollectPage = () => {
         setSelectedCategory(newCategory);
         setSelectedLabel('');
         clearBuffer();
+        
+        // Agregar voz al cambiar categoría
+        speakAction('navigation', 'capturar');
+        
         await loadBackendDatasetStatus();
     };
 
@@ -379,6 +413,9 @@ const CollectPage = () => {
         setSelectedLabel(label);
         selectedLabelRef.current = label;
         clearBuffer();
+        
+        // Agregar voz al seleccionar etiqueta
+        speakAction('capture', 'start', `Preparado para capturar gestos de ${label}`);
     };
 
     useEffect(() => {
@@ -390,6 +427,9 @@ const CollectPage = () => {
                 setIsCollecting(false);
                 collectingRef.current = false;
                 console.log(`🛑 Recolección detenida automáticamente para ${selectedLabel} (límite alcanzado)`);
+                
+                // Agregar voz cuando se alcanza el límite automáticamente
+                speakAction('capture', 'complete');
             }
         }
     }, [isCollecting, selectedLabel]);

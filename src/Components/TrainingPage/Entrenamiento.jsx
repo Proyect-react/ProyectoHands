@@ -4,6 +4,7 @@ import * as tf from '@tensorflow/tfjs';
 import apiService from '../../services/apiService';
 import modelDownloadService from '../../services/modelDownloadService';
 import tfjsTrainer from '../../services/tfjsTrainer';
+import { speakAction } from "../VoiceAssistant/VoiceActions";
 import './TrainingPage.css';
 import {
     Chart as ChartJS,
@@ -451,6 +452,9 @@ const TrainPage = () => {
         if (!confirmDelete) return;
 
         try {
+            // Agregar voz al eliminar modelo
+            speakAction('system', 'loading', `Eliminando modelo ${modelName}`);
+
             if (source === 'local') {
                 await tfjsTrainer.deleteModel(selectedCategory, modelName);
                 
@@ -516,10 +520,16 @@ const TrainPage = () => {
             }
 
             await loadAvailableModels(selectedCategory);
+            
+            // Agregar voz de confirmación
+            speakAction('feedback', 'correct', "Modelo eliminado correctamente");
             alert(`Modelo "${modelName}" eliminado exitosamente`);
 
         } catch (error) {
             console.error('Error eliminando modelo:', error);
+            
+            // Agregar voz de error
+            speakAction('system', 'error');
             alert(`Error al eliminar modelo:\n\n${error.message}`);
             await loadAvailableModels(selectedCategory);
         }
@@ -528,6 +538,9 @@ const TrainPage = () => {
     const checkAndDownloadModels = async (category = null) => {
         try {
             const targetCategory = category || selectedCategory;
+
+            // Agregar voz al inicio
+            speakAction('system', 'loading', "Verificando y descargando modelos disponibles");
 
             setDownloadStatus(prev => ({
                 ...prev,
@@ -550,11 +563,19 @@ const TrainPage = () => {
                         : 'Todos los modelos están actualizados'
             }));
 
+            // Agregar voz al completar
+            if (result.downloaded.length > 0) {
+                speakAction('capture', 'complete', `${result.downloaded.length} modelos descargados exitosamente`);
+            }
+
             await loadAvailableModels(targetCategory);
             return result;
 
         } catch (error) {
             console.error('Error en verificación automática:', error);
+            
+            // Agregar voz de error
+            speakAction('system', 'error');
             setDownloadStatus(prev => ({
                 ...prev,
                 checking: false,
@@ -711,11 +732,17 @@ const TrainPage = () => {
                 }
             });
 
+            // Agregar voz de entrenamiento completado
+            speakAction('training', 'complete');
+
             await checkAndDownloadModels(selectedCategory);
             await loadAvailableModels();
 
         } catch (error) {
             console.error('Error detallado en entrenamiento local:', error);
+
+            // Agregar voz de error
+            speakAction('training', 'error');
 
             setTrainingProgress({
                 status: 'error',
@@ -730,6 +757,8 @@ const TrainPage = () => {
     };
 
     const handleStartTraining = async () => {
+        // Agregar voz al inicio del entrenamiento
+        speakAction('training', 'start');
         await handleLocalTraining();
     };
 
@@ -749,6 +778,9 @@ const TrainPage = () => {
     const handleCategoryChange = async (newCategory) => {
         setSelectedCategory(newCategory);
         setAvailableModels([]);
+        
+        // Agregar voz al cambiar categoría - SOLO MENSAJE DE CATEGORÍA ESPECÍFICA
+        speakAction('practice', newCategory);
 
         try {
             await Promise.all([
