@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import apiService from '../../services/apiService';
 import modelDownloadService from '../../services/modelDownloadService';
-import { speakAction } from "../VoiceAssistant/VoiceActions";
+import { speakAction, speakCustom } from "../VoiceAssistant/VoiceActions";
 import MediaPipeCamera from '../Camara/MediaPipeCamera';
 import './TrainingPage.css';
 
@@ -29,6 +29,27 @@ const categories = {
         color: '#9C27B0'
     }
 };
+function Modal({ title, message, onClose, onConfirm }) {
+    if (!message) return null;
+    return (
+        <div className="modal-overlay">
+            <div className="modal">
+                <h3>{title}</h3>
+                <p>{message}</p>
+                <div className="modal-buttons">
+                    {onConfirm && (
+                        <button onClick={onConfirm} className="btn-confirm">
+                            Confirmar
+                        </button>
+                    )}
+                    <button onClick={onClose} className="btn-cancel">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const CollectPage = () => {
     const [selectedCategory, setSelectedCategory] = useState('vocales');
@@ -36,6 +57,7 @@ const CollectPage = () => {
     const [isCollecting, setIsCollecting] = useState(false);
     const [isCameraActive, setIsCameraActive] = useState(false);
     const [datasetStatus, setDatasetStatus] = useState({});
+    const [modalData, setModalData] = useState({ title: "", message: "" });
     const [bufferStatus, setBufferStatus] = useState({
         count: 0,
         totalCollected: 0,
@@ -100,10 +122,10 @@ const CollectPage = () => {
         } catch (error) {
             console.error('❌ Error enviando lote al backend:', error);
             console.log('🔄 Reintentando envío en 2 segundos...');
-            
+
             // Agregar voz de error
             speakAction('capture', 'error');
-            
+
             setTimeout(() => {
                 setBufferStatus(prev => ({ ...prev, sending: false }));
                 bufferStatusRef.current.sending = false;
@@ -150,7 +172,7 @@ const CollectPage = () => {
             setIsCollecting(false);
             collectingRef.current = false;
             console.log(`🎯 Límite de 30 muestras alcanzado para ${label}. Recolección completada.`);
-            
+
             // Agregar voz cuando se completa la recolección
             speakAction('capture', 'complete');
         }
@@ -244,67 +266,110 @@ const CollectPage = () => {
     }, [addToBuffer]);
 
     const handleClearData = async (type = 'current') => {
-        if (type === 'current' && !selectedLabel) {
-            alert('Selecciona una etiqueta primero');
-            return;
-        }
+    if (type === 'current' && !selectedLabel) {
+        setModalData({
+            title: 'Error',
+            message: 'Por favor, selecciona una etiqueta primero.'
+        });
+        speakAction('system', 'error');
+        return;
+    }
 
-        const wasCollecting = isCollecting;
-        if (wasCollecting) {
-            setIsCollecting(false);
-            collectingRef.current = false;
-            await flushBuffer();
-        }
+    const wasCollecting = isCollecting;
+    if (wasCollecting) {
+        setIsCollecting(false);
+        collectingRef.current = false;
+        await flushBuffer();
+    }
 
-        let confirmMessage = '';
+    if (type === 'current') {
+        const currentSamples = getLabelSamples(selectedLabel);
+        setModalData({
+            title: 'Confirmar Eliminación',
+            message: `¿Eliminar todas las muestras de "${selectedLabel}" del backend?\n\n` +
+                     `Se eliminarán ${currentSamples} muestras.\n\n` +
+                     `Esta acción NO se puede deshacer.`,
+            onConfirm: async () => {
+                try {
+                    // Agregar voz al eliminar datos
+                    speakAction('system', 'loading', `Eliminando muestras de ${selectedLabel}`);
 
-        if (type === 'current') {
-            const currentSamples = getLabelSamples(selectedLabel);
-            confirmMessage = `¿Eliminar todas las muestras de "${selectedLabel}" del backend?\n\nSe eliminarán ${currentSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
-        } else if (type === 'all') {
-            const totalSamples = datasetStatus.summary?.total_samples || 0;
-            confirmMessage = `¿Eliminar TODAS las muestras de "${selectedCategory}" del backend?\n\nSe eliminarán ${totalSamples} muestras.\n\nEsta acción NO se puede deshacer.`;
-        }
+                    // Perform deletion for the specific label
+                    await apiService.clearLabelData(selectedCategory, selectedLabel);
 
-        const userConfirmed = window.confirm(`CONFIRMACIÓN\n\n${confirmMessage}`);
-        if (!userConfirmed) {
-            if (wasCollecting) {
-                setIsCollecting(true);
-                collectingRef.current = true;
+                    // Update dataset status
+                    await loadBackendDatasetStatus();
+
+                    // Show success modal
+                    setModalData({
+                        title: 'Éxito',
+                        message: `Muestras de "${selectedLabel}" eliminadas correctamente.`
+                    });
+
+                    // Agregar voz de confirmación
+                    speakAction('feedback', 'correct', `Muestras de ${selectedLabel} eliminadas correctamente`);
+                } catch (error) {
+                    console.error('Error eliminando muestras:', error);
+                    // Show error modal
+                    setModalData({
+                        title: 'Error',
+                        message: `Error al eliminar muestras: ${error.message}`
+                    });
+                    speakAction('system', 'error');
+                }
+            },
+            onClose: () => {
+                setModalData({ title: "", message: "", onConfirm: undefined });
+                if (wasCollecting) {
+                    setIsCollecting(true);
+                    collectingRef.current = true;
+                }
             }
-            return;
-        }
+        });
+    } else if (type === 'all') {
+        const totalSamples = datasetStatus.summary?.total_samples || 0;
+        setModalData({
+            title: 'Confirmar Eliminación',
+            message: `¿Eliminar TODAS las muestras de "${categories[selectedCategory]?.name || selectedCategory}" del backend?\n\n` +
+                     `Se eliminarán ${totalSamples} muestras.\n\n` +
+                     `Esta acción NO se puede deshacer.`,
+            onConfirm: async () => {
+                try {
 
-        try {
-            if (type === 'current') {
-                await apiService.clearLabelData(selectedCategory, selectedLabel);
-                alert(`Datos de "${selectedLabel}" eliminados del backend`);
-                
-                // Agregar voz al eliminar datos
-                speakAction('system', 'loading', `Datos de ${selectedLabel} eliminados`);
-            } else if (type === 'all') {
-                await apiService.clearCategoryData(selectedCategory);
-                alert(`Todas las muestras de "${selectedCategory}" eliminadas del backend`);
-                
-                // Agregar voz al eliminar todos los datos
-                speakAction('system', 'loading', `Todos los datos de ${selectedCategory} eliminados`);
+                    // Perform deletion for all samples in the category
+                    await apiService.clearCategoryData(selectedCategory);
+
+                    // Update dataset status
+                    await loadBackendDatasetStatus();
+
+                    // Show success modal
+                    setModalData({
+                        title: 'Éxito',
+                        message: `Todas las muestras de "${categories[selectedCategory]?.name || selectedCategory}" eliminadas correctamente.`
+                    });
+
+                    // Agregar voz de confirmación
+                    speakAction('feedback', 'correct', `Todas las muestras de ${categories[selectedCategory]?.name || selectedCategory} eliminadas correctamente`);
+                } catch (error) {
+                    console.error('Error eliminando todas las muestras:', error);
+                    // Show error modal
+                    setModalData({
+                        title: 'Error',
+                        message: `Error al eliminar muestras: ${error.message}`
+                    });
+                    speakAction('system', 'error');
+                }
+            },
+            onClose: () => {
+                setModalData({ title: "", message: "", onConfirm: undefined });
+                if (wasCollecting) {
+                    setIsCollecting(true);
+                    collectingRef.current = true;
+                }
             }
-
-            await loadBackendDatasetStatus();
-
-        } catch (error) {
-            alert(`Error eliminando datos del backend: ${error.message}`);
-            console.error('Error eliminando:', error);
-            
-            // Agregar voz de error
-            speakAction('system', 'error');
-
-            if (wasCollecting) {
-                setIsCollecting(true);
-                collectingRef.current = true;
-            }
-        }
-    };
+        });
+    }
+};
 
     const getLabelSamples = (label) => {
         return datasetStatus.labels?.[label]?.samples || 0;
@@ -330,15 +395,15 @@ const CollectPage = () => {
 
             stream.getTracks().forEach(track => track.stop());
             setIsCameraActive(true);
-            
+
             // Agregar voz al iniciar cámara
             speakAction('capture', 'start');
         } catch (error) {
             console.error('Error solicitando permisos:', error);
-            
+
             // Agregar voz de error de cámara
             speakAction('system', 'cameraError');
-            
+
             alert(`No se pudo acceder a la cámara:\n${error.message}\n\nVerifica los permisos en tu navegador.`);
         }
     };
@@ -375,12 +440,12 @@ const CollectPage = () => {
             lastCollectionTime.current = 0;
             processingRef.current = false;
             console.log(`▶️ Iniciando recolección para: ${selectedLabel} (${currentSamples}/30)`);
-            
+
             // Agregar voz al iniciar recolección
             speakAction('capture', 'start', `Iniciando captura de gestos para ${selectedLabel}`);
         } else {
             flushBuffer();
-            
+
             // Agregar voz al pausar recolección
             speakAction('system', 'loading', "Recolección pausada");
         }
@@ -396,10 +461,10 @@ const CollectPage = () => {
         setSelectedCategory(newCategory);
         setSelectedLabel('');
         clearBuffer();
-        
-        // Agregar voz al cambiar categoría
-        speakAction('navigation', 'capturar');
-        
+
+        // Usar mensaje personalizado para anunciar la categoría seleccionada
+        speakCustom(`Has seleccionado la categoría ${categories[newCategory]?.name}`);
+
         await loadBackendDatasetStatus();
     };
 
@@ -413,7 +478,7 @@ const CollectPage = () => {
         setSelectedLabel(label);
         selectedLabelRef.current = label;
         clearBuffer();
-        
+
         // Agregar voz al seleccionar etiqueta
         speakAction('capture', 'start', `Preparado para capturar gestos de ${label}`);
     };
@@ -427,7 +492,7 @@ const CollectPage = () => {
                 setIsCollecting(false);
                 collectingRef.current = false;
                 console.log(`🛑 Recolección detenida automáticamente para ${selectedLabel} (límite alcanzado)`);
-                
+
                 // Agregar voz cuando se alcanza el límite automáticamente
                 speakAction('capture', 'complete');
             }
@@ -495,10 +560,9 @@ const CollectPage = () => {
                                     <button
                                         key={label}
                                         onClick={() => handleLabelChange(label)}
-                                        className={`collect-label-btn ${
-                                            selectedLabel === label ? 'collect-label-btn-selected' :
+                                        className={`collect-label-btn ${selectedLabel === label ? 'collect-label-btn-selected' :
                                             isReady ? 'collect-label-btn-ready' : 'collect-label-btn-default'
-                                        }`}
+                                            }`}
                                     >
                                         <span className="collect-label-text-display">{label}</span>
                                         <span className="collect-label-count-badge">
@@ -523,10 +587,9 @@ const CollectPage = () => {
                             <button
                                 onClick={handleToggleCollection}
                                 disabled={!isCameraActive || !selectedLabel || isLabelReady(selectedLabel)}
-                                className={`collect-action-btn ${
-                                    !isCameraActive || !selectedLabel || isLabelReady(selectedLabel) ? '' :
+                                className={`collect-action-btn ${!isCameraActive || !selectedLabel || isLabelReady(selectedLabel) ? '' :
                                     isCollecting ? 'collect-action-btn-toggle' : 'collect-action-btn-toggle-start'
-                                }`}
+                                    }`}
                             >
                                 {isLabelReady(selectedLabel) ? '✅ Completado (30/30)' :
                                     isCollecting ? '⏸️ Pausar Recolección' :
@@ -589,6 +652,12 @@ const CollectPage = () => {
                     </div>
                 </div>
             </div>
+            <Modal
+                title={modalData.title}
+                message={modalData.message}
+                onClose={() => setModalData({ title: "", message: "", onConfirm: undefined })}
+                onConfirm={modalData.onConfirm}
+            />
         </div>
     );
 };

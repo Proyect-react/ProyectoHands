@@ -10,11 +10,11 @@ export const VoiceActions = {
 
   // Mensajes para acciones de práctica
   practice: {
-    vocales: "Has seleccionado la práctica de vocales.",
-    numeros: "Has seleccionado la práctica de números.",
-    abecedario: "Has seleccionado la práctica del abecedario.",
-    palabrasBasicas: "Has seleccionado la práctica de palabras básicas.",
-    operaciones: "Has seleccionado la práctica de operaciones aritméticas."
+    vocales: "Has seleccionado el entrenamiento de vocales.",
+    numeros: "Has seleccionado el entrenamiento de números.",
+    abecedario: "Has seleccionado el entrenamiento del abecedario.",
+    palabras: "Has seleccionado el entrenamiento de palabras.",
+    operaciones: "Has seleccionado el entrenamiento de operaciones aritméticas."
   },
 
   // Mensajes para acciones de captura
@@ -53,28 +53,36 @@ export const VoiceActions = {
 
 // Función para activar voz con mensaje específico
 export const speakAction = (category, action, customMessage = null) => {
-  if (window.voiceAssistant && window.voiceAssistant.isEnabled()) {
-    let message = customMessage;
-    
-    if (!message && VoiceActions[category] && VoiceActions[category][action]) {
-      message = VoiceActions[category][action];
+    if (window.voiceAssistant && window.voiceAssistant.isEnabled()) {
+        let message = customMessage;
+        
+        if (!message && VoiceActions[category] && VoiceActions[category][action]) {
+            message = VoiceActions[category][action];
+        }
+        
+        if (message) {
+            // Detener cualquier síntesis de voz en curso
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+            setTimeout(() => {
+                window.voiceAssistant.speak(message);
+            }, 100);
+        }
     }
-    
-    if (message) {
-      setTimeout(() => {
-        window.voiceAssistant.speak(message);
-      }, 100);
-    }
-  }
 };
 
 // Función para activar voz con mensaje personalizado
 export const speakCustom = (message) => {
-  if (window.voiceAssistant && window.voiceAssistant.isEnabled()) {
-    setTimeout(() => {
-      window.voiceAssistant.speak(message);
-    }, 100);
-  }
+    if (window.voiceAssistant && window.voiceAssistant.isEnabled()) {
+        // Detener cualquier síntesis de voz en curso
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+        setTimeout(() => {
+            window.voiceAssistant.speak(message);
+        }, 100);
+    }
 };
 
 export default VoiceActions;

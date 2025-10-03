@@ -29,6 +29,27 @@ ChartJS.register(
     Tooltip,
     Legend
 );
+function Modal({ title, message, onClose, onConfirm }) {
+    if (!message) return null;
+    return (
+        <div className="modal-overlay">
+            <div className="modal">
+                <h3>{title}</h3>
+                <p>{message}</p>
+                <div className="modal-buttons">
+                    {onConfirm && (
+                        <button onClick={onConfirm} className="btn-confirm">
+                            Confirmar
+                        </button>
+                    )}
+                    <button onClick={onClose} className="btn-cancel">
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 const categories = {
     vocales: {
@@ -60,6 +81,7 @@ const TrainPage = () => {
     const [trainingProgress, setTrainingProgress] = useState(null);
     const [datasetStatus, setDatasetStatus] = useState({});
     const [availableModels, setAvailableModels] = useState([]);
+    const [modalData, setModalData] = useState({ title: "", message: "" });
     const [downloadStatus, setDownloadStatus] = useState({
         checking: false,
         downloading: false,
@@ -88,7 +110,7 @@ const TrainPage = () => {
         };
 
         window.addEventListener('resize', handleResize);
-        
+
         // Cleanup
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -102,14 +124,14 @@ const TrainPage = () => {
 
     // Datos para gráfico de líneas
     const lineChartData = {
-        labels: trainingHistory.epochs.length > 0 
-            ? trainingHistory.epochs 
+        labels: trainingHistory.epochs.length > 0
+            ? trainingHistory.epochs
             : ['Esperando entrenamiento...'],
         datasets: [
             {
                 label: 'Precisión de Entrenamiento',
-                data: trainingHistory.trainAccuracy.length > 0 
-                    ? trainingHistory.trainAccuracy 
+                data: trainingHistory.trainAccuracy.length > 0
+                    ? trainingHistory.trainAccuracy
                     : [0],
                 borderColor: 'rgb(75, 192, 192)',
                 backgroundColor: 'rgba(75, 192, 192, 0.2)',
@@ -122,8 +144,8 @@ const TrainPage = () => {
             },
             {
                 label: 'Precisión de Validación',
-                data: trainingHistory.valAccuracy.length > 0 
-                    ? trainingHistory.valAccuracy 
+                data: trainingHistory.valAccuracy.length > 0
+                    ? trainingHistory.valAccuracy
                     : [0],
                 borderColor: 'rgb(255, 99, 132)',
                 backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -184,7 +206,7 @@ const TrainPage = () => {
                 title: {
                     display: true,
                     text: 'Precisión',
-                    padding: {top: 0, bottom: 5},
+                    padding: { top: 0, bottom: 5 },
                     font: {
                         size: getResponsiveFontSize(12)
                     }
@@ -246,15 +268,15 @@ const TrainPage = () => {
                 }],
             };
         }
-    
+
         const labels = categories[selectedCategory]?.labels || [];
         const data = labels.map(label => {
             const labelData = datasetStatus.labels[label];
-            return typeof labelData === 'object' && labelData !== null 
-                ? (labelData.samples || 0) 
+            return typeof labelData === 'object' && labelData !== null
+                ? (labelData.samples || 0)
                 : (labelData || 0);
         });
-        
+
         const colors = [
             'rgba(255, 99, 132, 0.8)',
             'rgba(54, 162, 235, 0.8)',
@@ -267,9 +289,9 @@ const TrainPage = () => {
             'rgba(40, 159, 64, 0.8)',
             'rgba(210, 99, 132, 0.8)',
         ];
-    
+
         const borderColors = colors.map(color => color.replace('0.8', '1'));
-    
+
         return {
             labels: labels,
             datasets: [{
@@ -332,7 +354,7 @@ const TrainPage = () => {
                 title: {
                     display: true,
                     text: 'Cantidad de Muestras',
-                    padding: {top: 0, bottom: 5},
+                    padding: { top: 0, bottom: 5 },
                     font: {
                         size: getResponsiveFontSize(12)
                     }
@@ -442,97 +464,101 @@ const TrainPage = () => {
     };
 
     const handleDeleteModel = async (modelName, source) => {
-        const confirmDelete = window.confirm(
-            `¿Estás seguro de que quieres eliminar el modelo "${modelName}"?\n\n` +
-            `Categoría: ${selectedCategory}\n` +
-            `Origen: ${source === 'backend' ? 'Servidor' : 'Local'}\n\n` +
-            `Esta acción no se puede deshacer.`
-        );
-
-        if (!confirmDelete) return;
-
-        try {
-            // Agregar voz al eliminar modelo
-            speakAction('system', 'loading', `Eliminando modelo ${modelName}`);
-
-            if (source === 'local') {
-                await tfjsTrainer.deleteModel(selectedCategory, modelName);
-                
+        // Mostrar el modal de confirmación
+        setModalData({
+            title: 'Confirmar Eliminación',
+            message: `¿Estás seguro de que quieres eliminar el modelo "${modelName}"?\n\n` +
+                `Categoría: ${selectedCategory}\n` +
+                `Origen: ${source === 'backend' ? 'Servidor' : 'Local'}\n\n` +
+                `Esta acción no se puede deshacer.`,
+            onConfirm: async () => {
                 try {
-                    const modelKey = `${selectedCategory}_${modelName}`;
-                    const indexedDBKey = `indexeddb://${modelKey}`;
-                    await tf.io.removeModel(indexedDBKey);
-                } catch (e) {
-                    console.log('Modelo no encontrado en IndexedDB');
-                }
+                    if (source === 'local') {
+                        await tfjsTrainer.deleteModel(selectedCategory, modelName);
 
-                try {
-                    await modelDownloadService.deleteModel(selectedCategory, modelName);
-                } catch (e) {
-                    console.log('Modelo no estaba en modelDownloadService');
-                }
-
-            } else if (source === 'backend') {
-                const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
-                const deleteUrl = `${API_BASE_URL}/train/${selectedCategory}/models/${modelName}`;
-
-                try {
-                    const response = await fetch(deleteUrl, {
-                        method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json',
+                        try {
+                            const modelKey = `${selectedCategory}_${modelName}`;
+                            const indexedDBKey = `indexeddb://${modelKey}`;
+                            await tf.io.removeModel(indexedDBKey);
+                        } catch (e) {
+                            console.log('Modelo no encontrado en IndexedDB');
                         }
+
+                        try {
+                            await modelDownloadService.deleteModel(selectedCategory, modelName);
+                        } catch (e) {
+                            console.log('Modelo no estaba en modelDownloadService');
+                        }
+
+                    } else if (source === 'backend') {
+                        const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://backend-c2aj.onrender.com';
+                        const deleteUrl = `${API_BASE_URL}/train/${selectedCategory}/models/${modelName}`;
+
+                        try {
+                            const response = await fetch(deleteUrl, {
+                                method: 'DELETE',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                }
+                            });
+
+                            if (response.ok) {
+                                console.log('Modelo eliminado del backend');
+                            }
+                        } catch (fetchError) {
+                            console.warn('Error en petición al backend:', fetchError);
+                        }
+
+                        try {
+                            await modelDownloadService.deleteModel(selectedCategory, modelName);
+                        } catch (e) {
+                            console.warn('Error eliminando de modelDownloadService');
+                        }
+
+                        try {
+                            const modelKey = `${selectedCategory}_${modelName}`;
+                            const indexedDBKey = `indexeddb://${modelKey}`;
+                            await tf.io.removeModel(indexedDBKey);
+                        } catch (e) {
+                            console.log('Modelo no encontrado en IndexedDB');
+                        }
+
+                        try {
+                            await tfjsTrainer.deleteModel(selectedCategory, modelName);
+                        } catch (e) {
+                            console.log('Modelo no estaba en tfjsTrainer');
+                        }
+
+                        try {
+                            const modelKey = `${selectedCategory}_${modelName}`;
+                            localStorage.removeItem(`${modelKey}_info`);
+                        } catch (e) {
+                            console.warn('Error limpiando localStorage');
+                        }
+                    }
+
+                    await loadAvailableModels(selectedCategory);
+
+                    // Agregar voz de confirmación
+                    speakAction('feedback', 'correct', "Modelo eliminado correctamente");
+                    setModalData({
+                        title: 'Éxito',
+                        message: `Modelo "${modelName}" eliminado exitosamente`
                     });
 
-                    if (response.ok) {
-                        console.log('Modelo eliminado del backend');
-                    }
-                } catch (fetchError) {
-                    console.warn('Error en petición al backend:', fetchError);
-                }
+                } catch (error) {
+                    console.error('Error eliminando modelo:', error);
 
-                try {
-                    await modelDownloadService.deleteModel(selectedCategory, modelName);
-                } catch (e) {
-                    console.warn('Error eliminando de modelDownloadService');
-                }
-
-                try {
-                    const modelKey = `${selectedCategory}_${modelName}`;
-                    const indexedDBKey = `indexeddb://${modelKey}`;
-                    await tf.io.removeModel(indexedDBKey);
-                } catch (e) {
-                    console.log('Modelo no encontrado en IndexedDB');
-                }
-
-                try {
-                    await tfjsTrainer.deleteModel(selectedCategory, modelName);
-                } catch (e) {
-                    console.log('Modelo no estaba en tfjsTrainer');
-                }
-
-                try {
-                    const modelKey = `${selectedCategory}_${modelName}`;
-                    localStorage.removeItem(`${modelKey}_info`);
-                } catch (e) {
-                    console.warn('Error limpiando localStorage');
+                    // Agregar voz de error
+                    speakAction('system', 'error');
+                    setModalData({
+                        title: 'Error',
+                        message: `Error al eliminar modelo: ${error.message}`
+                    });
+                    await loadAvailableModels(selectedCategory);
                 }
             }
-
-            await loadAvailableModels(selectedCategory);
-            
-            // Agregar voz de confirmación
-            speakAction('feedback', 'correct', "Modelo eliminado correctamente");
-            alert(`Modelo "${modelName}" eliminado exitosamente`);
-
-        } catch (error) {
-            console.error('Error eliminando modelo:', error);
-            
-            // Agregar voz de error
-            speakAction('system', 'error');
-            alert(`Error al eliminar modelo:\n\n${error.message}`);
-            await loadAvailableModels(selectedCategory);
-        }
+        });
     };
 
     const checkAndDownloadModels = async (category = null) => {
@@ -573,7 +599,7 @@ const TrainPage = () => {
 
         } catch (error) {
             console.error('Error en verificación automática:', error);
-            
+
             // Agregar voz de error
             speakAction('system', 'error');
             setDownloadStatus(prev => ({
@@ -686,7 +712,7 @@ const TrainPage = () => {
                 X, y, labels, epochs, 16,
                 (progress, message, epochData) => {
                     setTrainingProgress({ status: 'training', progress: Math.min(85, progress), message });
-                    
+
                     if (epochData && epochData.epoch !== undefined) {
                         setTrainingHistory(prev => ({
                             epochs: [...prev.epochs, `Época ${epochData.epoch + 1}`],
@@ -736,7 +762,7 @@ const TrainPage = () => {
             speakAction('training', 'complete');
 
             await checkAndDownloadModels(selectedCategory);
-            await loadAvailableModels();
+            await loadAvailableModels(selectedCategory);
 
         } catch (error) {
             console.error('Error detallado en entrenamiento local:', error);
@@ -751,7 +777,10 @@ const TrainPage = () => {
             });
 
             setTimeout(() => {
-                alert(`Error en entrenamiento:\n${error.message}\n\nRevisa la consola para más detalles.`);
+                setModalData({
+                    title: 'Error en Entrenamiento',
+                    message: `Error en entrenamiento: Verifica que haya suficientes datos para entrenar el modelo. ${error.message}`
+                });
             }, 500);
         }
     };
@@ -778,7 +807,7 @@ const TrainPage = () => {
     const handleCategoryChange = async (newCategory) => {
         setSelectedCategory(newCategory);
         setAvailableModels([]);
-        
+
         // Agregar voz al cambiar categoría - SOLO MENSAJE DE CATEGORÍA ESPECÍFICA
         speakAction('practice', newCategory);
 
@@ -800,7 +829,7 @@ const TrainPage = () => {
 
         loadData();
     }, [selectedCategory]);
-    
+
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (!document.hidden) {
@@ -808,9 +837,9 @@ const TrainPage = () => {
                 loadBackendDatasetStatus(selectedCategory);
             }
         };
-    
+
         document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
@@ -944,16 +973,16 @@ const TrainPage = () => {
                     )}
                 </div>
             </div>
-            
+
             <div className="info-panel">
-                <div className='info-card'>   
+                <div className='info-card'>
                     <h4 className="info-card-title">Distribución de Muestras por Etiqueta</h4>
                     <div className="chart-wrapper">
                         <Bar data={barChartData} options={barChartOptions} />
                     </div>
                 </div>
 
-                <div className='info-card'>   
+                <div className='info-card'>
                     <h4 className="info-card-title">Historial de Entrenamiento</h4>
                     <div className="chart-wrapper">
                         <Line data={lineChartData} options={lineChartOptions} />
@@ -969,7 +998,7 @@ const TrainPage = () => {
                     <div className="info-card" style={{ flex: 1 }}>
                         <div className="info-card-header">
                             <h4 className="info-card-title">Modelos Disponibles ({availableModels.length})</h4>
-                            <button className="btn-reload" onClick={() => loadAvailableModels()}>
+                            <button className="btn-reload" onClick={() => loadAvailableModels(selectedCategory)}>
                                 Recargar
                             </button>
                         </div>
@@ -1011,6 +1040,12 @@ const TrainPage = () => {
                     </div>
                 </div>
             </div>
+            <Modal
+                title={modalData.title}
+                message={modalData.message}
+                onClose={() => setModalData({ title: "", message: "", onConfirm: undefined })}
+                onConfirm={modalData.onConfirm}
+            />
         </div>
     );
 };

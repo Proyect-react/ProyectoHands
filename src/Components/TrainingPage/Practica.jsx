@@ -143,8 +143,6 @@ const PracticePage = () => {
 
     const checkAndDownloadModels = useCallback(async (category = null, preserveSelection = false) => {
         try {
-            // Agregar voz al inicio de descarga
-            speakAction('system', 'loading', "Seleccione la etiqueta que desea practicar");
 
             setDownloadStatus(prev => ({ ...prev, checking: true, message: 'Verificando modelos disponibles...' }));
             const result = await modelDownloadService.checkAndDownloadModels(category);
